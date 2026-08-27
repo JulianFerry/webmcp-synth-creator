@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "metadata": {
+    "name": "Ethereal Gate",
+    "category": "pad",
+    "description": "An airy generated wavetable pad prepared for conservative tonal editing.",
+    "tags": ["airy", "wide", "rhythmic"]
+  },
+  "oscillators": [
+    {
+      "enabled": true,
+      "wavetableId": "airy",
+      "wavetablePosition": 0.62,
+      "level": 0.62,
+      "transposeSemitones": 0,
+      "fineTuneCents": 0,
+      "unisonVoices": 5,
+      "unisonDetune": 0.36,
+      "stereoSpread": 0.88,
+      "randomPhase": 0.7
+    },
+    {
+      "enabled": true,
+      "wavetableId": "sine",
+      "wavetablePosition": 0,
+      "level": 0.18,
+      "transposeSemitones": 12,
+      "fineTuneCents": -4,
+      "unisonVoices": 1,
+      "unisonDetune": 0,
+      "stereoSpread": 0.2,
+      "randomPhase": 0
+    }
+  ],
+  "ampEnvelope": {
+    "attackSeconds": 0.18,
+    "holdSeconds": 0,
+    "decaySeconds": 0.9,
+    "sustainLevel": 0.78,
+    "releaseSeconds": 1.4
+  },
+  "modEnvelope": {
+    "attackSeconds": 0.08,
+    "holdSeconds": 0,
+    "decaySeconds": 1.1,
+    "sustainLevel": 0.35,
+    "releaseSeconds": 1.2
+  },
+  "filter": {
+    "enabled": true,
+    "type": "lowpass",
+    "cutoffHz": 7200,
+    "resonance": 0.14
+  },
+  "lfo1": {
+    "points": [
+      { "x": 0, "y": 0 },
+      { "x": 0.02, "y": 1 },
+      { "x": 0.2, "y": 0 },
+      { "x": 0.27, "y": 0.9 },
+      { "x": 0.44, "y": 0 },
+      { "x": 0.52, "y": 1 },
+      { "x": 0.7, "y": 0 },
+      { "x": 0.78, "y": 0.76 },
+      { "x": 0.94, "y": 0 },
+      { "x": 1, "y": 0 }
+    ],
+    "rate": { "mode": "sync", "division": "1/8" },
+    "phase": 0,
+    "smooth": false
+  },
+  "modulations": [
+    {
+      "id": "gate-level-1",
+      "source": "lfo1",
+      "destination": "oscillator1.level",
+      "amount": 0.56,
+      "bipolar": false
+    },
+    {
+      "id": "gate-filter",
+      "source": "lfo1",
+      "destination": "filter.cutoff",
+      "amount": 0.12,
+      "bipolar": false
+    }
+  ],
+  "voice": {
+    "polyphony": 8,
+    "legato": false,
+    "glideSeconds": 0,
+    "velocitySensitivity": 0.3
+  },
+  "effects": {
+    "delay": {
+      "enabled": true,
+      "mode": "sync",
+      "division": "1/8",
+      "feedback": 0.32,
+      "mix": 0.18
+    },
+    "reverb": {
+      "enabled": true,
+      "mix": 0.32,
+      "decaySeconds": 3.8,
+      "size": 0.78
+    }
+  },
+  "wavetableData": {
+    "airy": {
+      "id": "airy",
+      "name": "Generated Air Spectrum",
+      "frames": [
+        { "harmonics": [1, 0.48, 0.31, 0.22, 0.17, 0.14, 0.12, 0.1] },
+        { "harmonics": [1, 0.32, 0.22, 0.3, 0.12, 0.1, 0.14, 0.16] }
+      ]
+    },
+    "sine": {
+      "id": "sine",
+      "name": "Generated Sine",
+      "frames": [{ "harmonics": [1] }]
+    },
+    "triangle": {
+      "id": "triangle",
+      "name": "Generated Triangle",
+      "frames": [{ "harmonics": [1, 0, 0.111111, 0, 0.04] }]
+    }
+  }
+}

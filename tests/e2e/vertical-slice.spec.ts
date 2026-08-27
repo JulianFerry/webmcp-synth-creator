@@ -1,0 +1,136 @@
+import { expect, test } from '@playwright/test'
+
+import { createDefaultPatch } from '../../src/patch/defaults'
+import { mapPhaseOneVitalParameters } from '../../src/vital/parameterMap'
+
+function syntheticVitalFixture(): string {
+  const patch = createDefaultPatch()
+  return JSON.stringify({
+    author: '',
+    comments: '',
+    preset_name: 'Init',
+    preset_style: 'Init',
+    synth_version: 'phase-1-e2e-version',
+    settings: {
+      ...Object.fromEntries(
+        Object.keys(mapPhaseOneVitalParameters(patch)).map((key) => [key, 0]),
+      ),
+      wavetables: [{}, {}, {}],
+    },
+  })
+}
+
+test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vital export', async ({
+  page,
+}) => {
+  await page.route('**/fixtures/vital/init.vital', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: syntheticVitalFixture(),
+    }),
+  )
+
+  await page.addInitScript(() => {
+    type Tool = {
+      name: string
+      description: string
+      inputSchema: Record<string, unknown>
+      annotations: { readOnlyHint: boolean; untrustedContentHint: boolean }
+      execute: (
+        input: Record<string, unknown>,
+        context: { signal: AbortSignal },
+      ) => Promise<unknown>
+    }
+
+    const tools = new Map<string, Tool>()
+    const context = {
+      async registerTool(tool: Tool, options: { signal?: AbortSignal } = {}) {
+        await Promise.resolve()
+        tools.set(tool.name, tool)
+        options.signal?.addEventListener('abort', () => tools.delete(tool.name), { once: true })
+      },
+      async getTools() {
+        return [...tools.values()].map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          annotations: tool.annotations,
+        }))
+      },
+      async executeTool(tool: { name: string }, input: Record<string, unknown> = {}) {
+        const definition = tools.get(tool.name)
+        if (!definition) throw new Error(`Unknown tool: ${tool.name}`)
+        const controller = new AbortController()
+        return JSON.stringify(await definition.execute(input, { signal: controller.signal }))
+      },
+      ontoolchange: null,
+    }
+
+    Object.defineProperty(Document.prototype, 'modelContext', {
+      configurable: true,
+      get: () => context,
+    })
+  })
+
+  await page.goto('/')
+  await expect(page.getByTestId('webmcp-status')).toContainText('available')
+  await expect(page.getByTestId('vital-status')).toContainText('ready')
+
+  const toolNames = await page.evaluate(async () => {
+    const tools = await document.modelContext!.getTools()
+    return tools.map((tool) => tool.name)
+  })
+  expect(toolNames).toEqual(['get_patch', 'apply_patch'])
+
+  await page.getByTestId('hold-note').click()
+  await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-held', 'true')
+
+  const rawResult = await page.evaluate(async () => {
+    const tools = await document.modelContext!.getTools()
+    const applyPatch = tools.find((tool) => tool.name === 'apply_patch')
+    if (!applyPatch) throw new Error('apply_patch was not registered')
+    return document.modelContext!.executeTool(applyPatch, {
+      reason: 'Darken and rename the held patch in one coherent transaction',
+      changes: [
+        { path: 'metadata.name', value: 'Airy Night' },
+        { path: 'filter.cutoffHz', value: 3200 },
+        { path: 'oscillators.0.wavetablePosition', value: 0.25 },
+      ],
+    })
+  })
+  const result = JSON.parse(rawResult) as {
+    canUndo: boolean
+    changed: Record<string, { before: unknown; after: unknown }>
+    correlationId: string
+  }
+
+  expect(result.canUndo).toBe(true)
+  expect(result.changed['filter.cutoffHz']).toEqual({ before: 7200, after: 3200 })
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Airy Night')
+  await expect(page.getByTestId('filter-cutoff')).toHaveText('3,200 Hz')
+  await expect(page.getByTestId('latest-diff')).toContainText('oscillators.0.wavetablePosition')
+  await expect(page.getByTestId('undo-available')).toHaveText('available')
+  await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-cutoff', '3200')
+  await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-position', '0.25')
+  await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-held', 'true')
+  await expect(page.getByTestId('export-filename')).toHaveText('airy-night.vital')
+
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByTestId('export-vital').click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe('airy-night.vital')
+
+  const correlatedStages = await page.evaluate((correlationId) => {
+    return (
+      window.__WAVETABLE_WORKBENCH_TRACE__?.getEvents()
+        .filter((event) => event.correlationId === correlationId)
+        .map((event) => event.stage) ?? []
+    )
+  }, result.correlationId)
+  expect(correlatedStages).toEqual([
+    'request_received',
+    'patch_committed',
+    'audio_diff_applied',
+  ])
+})
