@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wavetable Workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f131b; --panel:#161c27; --panel-2:#1c2432; --line:#28323f;
+  --a:#45c8bd; --b:#ff9f4a; --hot:#ff6b5b;
+  --text:#dfe6f0; --dim:#6b7c90;
+  --display:'Space Grotesk',system-ui,-apple-system,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--display);font-size:14px;padding:20px}
+button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:none}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--b);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+
+header{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+h1{font-size:15px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+h1 span{color:var(--dim);font-weight:400}
+.tname{font-family:var(--mono);font-size:20px;font-weight:500;color:var(--b)}
+.spacer{flex:1}
+header select,.btn{
+  background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+  font-family:var(--mono);font-size:12px;padding:7px 12px;border-radius:5px;
+}
+.btn:hover{border-color:var(--dim)}
+.btn.armed{background:var(--b);border-color:var(--b);color:#0f131b;font-weight:700}
+.btn.primary{border-color:var(--a);color:var(--a)}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.panel h2{font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--dim);margin-bottom:14px;display:flex;justify-content:space-between;align-items:baseline}
+.panel h2 em{font-style:normal;font-family:var(--mono);letter-spacing:0;text-transform:none;color:var(--text)}
+.cols{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px}
+.cols.even{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+@media(max-width:900px){.cols,.cols.even{grid-template-columns:1fr}}
+
+canvas{display:block;width:100%;border-radius:6px;background:var(--panel-2);touch-action:none}
+#waterfall{height:260px;cursor:crosshair}
+#frameSpec{height:190px}
+#trajectory{height:64px}
+#liveSpec{height:120px}
+
+.rowctl{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap;
+  font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+.rowctl input[type=range]{flex:1;min-width:120px;accent-color:var(--b)}
+.rowctl b{color:var(--text);font-weight:500;min-width:58px;text-align:right}
+
+.ops{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.op{background:var(--panel-2);border:1px solid var(--line);border-radius:7px;padding:11px}
+.op h3{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--a);margin-bottom:8px}
+.op p{font-size:11px;color:var(--dim);line-height:1.45;margin-bottom:9px;min-height:32px}
+.op .pair{display:flex;gap:6px}
+.op button{
+  flex:1;padding:6px 0;border-radius:4px;background:#0f131b;border:1px solid var(--line);
+  font-family:var(--mono);font-size:12px;
+}
+.op button:hover{border-color:var(--a);color:var(--a)}
+
+.desc{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:9px;margin-top:12px}
+.desc div{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:9px 10px}
+.desc dt{font-family:var(--mono);font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+.desc dd{font-family:var(--mono);font-size:15px;margin-top:3px;color:var(--b)}
+
+.keys{display:flex;gap:3px;margin-top:12px}
+.keys button{flex:1;height:52px;border-radius:0 0 5px 5px;background:var(--panel-2);
+  border:1px solid var(--line);font-family:var(--mono);font-size:9px;color:var(--dim);
+  display:flex;align-items:flex-end;justify-content:center;padding-bottom:5px}
+.keys button.blk{background:#0c1017}
+.keys button.down{background:var(--b);color:#0f131b}
+.hint{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:10px;line-height:1.55}
+.hint b{color:var(--b);font-weight:500}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Wavetable Workbench <span>/ 64 frames</span></h1>
+    <div class="tname" id="tname">SAW FOLD</div>
+    <div class="spacer"></div>
+    <select id="presetSel" aria-label="Starting table"></select>
+    <button class="btn" id="undoBtn">Undo</button>
+    <button class="btn primary" id="exportBtn">Export .wav</button>
+  </header>
+
+  <div class="cols">
+    <section class="panel">
+      <h2>Table <em id="rangeRead">frames 1–64</em></h2>
+      <canvas id="waterfall"></canvas>
+      <div class="rowctl">
+        <span>position</span>
+        <input id="posSlider" type="range" min="0" max="1000" value="0">
+        <b id="posRead">1 / 64</b>
+        <button class="btn" id="sweepBtn">Sweep</button>
+      </div>
+      <p class="hint">Drag across the table to scope an edit to a <b>frame range</b>. Everything below applies to that range only — which is exactly what an agent edits when you say "darker through the middle".</p>
+    </section>
+
+    <section class="panel">
+      <h2>Frame spectrum <em id="frameRead">frame 1</em></h2>
+      <canvas id="frameSpec"></canvas>
+      <h2 style="margin-top:16px">Brightness across the table</h2>
+      <canvas id="trajectory"></canvas>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Morph operations <em id="opScope">applies to frames 1–64</em></h2>
+    <div class="ops">
+      <div class="op">
+        <h3>tilt</h3>
+        <p>Broadband spectral slope. Raises or lowers every harmonic in proportion to its number.</p>
+        <div class="pair"><button data-op="tilt" data-v="-1">darker</button><button data-op="tilt" data-v="1">brighter</button></div>
+      </div>
+      <div class="op">
+        <h3>odd / even</h3>
+        <p>Suppresses even harmonics toward a hollow, square-ish character, or restores them.</p>
+        <div class="pair"><button data-op="odd" data-v="1">hollow</button><button data-op="odd" data-v="-1">full</button></div>
+      </div>
+      <div class="op">
+        <h3>formant</h3>
+        <p>A localised peak, not a broadband change. Moves a resonant bump up or down the series.</p>
+        <div class="pair"><button data-op="formant" data-v="-1">lower</button><button data-op="formant" data-v="1">higher</button></div>
+      </div>
+      <div class="op">
+        <h3>gate</h3>
+        <p>Removes the quietest harmonics. Thins the spectrum toward something glassier.</p>
+        <div class="pair"><button data-op="gate" data-v="1">thin</button><button data-op="gate" data-v="-1">restore</button></div>
+      </div>
+      <div class="op">
+        <h3>interpolate</h3>
+        <p>Replaces the range with a smooth path between its two end frames. Removes jitter.</p>
+        <div class="pair"><button data-op="interp" data-v="1">smooth</button></div>
+      </div>
+      <div class="op">
+        <h3>drive</h3>
+        <p>Adds harmonics by waveshaping each frame. The usual route to growl and grit.</p>
+        <div class="pair"><button data-op="drive" data-v="1">more</button><button data-op="drive" data-v="-1">less</button></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="cols even">
+    <section class="panel">
+      <h2>Audition</h2>
+      <div class="rowctl" style="margin-top:0">
+        <button class="btn" id="startBtn">Start audio</button>
+        <button class="btn" id="holdBtn">Hold</button>
+        <span class="hint" style="margin:0" id="status">Audio is off.</span>
+      </div>
+      <div class="keys" id="keys"></div>
+      <p class="hint">Hold a note and press <b>Sweep</b>. A parked position only ever sounds one frame — the other 63 are silent until something moves.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Measurements</h2>
+      <canvas id="liveSpec"></canvas>
+      <dl class="desc">
+        <div><dt>centroid</dt><dd id="dCent">—</dd></div>
+        <div><dt>odd ratio</dt><dd id="dOdd">—</dd></div>
+        <div><dt>partials</dt><dd id="dPart">—</dd></div>
+        <div><dt>travel</dt><dd id="dTravel">—</dd></div>
+      </dl>
+      <p class="hint">"Travel" is how far brightness moves from first frame to last — the single number that says whether this table is worth sweeping at all.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+// ================================================================ model
+const FRAMES = 64, HARM = 64, FRAME_LEN = 2048, SR_EXPORT = 44100;
+
+// A table is FRAMES x HARM magnitudes. Phase is a fixed Schroeder profile shared
+// by every frame: coherent by construction (no comb-filtering when morphing) and
+// far lower crest factor than zero phase.
+const PHASE = Array.from({length: HARM}, (_, n) => -Math.PI * n * (n + 1) / HARM);
+
+const norm = f => {
+  let m = 0; for(const v of f) m = Math.max(m, v);
+  if(m > 0) for(let i=0;i<f.length;i++) f[i] /= m;
+  return f;
+};
+
+const GENERATORS = {
+  'SAW FOLD': () => Array.from({length: FRAMES}, (_, fi) => {
+    const t = fi/(FRAMES-1);
+    return norm(Array.from({length: HARM}, (_, n) => {
+      if(n === 0) return 0;
+      const saw = 1/(n+1);
+      const sq  = (n % 2) ? 1/(n+1) : 0;
+      return saw*(1-t) + sq*t*1.6;
+    }));
+  }),
+  'VOCAL SWEEP': () => Array.from({length: FRAMES}, (_, fi) => {
+    const t = fi/(FRAMES-1);
+    const f1 = 2 + t*3, f2 = 9 + t*14;
+    return norm(Array.from({length: HARM}, (_, n) => {
+      if(n === 0) return 0;
+      const base = 1/Math.pow(n+1, 0.85);
+      const p1 = Math.exp(-Math.pow((n-f1)/2.0, 2));
+      const p2 = Math.exp(-Math.pow((n-f2)/4.5, 2));
+      return base * (0.25 + p1*1.5 + p2*0.9);
+    }));
+  }),
+  'BELL DECAY': () => Array.from({length: FRAMES}, (_, fi) => {
+    const t = fi/(FRAMES-1);
+    return norm(Array.from({length: HARM}, (_, n) => {
+      if(n === 0) return 0;
+      const inh = Math.exp(-Math.pow(n/9, 1.4));
+      return inh * Math.exp(-t*n*0.18) * (1 + 0.4*Math.sin(n*1.7));
+    }));
+  }),
+  'GROWL': () => Array.from({length: FRAMES}, (_, fi) => {
+    const t = fi/(FRAMES-1);
+    return norm(Array.from({length: HARM}, (_, n) => {
+      if(n === 0) return 0;
+      const base = 1/Math.pow(n+1, 0.6 + (1-t)*0.9);
+      const notch = 1 - 0.55*Math.exp(-Math.pow((n - (4 + t*20))/3.2, 2));
+      return base*notch;
+    }));
+  })
+};
+
+let table = GENERATORS['SAW FOLD']();
+let rangeA = 0, rangeB = FRAMES-1;
+let position = 0;
+const undoStack = [];
+
+const clone = t => t.map(f => f.slice());
+function pushUndo(){ undoStack.push(clone(table)); if(undoStack.length > 30) undoStack.shift(); }
+
+// ================================================================ operations
+function eachInRange(fn){
+  pushUndo();
+  const lo = Math.min(rangeA, rangeB), hi = Math.max(rangeA, rangeB);
+  for(let i=lo;i<=hi;i++){
+    const w = 1;  // hard edges; a real build would feather these
+    fn(table[i], i, w);
+  }
+  afterEdit();
+}
+const OPS = {
+  tilt: v => eachInRange(f => {
+    for(let n=1;n<HARM;n++) f[n] *= Math.pow(n, v*0.16);
+    norm(f);
+  }),
+  odd: v => eachInRange(f => {
+    for(let n=1;n<HARM;n++) if((n+1) % 2 === 0) f[n] *= (v > 0 ? 0.6 : 1.55);
+    norm(f);
+  }),
+  formant: v => eachInRange((f, i) => {
+    const c = 6 + v*4;
+    for(let n=1;n<HARM;n++) f[n] *= 1 + 0.9*Math.exp(-Math.pow((n-c)/3.5, 2));
+    norm(f);
+  }),
+  gate: v => eachInRange(f => {
+    let m = 0; for(const x of f) m = Math.max(m, x);
+    if(v > 0){ for(let n=1;n<HARM;n++) if(f[n] < m*0.12) f[n] *= 0.25; }
+    else { for(let n=1;n<HARM;n++) f[n] = Math.min(1, f[n] + m*0.05); }
+    norm(f);
+  }),
+  drive: v => eachInRange(f => {
+    // waveshaping in the harmonic domain: spread energy upward (or pull it back)
+    const src = f.slice();
+    for(let n=1;n<HARM;n++){
+      const spread = (n >= 2 ? src[n-2]*0.28 : 0) + (n >= 1 ? src[n-1]*0.15 : 0);
+      f[n] = v > 0 ? src[n] + spread : Math.max(0, src[n] - spread*0.8);
+    }
+    norm(f);
+  }),
+  interp: () => {
+    pushUndo();
+    const lo = Math.min(rangeA, rangeB), hi = Math.max(rangeA, rangeB);
+    if(hi - lo < 2){ afterEdit(); return; }
+    const a = table[lo].slice(), b = table[hi].slice();
+    for(let i=lo+1;i<hi;i++){
+      const t = (i-lo)/(hi-lo);
+      for(let n=0;n<HARM;n++) table[i][n] = a[n]*(1-t) + b[n]*t;
+      norm(table[i]);
+    }
+    afterEdit();
+  }
+};
+
+// ================================================================ analysis
+function frameCentroid(f){
+  let num = 0, den = 0;
+  for(let n=1;n<HARM;n++){ num += (n+1)*f[n]; den += f[n]; }
+  return den > 0 ? num/den : 0;
+}
+function frameOddRatio(f){
+  let odd = 0, even = 0;
+  for(let n=1;n<HARM;n++){ if((n+1) % 2) odd += f[n]; else even += f[n]; }
+  return (odd+even) > 0 ? odd/(odd+even) : 0;
+}
+function framePartials(f){
+  let m = 0; for(const v of f) m = Math.max(m, v);
+  return f.filter(v => v > m*0.02).length;
+}
+const centroids = () => table.map(frameCentroid);
+
+// ================================================================ audio
+let ctx = null, master = null, analyser = null, freqData = null, running = false;
+let waves = [];
+const voices = new Map();
+let holding = false, sweeping = false, sweepStart = 0;
+
+function buildWaves(){
+  if(!ctx) return;
+  waves = table.map(f => {
+    const re = new Float32Array(HARM), im = new Float32Array(HARM);
+    for(let n=1;n<HARM;n++){ re[n] = f[n]*Math.cos(PHASE[n]); im[n] = f[n]*Math.sin(PHASE[n]); }
+    return ctx.createPeriodicWave(re, im, {disableNormalization:false});
+  });
+}
+async function startAudio(){
+  if(running) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if(ctx.state === 'suspended') await ctx.resume();
+  master = ctx.createGain(); master.gain.value = 0.22;
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 4096; analyser.smoothingTimeConstant = 0.7;
+  freqData = new Float32Array(analyser.frequencyBinCount);
+  master.connect(analyser).connect(ctx.destination);
+  buildWaves();
+  running = true;
+  const b = document.getElementById('startBtn');
+  b.textContent = 'Audio on'; b.classList.add('armed');
+  document.getElementById('status').textContent = 'Click keys or press A–K.';
+}
+const midiToHz = m => 440*Math.pow(2,(m-69)/12);
+let lastF0 = midiToHz(60);
+
+function noteOn(m){
+  if(!running || voices.has(m)) return;
+  lastF0 = midiToHz(m);
+  const f = midiToHz(m), t = ctx.currentTime;
+  const oscA = ctx.createOscillator(), oscB = ctx.createOscillator();
+  const gA = ctx.createGain(), gB = ctx.createGain(), env = ctx.createGain();
+  oscA.frequency.value = f; oscB.frequency.value = f;
+  const v = {oscA, oscB, gA, gB, env, iA:-1, iB:-1};
+  applyPosition(v);
+  oscA.connect(gA).connect(env); oscB.connect(gB).connect(env);
+  env.connect(master);
+  env.gain.setValueAtTime(0, t);
+  env.gain.linearRampToValueAtTime(1, t+0.006);
+  oscA.start(t); oscB.start(t);
+  voices.set(m, v);
+  paintKeys();
+}
+function noteOff(m){
+  if(!running || holding) return;
+  const v = voices.get(m); if(!v) return;
+  const t = ctx.currentTime;
+  v.env.gain.cancelScheduledValues(t);
+  v.env.gain.setValueAtTime(v.env.gain.value, t);
+  v.env.gain.linearRampToValueAtTime(0, t+0.25);
+  v.oscA.stop(t+0.3); v.oscB.stop(t+0.3);
+  voices.delete(m);
+  paintKeys();
+}
+function applyPosition(v){
+  const x = position*(FRAMES-1), i0 = Math.floor(x), i1 = Math.min(FRAMES-1, i0+1), mix = x-i0;
+  if(v.iA !== i0 && waves[i0]){ v.oscA.setPeriodicWave(waves[i0]); v.iA = i0; }
+  if(v.iB !== i1 && waves[i1]){ v.oscB.setPeriodicWave(waves[i1]); v.iB = i1; }
+  v.gA.gain.value = 1-mix; v.gB.gain.value = mix;
+}
+function refreshVoices(){ voices.forEach(applyPosition); }
+
+// ================================================================ drawing
+const CH = {waterfall:260, frameSpec:190, trajectory:64, liveSpec:120};
+function fit(c){
+  const dpr = Math.min(2, window.devicePixelRatio||1);
+  const w = Math.max(1, Math.round(c.clientWidth)), h = CH[c.id];
+  const nw = Math.round(w*dpr), nh = Math.round(h*dpr);
+  if(c.width !== nw || c.height !== nh){ c.width = nw; c.height = nh; }
+  const g = c.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
+  return {g,w,h};
+}
+const lerpCol = t => {
+  const a = [69,200,189], b = [255,159,74];
+  return `rgb(${a.map((v,i)=>Math.round(v+(b[i]-v)*t)).join(',')})`;
+};
+function frameSamples(f, len){
+  const out = new Float32Array(len);
+  for(let n=1;n<HARM;n++){
+    if(f[n] < 1e-4) continue;
+    const w = 2*Math.PI*n/len, ph = PHASE[n], a = f[n];
+    for(let i=0;i<len;i++) out[i] += a*Math.cos(w*i + ph);
+  }
+  let m = 0; for(const v of out) m = Math.max(m, Math.abs(v));
+  if(m > 0) for(let i=0;i<len;i++) out[i] /= m;
+  return out;
+}
+const cacheSamples = [];
+function invalidate(){ cacheSamples.length = 0; }
+function samplesFor(i){
+  if(!cacheSamples[i]) cacheSamples[i] = frameSamples(table[i], 128);
+  return cacheSamples[i];
+}
+
+function drawWaterfall(){
+  const c = document.getElementById('waterfall'), {g,w,h} = fit(c);
+  g.clearRect(0,0,w,h);
+  const lo = Math.min(rangeA,rangeB), hi = Math.max(rangeA,rangeB);
+  const padX = 40, padY = 16, stepY = (h-padY*2)/(FRAMES-1), skew = padX/(FRAMES-1);
+  if(!(lo === 0 && hi === FRAMES-1)){
+    g.fillStyle = '#ffffff0a';
+    const yTop = padY + (FRAMES-1-hi)*stepY, yBot = padY + (FRAMES-1-lo)*stepY;
+    g.fillRect(0, yTop-4, w, (yBot-yTop)+8);
+  }
+  for(let i=0;i<FRAMES;i++){
+    const s = samplesFor(i);
+    const y0 = padY + (FRAMES-1-i)*stepY, x0 = (FRAMES-1-i)*skew;
+    const inRange = i >= lo && i <= hi;
+    g.beginPath();
+    for(let k=0;k<s.length;k++){
+      const x = x0 + (k/(s.length-1))*(w-padX);
+      const y = y0 - s[k]*stepY*2.4;
+      k ? g.lineTo(x,y) : g.moveTo(x,y);
+    }
+    g.strokeStyle = lerpCol(i/(FRAMES-1));
+    g.globalAlpha = inRange ? 0.85 : 0.16;
+    g.lineWidth = 1;
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+  const pi = Math.round(position*(FRAMES-1));
+  const y = padY + (FRAMES-1-pi)*stepY, x0 = (FRAMES-1-pi)*skew;
+  g.strokeStyle = '#fff'; g.lineWidth = 1.6; g.globalAlpha = .9;
+  const s = samplesFor(pi);
+  g.beginPath();
+  for(let k=0;k<s.length;k++){
+    const x = x0 + (k/(s.length-1))*(w-padX);
+    k ? g.lineTo(x, y - s[k]*stepY*2.4) : g.moveTo(x, y - s[k]*stepY*2.4);
+  }
+  g.stroke(); g.globalAlpha = 1;
+}
+
+function drawFrameSpec(){
+  const c = document.getElementById('frameSpec'), {g,w,h} = fit(c);
+  g.clearRect(0,0,w,h);
+  const pi = Math.round(position*(FRAMES-1)), f = table[pi];
+  const pad = 12, bw = (w-pad*2)/HARM;
+  for(let n=1;n<HARM;n++){
+    const bh = f[n]*(h-pad*2);
+    g.fillStyle = ((n+1)%2) ? lerpCol(0.1) : lerpCol(0.85);
+    g.globalAlpha = 0.9;
+    g.fillRect(pad + n*bw, h-pad-bh, Math.max(1, bw-1), bh);
+  }
+  g.globalAlpha = 1;
+}
+
+function drawTrajectory(){
+  const c = document.getElementById('trajectory'), {g,w,h} = fit(c);
+  g.clearRect(0,0,w,h);
+  const cs = centroids(), max = Math.max(...cs, 1), pad = 8;
+  g.beginPath();
+  cs.forEach((v,i) => {
+    const x = pad + (i/(FRAMES-1))*(w-pad*2);
+    const y = h-pad - (v/max)*(h-pad*2);
+    i ? g.lineTo(x,y) : g.moveTo(x,y);
+  });
+  g.strokeStyle = lerpCol(0.5); g.lineWidth = 2; g.stroke();
+  const px = pad + position*(w-pad*2);
+  g.strokeStyle = '#ffffff55'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(px,0); g.lineTo(px,h); g.stroke();
+}
+
+function drawLive(){
+  const c = document.getElementById('liveSpec'), {g,w,h} = fit(c);
+  g.clearRect(0,0,w,h);
+  if(analyser){
+    analyser.getFloatFrequencyData(freqData);
+    const nyq = ctx.sampleRate/2, minF = 40, maxF = 12000;
+    const xOf = f => (Math.log(f/minF)/Math.log(maxF/minF))*w;
+    g.beginPath(); g.moveTo(0,h);
+    for(let i=1;i<freqData.length;i++){
+      const f = i*nyq/freqData.length;
+      if(f < minF || f > maxF) continue;
+      g.lineTo(xOf(f), h - ((Math.max(-100,freqData[i])+100)/100)*h);
+    }
+    g.lineTo(w,h);
+    g.strokeStyle = lerpCol(0.8); g.lineWidth = 1.4; g.stroke();
+    g.fillStyle = '#ff9f4a18'; g.fill();
+  }
+  requestAnimationFrame(drawLive);
+}
+
+// ================================================================ export
+function tableToWav(){
+  const total = FRAMES*FRAME_LEN;
+  const pcm = new Int16Array(total);
+  for(let i=0;i<FRAMES;i++){
+    const s = frameSamples(table[i], FRAME_LEN);
+    for(let k=0;k<FRAME_LEN;k++) pcm[i*FRAME_LEN+k] = Math.max(-32767, Math.min(32767, s[k]*32000));
+  }
+  const buf = new ArrayBuffer(44 + pcm.length*2), dv = new DataView(buf);
+  const str = (o,s) => { for(let i=0;i<s.length;i++) dv.setUint8(o+i, s.charCodeAt(i)); };
+  str(0,'RIFF'); dv.setUint32(4, 36+pcm.length*2, true); str(8,'WAVEfmt ');
+  dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true);
+  dv.setUint32(24,SR_EXPORT,true); dv.setUint32(28,SR_EXPORT*2,true);
+  dv.setUint16(32,2,true); dv.setUint16(34,16,true);
+  str(36,'data'); dv.setUint32(40, pcm.length*2, true);
+  for(let i=0;i<pcm.length;i++) dv.setInt16(44+i*2, pcm[i], true);
+  return new Blob([buf], {type:'audio/wav'});
+}
+document.getElementById('exportBtn').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(tableToWav());
+  a.download = document.getElementById('tname').textContent.replace(/\s+/g,'-').toLowerCase() + '.wav';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+};
+
+// ================================================================ interaction
+const wf = document.getElementById('waterfall');
+let dragging = false;
+function frameAt(e){
+  const r = wf.getBoundingClientRect(), padY = 16, stepY = (CH.waterfall-padY*2)/(FRAMES-1);
+  const i = (FRAMES-1) - Math.round((e.clientY-r.top-padY)/stepY);
+  return Math.max(0, Math.min(FRAMES-1, i));
+}
+wf.addEventListener('pointerdown', e => {
+  dragging = true; rangeA = rangeB = frameAt(e);
+  wf.setPointerCapture(e.pointerId); afterEdit(false);
+});
+wf.addEventListener('pointermove', e => { if(dragging){ rangeB = frameAt(e); afterEdit(false); } });
+wf.addEventListener('pointerup', () => dragging = false);
+wf.addEventListener('dblclick', () => { rangeA = 0; rangeB = FRAMES-1; afterEdit(false); });
+
+const posSlider = document.getElementById('posSlider');
+posSlider.oninput = () => { position = +posSlider.value/1000; onPosition(); };
+function onPosition(){
+  refreshVoices();
+  document.getElementById('posRead').textContent = (Math.round(position*(FRAMES-1))+1) + ' / ' + FRAMES;
+  document.getElementById('frameRead').textContent = 'frame ' + (Math.round(position*(FRAMES-1))+1);
+  drawWaterfall(); drawFrameSpec(); drawTrajectory(); updateDesc();
+}
+document.getElementById('sweepBtn').onclick = e => {
+  sweeping = !sweeping; sweepStart = performance.now();
+  e.currentTarget.classList.toggle('armed', sweeping);
+};
+function sweepTick(now){
+  if(sweeping){
+    const t = ((now - sweepStart)/2600) % 1;
+    position = t; posSlider.value = Math.round(t*1000); onPosition();
+  }
+  requestAnimationFrame(sweepTick);
+}
+
+document.querySelectorAll('.op button').forEach(b => {
+  b.onclick = () => OPS[b.dataset.op](+b.dataset.v);
+});
+document.getElementById('undoBtn').onclick = () => {
+  if(!undoStack.length) return;
+  table = undoStack.pop(); afterEdit(true, false);
+};
+
+const KEYMAP = {a:60,w:61,s:62,e:63,d:64,f:65,t:66,g:67,y:68,h:69,u:70,j:71,k:72};
+function buildKeys(){
+  const el = document.getElementById('keys'), black = [61,63,66,68,70];
+  for(let m=60;m<=72;m++){
+    const b = document.createElement('button');
+    if(black.includes(m)) b.classList.add('blk');
+    b.dataset.m = m;
+    b.textContent = Object.keys(KEYMAP).find(k => KEYMAP[k] === m) || '';
+    b.addEventListener('pointerdown', () => noteOn(m));
+    b.addEventListener('pointerup', () => noteOff(m));
+    b.addEventListener('pointerleave', () => noteOff(m));
+    el.appendChild(b);
+  }
+}
+function paintKeys(){
+  [...document.getElementById('keys').children].forEach(b =>
+    b.classList.toggle('down', voices.has(+b.dataset.m)));
+}
+addEventListener('keydown', e => {
+  if(e.repeat || ['INPUT','SELECT'].includes(e.target.tagName)) return;
+  const m = KEYMAP[e.key.toLowerCase()]; if(m) noteOn(m);
+});
+addEventListener('keyup', e => { const m = KEYMAP[e.key.toLowerCase()]; if(m) noteOff(m); });
+
+document.getElementById('startBtn').onclick = startAudio;
+document.getElementById('holdBtn').onclick = e => {
+  holding = !holding;
+  e.currentTarget.classList.toggle('armed', holding);
+  if(!holding) [...voices.keys()].forEach(m => { holding = false; noteOff(m); });
+};
+
+const sel = document.getElementById('presetSel');
+Object.keys(GENERATORS).forEach(k => {
+  const o = document.createElement('option'); o.textContent = k; sel.appendChild(o);
+});
+sel.onchange = () => {
+  pushUndo();
+  table = GENERATORS[sel.value]();
+  document.getElementById('tname').textContent = sel.value;
+  rangeA = 0; rangeB = FRAMES-1; afterEdit();
+};
+
+// ================================================================ wiring
+function updateDesc(){
+  const pi = Math.round(position*(FRAMES-1)), f = table[pi], cs = centroids();
+  document.getElementById('dCent').textContent = frameCentroid(f).toFixed(1);
+  document.getElementById('dOdd').textContent  = frameOddRatio(f).toFixed(2);
+  document.getElementById('dPart').textContent = framePartials(f);
+  const travel = Math.max(...cs) - Math.min(...cs);
+  document.getElementById('dTravel').textContent = travel.toFixed(1);
+}
+function afterEdit(rebuild = true, invalid = true){
+  if(invalid) invalidate();
+  if(rebuild && running){ buildWaves(); voices.forEach(v => { v.iA = v.iB = -1; }); refreshVoices(); }
+  const lo = Math.min(rangeA,rangeB)+1, hi = Math.max(rangeA,rangeB)+1;
+  const txt = `frames ${lo}–${hi}`;
+  document.getElementById('rangeRead').textContent = txt;
+  document.getElementById('opScope').textContent = 'applies to ' + txt;
+  drawWaterfall(); drawFrameSpec(); drawTrajectory(); updateDesc();
+}
+
+buildKeys(); afterEdit(false);
+onPosition();
+requestAnimationFrame(sweepTick);
+requestAnimationFrame(drawLive);
+addEventListener('resize', () => afterEdit(false, false));
+</script>
+</body>
+</html>
