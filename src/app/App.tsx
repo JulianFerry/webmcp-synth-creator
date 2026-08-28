@@ -1,3 +1,9 @@
+import { AuditionPanel } from '../ui/AuditionPanel'
+import { EnvelopePanel } from '../ui/EnvelopePanel'
+import { FilterPanel } from '../ui/FilterPanel'
+import { OscillatorPanel } from '../ui/OscillatorPanel'
+import { PatchHeader } from '../ui/PatchHeader'
+import { WorkbenchShell } from '../ui/WorkbenchShell'
 import type { AppStore } from './appStore'
 
 interface AppProps {
@@ -12,6 +18,7 @@ function formatValue(value: unknown): string {
 
 export function App({ store }: AppProps) {
   const {
+    patch,
     summary,
     changed,
     canUndo,
@@ -22,50 +29,89 @@ export function App({ store }: AppProps) {
     vitalError,
     exportFilename,
     lastError,
+    transactionCount,
+    historySize,
+    controlResetKey,
     applyDarker,
+    applyPatchChange,
+    previewPatchChange,
+    cancelPatchPreview,
+    startAudio,
+    noteOn,
+    noteOff,
+    releaseAllNotes,
     toggleHeldNote,
     undo,
     exportVital,
   } = store()
 
   const changedEntries = Object.entries(changed)
-  const firstOscillator = summary.oscillators[0]
+  const wavetables = Object.values(patch.wavetableData)
+  const previewPaths = Object.keys(audio.previewValues)
 
   return (
-    <main className="workbench-shell">
-      <header className="masthead">
-        <div>
-          <p className="eyebrow">Wavetable Workbench / Transaction 01</p>
-          <h1>{summary.name}</h1>
-          <p className="patch-description">{summary.description}</p>
-        </div>
-        <div className="masthead-actions">
-          <button className="button button-quiet" disabled={!canUndo} onClick={undo} type="button">
-            Undo transaction
-          </button>
-          <button
-            className="button button-export"
-            data-testid="export-vital"
-            disabled={vitalStatus !== 'ready'}
-            onClick={exportVital}
-            type="button"
-          >
-            Export .vital
-          </button>
-          <code data-testid="export-filename">{exportFilename}</code>
-        </div>
-      </header>
+    <WorkbenchShell>
+      <PatchHeader
+        canUndo={canUndo}
+        exportFilename={exportFilename}
+        onExport={exportVital}
+        onUndo={undo}
+        summary={summary}
+        vitalStatus={vitalStatus}
+      />
 
-      <section className="signal-strip" aria-label="Adapter status">
+      <section className="signal-strip" aria-label="Adapter and audio status">
         <div className={`status-cell status-${webMcpStatus}`} data-testid="webmcp-status">
           <span>WebMCP</span>
           <strong>{webMcpStatus}</strong>
           <small>{webMcpReason ?? 'get_patch + apply_patch'}</small>
         </div>
-        <div className={`status-cell status-${audio.lifecycle}`}>
-          <span>Audio graph</span>
-          <strong>{audio.held ? 'holding C4' : audio.lifecycle}</strong>
-          <small>{audio.reflectedPatchName}</small>
+        <div
+          className={`status-cell status-${audio.lifecycle}`}
+          data-active-count={audio.activeVoiceCount}
+          data-attack={patch.ampEnvelope.attackSeconds}
+          data-cutoff={audio.cutoffHz}
+          data-decay={patch.ampEnvelope.decaySeconds}
+          data-detune={patch.oscillators[0].unisonDetune}
+          data-fine={patch.oscillators[0].fineTuneCents}
+          data-glide={patch.voice.glideSeconds}
+          data-level={patch.oscillators[0].level}
+          data-resonance={patch.filter.resonance}
+          data-sustain={patch.ampEnvelope.sustainLevel}
+          data-transpose={patch.oscillators[0].transposeSemitones}
+          data-unison={patch.oscillators[0].unisonVoices}
+          data-spread={patch.oscillators[0].stereoSpread}
+          data-velocity-sensitivity={patch.voice.velocitySensitivity}
+          data-effective-attack={audio.effective.ampEnvelope.attackSeconds}
+          data-effective-cutoff={audio.effective.filter.cutoffHz}
+          data-effective-decay={audio.effective.ampEnvelope.decaySeconds}
+          data-effective-detune={audio.effective.oscillators[0].unisonDetune}
+          data-effective-fine={audio.effective.oscillators[0].fineTuneCents}
+          data-effective-glide={audio.effective.voice.glideSeconds}
+          data-effective-level={audio.effective.oscillators[0].level}
+          data-effective-position={audio.effective.oscillators[0].wavetablePosition}
+          data-effective-release={audio.effective.ampEnvelope.releaseSeconds}
+          data-effective-resonance={audio.effective.filter.resonance}
+          data-effective-spread={audio.effective.oscillators[0].stereoSpread}
+          data-effective-sustain={audio.effective.ampEnvelope.sustainLevel}
+          data-effective-transpose={audio.effective.oscillators[0].transposeSemitones}
+          data-effective-unison={audio.effective.oscillators[0].unisonVoices}
+          data-effective-velocity-sensitivity={audio.effective.voice.velocitySensitivity}
+          data-draft-attack={audio.draft.ampEnvelope.attackSeconds}
+          data-draft-decay={audio.draft.ampEnvelope.decaySeconds}
+          data-draft-release={audio.draft.ampEnvelope.releaseSeconds}
+          data-held={audio.held}
+          data-position={audio.wavetablePosition}
+          data-preview-count={previewPaths.length}
+          data-preview-paths={previewPaths.sort().join(',')}
+          data-preview-position={audio.previewWavetablePositions[0] ?? ''}
+          data-testid="audio-adapter-state"
+        >
+          <span>Audio engine</span>
+          <strong data-testid="audio-lifecycle">{audio.lifecycle}</strong>
+          <small>
+            {audio.activeVoiceCount} active / {audio.polyphony} max / {audio.stolenVoiceCount} stolen
+          </small>
         </div>
         <div className={`status-cell status-${vitalStatus}`} data-testid="vital-status">
           <span>Vital fixture</span>
@@ -74,116 +120,117 @@ export function App({ store }: AppProps) {
         </div>
       </section>
 
-      <section className="workbench-grid">
-        <article className="panel panel-scope">
+      <section className="engine-grid" aria-label="Playable browser voice">
+        <OscillatorPanel
+          index={0}
+          onCancelPreview={cancelPatchPreview}
+          onChange={applyPatchChange}
+          onPreview={previewPatchChange}
+          oscillator={patch.oscillators[0]}
+          previewPosition={audio.draft.oscillators[0].wavetablePosition}
+          resetKey={controlResetKey}
+          wavetables={wavetables}
+        />
+        <OscillatorPanel
+          index={1}
+          onCancelPreview={cancelPatchPreview}
+          onChange={applyPatchChange}
+          onPreview={previewPatchChange}
+          oscillator={patch.oscillators[1]}
+          previewPosition={audio.draft.oscillators[1].wavetablePosition}
+          resetKey={controlResetKey}
+          wavetables={wavetables}
+        />
+        <EnvelopePanel
+          envelope={patch.ampEnvelope}
+          onCancelPreview={cancelPatchPreview}
+          onChange={applyPatchChange}
+          onPreview={previewPatchChange}
+          previewEnvelope={audio.draft.ampEnvelope}
+          resetKey={controlResetKey}
+        />
+        <FilterPanel
+          filter={patch.filter}
+          onCancelPreview={cancelPatchPreview}
+          onChange={applyPatchChange}
+          onPreview={previewPatchChange}
+          previewFilter={audio.draft.filter}
+          resetKey={controlResetKey}
+        />
+        <AuditionPanel
+          audio={audio}
+          onCancelPreview={cancelPatchPreview}
+          onChange={applyPatchChange}
+          onNoteOff={noteOff}
+          onNoteOn={noteOn}
+          onReleaseAll={releaseAllNotes}
+          onStartAudio={startAudio}
+          onToggleHeldNote={toggleHeldNote}
+          onPreview={previewPatchChange}
+          resetKey={controlResetKey}
+          voice={patch.voice}
+        />
+      </section>
+
+      <section className="state-monitor-grid" aria-label="Committed patch transaction">
+        <article className="panel canonical-panel">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Canonical PatchState</p>
-              <h2>Visible state</h2>
+              <h2>Committed voice</h2>
             </div>
             <span className="version-chip">v1</span>
           </div>
-
-          <div className="scope-visual" aria-hidden="true">
-            {Array.from({ length: 26 }, (_, index) => (
-              <i key={index} style={{ height: `${18 + ((index * 17) % 64)}%` }} />
-            ))}
-          </div>
-
           <dl className="parameter-grid">
             <div>
-              <dt>Oscillator</dt>
-              <dd>{firstOscillator.wavetableId}</dd>
+              <dt>Osc 1</dt>
+              <dd>{summary.oscillators[0].wavetableId}</dd>
             </div>
             <div>
-              <dt>WT position</dt>
-              <dd>{firstOscillator.wavetablePosition.toFixed(2)}</dd>
+              <dt>Osc 2</dt>
+              <dd>{summary.oscillators[1].wavetableId}</dd>
             </div>
             <div>
               <dt>Filter</dt>
-              <dd data-testid="filter-cutoff">{summary.filter.cutoffHz.toLocaleString()} Hz</dd>
+              <dd>{summary.filter.cutoffHz.toLocaleString()} Hz</dd>
             </div>
             <div>
-              <dt>Resonance</dt>
-              <dd>{summary.filter.resonance.toFixed(2)}</dd>
+              <dt>Polyphony</dt>
+              <dd>{summary.voice.polyphony}</dd>
             </div>
             <div>
-              <dt>Attack</dt>
-              <dd>{summary.ampEnvelope.attackSeconds.toFixed(2)} s</dd>
+              <dt>Transactions</dt>
+              <dd data-testid="transaction-count">{transactionCount}</dd>
             </div>
             <div>
-              <dt>Release</dt>
-              <dd>{summary.ampEnvelope.releaseSeconds.toFixed(2)} s</dd>
+              <dt>Undo depth</dt>
+              <dd data-testid="history-size">{historySize}</dd>
             </div>
           </dl>
-        </article>
-
-        <article className="panel panel-audition">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Committed-state monitor</p>
-              <h2>Audition path</h2>
-            </div>
-            <span className={audio.held ? 'live-indicator active' : 'live-indicator'}>
-              {audio.held ? 'live' : 'idle'}
-            </span>
-          </div>
-
-          <div
-            className="adapter-readout"
-            data-cutoff={audio.cutoffHz}
-            data-held={audio.held}
-            data-position={audio.wavetablePosition}
-            data-testid="audio-adapter-state"
-          >
-            <span>Audio adapter reflection</span>
-            <strong>{audio.cutoffHz.toLocaleString()} Hz</strong>
-            <small>
-              position {audio.wavetablePosition.toFixed(2)} / correlation{' '}
-              {audio.lastCorrelationId?.slice(0, 8) ?? 'waiting'}
-            </small>
-          </div>
-
-          <div className="audition-controls">
-            <button
-              className={audio.held ? 'hold-control active' : 'hold-control'}
-              data-testid="hold-note"
-              onClick={() => void toggleHeldNote()}
-              type="button"
-            >
-              <span>{audio.held ? 'Release' : 'Hold'}</span>
-              <strong>C4</strong>
-            </button>
-            <button className="darken-control" onClick={applyDarker} type="button">
-              <span>Manual command</span>
-              <strong>Make darker</strong>
-            </button>
-          </div>
-
-          <p className="gesture-note">
-            Audio begins only after this control receives a user gesture. Every later transaction updates
-            the held voice in place.
-          </p>
+          <button className="darken-control" onClick={applyDarker} type="button">
+            <span>One manual command</span>
+            <strong>Make darker</strong>
+          </button>
         </article>
 
         <article className="panel panel-diff">
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">Atomic result</p>
+              <p className="eyebrow">Atomic command result</p>
               <h2>Latest compact diff</h2>
             </div>
             <span className="count-chip">{changedEntries.length} paths</span>
           </div>
 
           {changedEntries.length === 0 ? (
-            <p className="empty-diff">Waiting for one coherent UI or WebMCP transaction.</p>
+            <p className="empty-diff">Waiting for one completed UI gesture or WebMCP transaction.</p>
           ) : (
             <ol className="diff-list" data-testid="latest-diff">
               {changedEntries.map(([path, values]) => (
                 <li key={path}>
                   <code>{path}</code>
                   <span>{formatValue(values.before)}</span>
-                  <b aria-hidden="true">→</b>
+                  <b aria-hidden="true">-&gt;</b>
                   <strong>{formatValue(values.after)}</strong>
                 </li>
               ))}
@@ -201,6 +248,6 @@ export function App({ store }: AppProps) {
           {lastError}
         </div>
       ) : null}
-    </main>
+    </WorkbenchShell>
   )
 }

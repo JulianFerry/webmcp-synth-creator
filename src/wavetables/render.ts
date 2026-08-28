@@ -57,3 +57,25 @@ export function renderWavetableFrame(
 export function renderWavetable(wavetable: WavetableState): Float32Array[] {
   return wavetable.frames.map((frame) => renderWavetableFrame(frame))
 }
+
+export function wavetableSupportsMorphing(wavetable: WavetableState): boolean {
+  return wavetable.frames.length > 1
+}
+
+export function renderWavetablePosition(
+  wavetable: WavetableState,
+  position: number,
+  sampleCount = VITAL_FRAME_SAMPLE_COUNT,
+): Float32Array {
+  const clamped = Math.max(0, Math.min(1, position))
+  const framePosition = clamped * Math.max(0, wavetable.frames.length - 1)
+  const lowerIndex = Math.floor(framePosition)
+  const upperIndex = Math.min(wavetable.frames.length - 1, lowerIndex + 1)
+  const mix = framePosition - lowerIndex
+  const lower = renderWavetableFrame(wavetable.frames[lowerIndex], sampleCount)
+
+  if (lowerIndex === upperIndex || mix === 0) return lower
+
+  const upper = renderWavetableFrame(wavetable.frames[upperIndex], sampleCount)
+  return Float32Array.from(lower, (sample, index) => sample * (1 - mix) + upper[index] * mix)
+}

@@ -38,7 +38,7 @@ export interface EnvelopeState {
   releaseSeconds: number
 }
 
-export type FilterType = 'lowpass' | 'highpass' | 'bandpass'
+export type FilterType = 'lowpass' | 'highpass' | 'bandpass' | 'notch'
 
 export interface FilterState {
   enabled: boolean

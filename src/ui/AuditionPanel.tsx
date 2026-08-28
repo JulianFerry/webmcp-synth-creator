@@ -1,0 +1,324 @@
+import { useEffect, useRef, useState } from 'react'
+
+import type { BrowserSynthState } from '../audio/BrowserSynth'
+import type { SupportedPatchPath } from '../patch/paths'
+import type { VoiceState } from '../patch/types'
+import { ParameterSlider } from './controls/ParameterSlider'
+
+interface AuditionPanelProps {
+  audio: BrowserSynthState
+  voice: VoiceState
+  onChange: (path: SupportedPatchPath, value: unknown, reason: string) => boolean
+  onPreview: (path: SupportedPatchPath, value: unknown) => void
+  onCancelPreview: (path: SupportedPatchPath) => void
+  onStartAudio: () => Promise<void>
+  onNoteOn: (midi: number, velocity?: number) => Promise<void>
+  onNoteOff: (midi: number) => void
+  onReleaseAll: () => void
+  onToggleHeldNote: () => Promise<void>
+  resetKey: number
+}
+
+const KEYBOARD_NOTES = [
+  { midi: 60, label: 'C', key: 'a', accidental: false },
+  { midi: 61, label: 'C#', key: 'w', accidental: true },
+  { midi: 62, label: 'D', key: 's', accidental: false },
+  { midi: 63, label: 'D#', key: 'e', accidental: true },
+  { midi: 64, label: 'E', key: 'd', accidental: false },
+  { midi: 65, label: 'F', key: 'f', accidental: false },
+  { midi: 66, label: 'F#', key: 't', accidental: true },
+  { midi: 67, label: 'G', key: 'g', accidental: false },
+  { midi: 68, label: 'G#', key: 'y', accidental: true },
+  { midi: 69, label: 'A', key: 'h', accidental: false },
+  { midi: 70, label: 'A#', key: 'u', accidental: true },
+  { midi: 71, label: 'B', key: 'j', accidental: false },
+  { midi: 72, label: 'C', key: 'k', accidental: false },
+] as const
+
+const MIDI_BY_KEY = new Map<string, number>(
+  KEYBOARD_NOTES.map((note) => [note.key, note.midi]),
+)
+
+const NON_EDITABLE_INPUT_TYPES = new Set([
+  'button',
+  'checkbox',
+  'color',
+  'file',
+  'radio',
+  'range',
+  'reset',
+  'submit',
+])
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false
+  if (target.closest('textarea, select, [contenteditable]:not([contenteditable="false"])')) {
+    return true
+  }
+
+  const input = target.closest('input')
+  return input instanceof HTMLInputElement && !NON_EDITABLE_INPUT_TYPES.has(input.type)
+}
+
+export function AuditionPanel({
+  audio,
+  voice,
+  onChange,
+  onPreview,
+  onCancelPreview,
+  onStartAudio,
+  onNoteOn,
+  onNoteOff,
+  onReleaseAll,
+  onToggleHeldNote,
+  resetKey,
+}: AuditionPanelProps) {
+  const [velocity, setVelocity] = useState(0.85)
+  const activeComputerKeys = useRef(new Set<string>())
+  const activePointerNotes = useRef(new Map<number, number>())
+  const activeButtonNotes = useRef(new Set<string>())
+  const velocityRef = useRef(velocity)
+  const committedVelocityRef = useRef(velocity)
+
+  useEffect(() => {
+    velocityRef.current = velocity
+    committedVelocityRef.current = velocity
+  }, [velocity])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase()
+      const midi = MIDI_BY_KEY.get(key)
+      if (midi === undefined || event.repeat || isEditableTarget(event.target)) return
+      event.preventDefault()
+      activeComputerKeys.current.add(key)
+      void onNoteOn(midi, velocityRef.current).then(() => {
+        if (!activeComputerKeys.current.has(key)) onNoteOff(midi)
+      })
+    }
+    const handleKeyUp = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase()
+      const midi = MIDI_BY_KEY.get(key)
+      if (midi === undefined || !activeComputerKeys.current.has(key)) return
+      event.preventDefault()
+      activeComputerKeys.current.delete(key)
+      onNoteOff(midi)
+    }
+    const releaseKeys = () => {
+      activeComputerKeys.current.clear()
+      activePointerNotes.current.clear()
+      activeButtonNotes.current.clear()
+      onReleaseAll()
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') releaseKeys()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', releaseKeys)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', releaseKeys)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      releaseKeys()
+    }
+  }, [onNoteOff, onNoteOn, onReleaseAll])
+
+  const startButtonNote = (midi: number, key: string) => {
+    const token = `${midi}:${key}`
+    activeButtonNotes.current.add(token)
+    void onNoteOn(midi, velocityRef.current).then(() => {
+      if (!activeButtonNotes.current.has(token)) onNoteOff(midi)
+    })
+  }
+
+  const releaseButtonNote = (midi: number, key: string) => {
+    activeButtonNotes.current.delete(`${midi}:${key}`)
+    onNoteOff(midi)
+  }
+
+  const startPointerNote = (event: React.PointerEvent<HTMLButtonElement>, midi: number) => {
+    event.preventDefault()
+    activePointerNotes.current.set(event.pointerId, midi)
+    event.currentTarget.setPointerCapture(event.pointerId)
+    void onNoteOn(midi, velocityRef.current).then(() => {
+      if (activePointerNotes.current.get(event.pointerId) !== midi) onNoteOff(midi)
+    })
+  }
+
+  const releasePointerNote = (event: React.PointerEvent<HTMLButtonElement>, midi: number) => {
+    activePointerNotes.current.delete(event.pointerId)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    onNoteOff(midi)
+  }
+
+  const commitVoice = (field: keyof VoiceState, value: unknown, label: string) => {
+    return onChange(`voice.${field}` as SupportedPatchPath, value, `Set voice ${label}`)
+  }
+  const previewVoice = (field: keyof VoiceState) => {
+    const path = `voice.${field}` as SupportedPatchPath
+    return {
+      onCancel: () => onCancelPreview(path),
+      onPreview: (value: number) => onPreview(path, value),
+      resetKey,
+    }
+  }
+
+  return (
+    <article className="panel audition-panel">
+      <div className="panel-heading audition-heading">
+        <div>
+          <p className="eyebrow">Gesture-gated performance surface</p>
+          <h2>Audition</h2>
+        </div>
+        <div className="voice-meter" aria-live="polite">
+          <span>Voices</span>
+          <strong data-testid="active-voice-count">{audio.activeVoiceCount}</strong>
+          <small>/ {audio.polyphony}</small>
+        </div>
+      </div>
+
+      <div className="audition-layout">
+        <div className="keyboard-column">
+          <div className="audio-transport">
+            <button
+              className="button button-start"
+              data-testid="start-audio"
+              disabled={audio.lifecycle === 'unavailable'}
+              onClick={() => void onStartAudio()}
+              type="button"
+            >
+              {audio.lifecycle === 'running' ? 'Audio running' : 'Start audio'}
+            </button>
+            <button
+              className={audio.held ? 'button hold-control active' : 'button hold-control'}
+              data-testid="hold-note"
+              onClick={() => void onToggleHeldNote()}
+              type="button"
+            >
+              {audio.held ? 'Release C4' : 'Hold C4'}
+            </button>
+            <button className="button button-quiet" onClick={onReleaseAll} type="button">
+              Release all
+            </button>
+          </div>
+
+          <div
+            aria-label="Computer keyboard notes A through K"
+            className="note-keyboard"
+            data-testid="keyboard-surface"
+            tabIndex={0}
+          >
+            {KEYBOARD_NOTES.map((note) => {
+              const active = audio.activeNotes.includes(note.midi)
+              return (
+                <button
+                  aria-label={`${note.label} ${note.midi === 72 ? '5' : '4'}, keyboard ${note.key.toUpperCase()}`}
+                  className={`${note.accidental ? 'note-key accidental' : 'note-key'}${active ? ' active' : ''}`}
+                  data-midi={note.midi}
+                  data-testid={`note-${note.midi}`}
+                  key={note.midi}
+                  onKeyDown={(event) => {
+                    if ((event.key === 'Enter' || event.key === ' ') && !event.repeat) {
+                      event.preventDefault()
+                      startButtonNote(note.midi, event.key)
+                    }
+                  }}
+                  onKeyUp={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      releaseButtonNote(note.midi, event.key)
+                    }
+                  }}
+                  onPointerCancel={(event) => releasePointerNote(event, note.midi)}
+                  onPointerDown={(event) => startPointerNote(event, note.midi)}
+                  onPointerUp={(event) => releasePointerNote(event, note.midi)}
+                  type="button"
+                >
+                  <span>{note.label}</span>
+                  <small>{note.key.toUpperCase()}</small>
+                </button>
+              )
+            })}
+          </div>
+          <p className="gesture-note">
+            Audio stays suspended until a direct gesture. Play with A-W-S-E-D-F-T-G-Y-H-U-J-K.
+          </p>
+        </div>
+
+        <div className="voice-controls">
+          <ParameterSlider
+            formatValue={(value) => `${Math.round(value * 100)}%`}
+            id="audition-velocity"
+            label="Key velocity"
+            max={1}
+            min={0.05}
+            onCancel={() => {
+              velocityRef.current = committedVelocityRef.current
+            }}
+            onCommit={(value) => {
+              committedVelocityRef.current = value
+              velocityRef.current = value
+              setVelocity(value)
+            }}
+            onPreview={(value) => {
+              velocityRef.current = value
+            }}
+            step={0.01}
+            value={velocity}
+          />
+          <ParameterSlider
+            formatValue={(value) => `${value} voices`}
+            id="voice-polyphony"
+            label="Polyphony"
+            max={16}
+            min={1}
+            onCommit={(value) => commitVoice('polyphony', value, 'polyphony')}
+            resetKey={resetKey}
+            step={1}
+            testId="voice-polyphony"
+            value={voice.polyphony}
+          />
+          <ParameterSlider
+            formatValue={(value) => `${Math.round(value * 1000)} ms`}
+            id="voice-glide"
+            label="Glide"
+            max={1}
+            min={0}
+            onCommit={(value) => commitVoice('glideSeconds', value, 'glide')}
+            {...previewVoice('glideSeconds')}
+            step={0.01}
+            testId="voice-glide"
+            value={voice.glideSeconds}
+          />
+          <ParameterSlider
+            formatValue={(value) => `${Math.round(value * 100)}%`}
+            id="voice-velocity"
+            label="Velocity response"
+            max={1}
+            min={0}
+            onCommit={(value) => commitVoice('velocitySensitivity', value, 'velocity response')}
+            {...previewVoice('velocitySensitivity')}
+            step={0.01}
+            testId="voice-velocity-sensitivity"
+            value={voice.velocitySensitivity}
+          />
+          <div className="steal-readout">
+            <span>Steal policy</span>
+            <strong>Oldest voice</strong>
+            <small data-testid="stolen-voice-count">{audio.stolenVoiceCount} click-safe steals</small>
+          </div>
+          <p className="gesture-note polyphony-preview-note">
+            Polyphony commits before click-safe trimming. Glide and velocity response affect new
+            note-ons, not voices already sounding.
+          </p>
+        </div>
+      </div>
+    </article>
+  )
+}

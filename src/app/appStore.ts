@@ -2,6 +2,7 @@ import { create, type StoreApi, type UseBoundStore } from 'zustand'
 
 import { BrowserSynth, type BrowserSynthState } from '../audio/BrowserSynth'
 import { CommandService } from '../commands/CommandService'
+import type { SupportedPatchPath } from '../patch/paths'
 import { summarizePatch } from '../patch/summary'
 import type { PatchState, PatchSummary } from '../patch/types'
 import { SessionService } from '../session/SessionService'
@@ -22,7 +23,17 @@ export interface AppStoreState {
   vitalError: string | null
   exportFilename: string
   lastError: string | null
+  transactionCount: number
+  historySize: number
+  controlResetKey: number
   applyDarker: () => void
+  applyPatchChange: (path: SupportedPatchPath, value: unknown, reason: string) => boolean
+  previewPatchChange: (path: SupportedPatchPath, value: unknown) => void
+  cancelPatchPreview: (path: SupportedPatchPath) => void
+  startAudio: () => Promise<void>
+  noteOn: (midi: number, velocity?: number) => Promise<void>
+  noteOff: (midi: number) => void
+  releaseAllNotes: () => void
   toggleHeldNote: () => Promise<void>
   undo: () => void
   exportVital: () => void
@@ -58,6 +69,9 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
     vitalError: null,
     exportFilename: vitalFilename(initialPatch.metadata.name),
     lastError: null,
+    transactionCount: 0,
+    historySize: commands.historySize,
+    controlResetKey: 0,
 
     applyDarker: () => {
       const current = session.getPatch()
@@ -79,6 +93,66 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
         set({ lastError: errorMessage(error) })
       }
     },
+
+    applyPatchChange: (path, value, reason) => {
+      try {
+        commands.applyPatch(
+          {
+            type: 'apply_patch',
+            reason,
+            changes: [{ path, value }],
+          },
+          { source: 'ui' },
+        )
+        return true
+      } catch (error) {
+        synth.cancelAllPatchPreviews()
+        set((state) => ({
+          controlResetKey: state.controlResetKey + 1,
+          lastError: errorMessage(error),
+        }))
+        return false
+      }
+    },
+
+    previewPatchChange: (path, value) => {
+      try {
+        synth.previewPatchChange(path, value)
+        set({ lastError: null })
+      } catch (error) {
+        synth.cancelAllPatchPreviews()
+        set((state) => ({
+          controlResetKey: state.controlResetKey + 1,
+          lastError: errorMessage(error),
+        }))
+      }
+    },
+
+    cancelPatchPreview: (path) => {
+      synth.cancelPatchPreview(path)
+    },
+
+    startAudio: async () => {
+      try {
+        await synth.startAudio()
+        set({ lastError: null })
+      } catch (error) {
+        set({ lastError: errorMessage(error) })
+      }
+    },
+
+    noteOn: async (midi, velocity = 0.85) => {
+      try {
+        await synth.noteOn(midi, velocity)
+        set({ lastError: null })
+      } catch (error) {
+        set({ lastError: errorMessage(error) })
+      }
+    },
+
+    noteOff: (midi) => synth.noteOff(midi),
+
+    releaseAllNotes: () => synth.releaseAllNotes(),
 
     toggleHeldNote: async () => {
       try {
@@ -124,14 +198,17 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
   }))
 
   session.subscribe((event) => {
-    store.setState({
+    store.setState((state) => ({
       patch: event.patch,
       summary: summarizePatch(event.patch),
       changed: event.changed,
       canUndo: commands.canUndo,
+      transactionCount: state.transactionCount + 1,
+      historySize: commands.historySize,
+      controlResetKey: state.controlResetKey + 1,
       exportFilename: vitalFilename(event.patch.metadata.name),
       lastError: null,
-    })
+    }))
   })
   synth.subscribe((audio) => store.setState({ audio }))
 

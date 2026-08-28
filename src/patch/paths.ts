@@ -1,5 +1,6 @@
 import { z, type ZodTypeAny } from 'zod'
 
+import { FILTER_CUTOFF_MAX_HZ, FILTER_CUTOFF_MIN_HZ } from './limits'
 import type { PatchState } from './types'
 
 export const SUPPORTED_PATCH_PATHS = [
@@ -146,8 +147,13 @@ const pathValueSchemas: Record<SupportedPatchPath, ZodTypeAny> = {
   'modEnvelope.sustainLevel': unitInterval,
   'modEnvelope.releaseSeconds': seconds(20),
   'filter.enabled': z.boolean(),
-  'filter.type': z.enum(['lowpass', 'highpass', 'bandpass']),
-  'filter.cutoffHz': z.number().finite().min(20).max(20_000),
+  'filter.type': z.enum(['lowpass', 'highpass', 'bandpass', 'notch']),
+  'filter.cutoffHz': z
+    .number()
+    .int()
+    .finite()
+    .min(FILTER_CUTOFF_MIN_HZ)
+    .max(FILTER_CUTOFF_MAX_HZ),
   'filter.resonance': unitInterval,
   'lfo1.points': z.array(lfoPoint).min(2).max(32),
   'lfo1.rate': lfoRate,

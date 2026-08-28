@@ -16,6 +16,7 @@ describe('PatchState schema', () => {
     ['amp envelope', (patch: any) => (patch.ampEnvelope.attackSeconds = 11)],
     ['mod envelope', (patch: any) => (patch.modEnvelope.sustainLevel = -0.1)],
     ['filter', (patch: any) => (patch.filter.cutoffHz = 20_001)],
+    ['fractional filter cutoff', (patch: any) => (patch.filter.cutoffHz = 632.5)],
     ['LFO ordering', (patch: any) => (patch.lfo1.points[2].x = 0.01)],
     ['modulation vocabulary', (patch: any) => (patch.modulations[0].destination = 'brightness')],
     ['voice', (patch: any) => (patch.voice.polyphony = 17)],
@@ -33,6 +34,14 @@ describe('PatchState schema', () => {
     const patch = createDefaultPatch()
     patch.modulations[1].id = patch.modulations[0].id
     expect(() => parsePatchState(patch)).toThrow(/Duplicate modulation route id/)
+  })
+
+  it('accepts all browser filter response modes including notch', () => {
+    for (const type of ['lowpass', 'highpass', 'bandpass', 'notch'] as const) {
+      const patch = createDefaultPatch()
+      patch.filter.type = type
+      expect(parsePatchState(patch).filter.type).toBe(type)
+    }
   })
 })
 
@@ -86,5 +95,15 @@ describe('apply_patch command schema', () => {
         changes: [{ path: 'metadata.name', value: {} }],
       }),
     ).toThrow(/"path": \[\s*"changes",\s*0,\s*"value"/)
+  })
+
+  it('rejects fractional cutoff commands before preview or commit', () => {
+    expect(() =>
+      parseApplyPatchCommand({
+        type: 'apply_patch',
+        reason: 'Set a fractional cutoff',
+        changes: [{ path: 'filter.cutoffHz', value: 632.5 }],
+      }),
+    ).toThrow()
   })
 })

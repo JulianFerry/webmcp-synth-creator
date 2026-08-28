@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { FILTER_CUTOFF_MAX_HZ, FILTER_CUTOFF_MIN_HZ } from './limits'
 import { isSupportedPatchPath, parsePatchPathValue } from './paths'
 import type { ApplyPatchCommand, PatchState } from './types'
 
@@ -45,8 +46,13 @@ export const envelopeStateSchema = z
 export const filterStateSchema = z
   .object({
     enabled: z.boolean(),
-    type: z.enum(['lowpass', 'highpass', 'bandpass']),
-    cutoffHz: z.number().finite().min(20).max(20_000),
+    type: z.enum(['lowpass', 'highpass', 'bandpass', 'notch']),
+    cutoffHz: z
+      .number()
+      .int()
+      .finite()
+      .min(FILTER_CUTOFF_MIN_HZ)
+      .max(FILTER_CUTOFF_MAX_HZ),
     resonance: unitInterval,
   })
   .strict()
