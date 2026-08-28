@@ -32,7 +32,7 @@ function createHarness() {
 }
 
 describe('WebMCP tool registration', () => {
-  it('asynchronously registers get_patch, apply_patch, and set_lfo_shape with current annotations and schemas', async () => {
+  it('asynchronously registers patch and session tools with current annotations and schemas', async () => {
     const gateway = new CapturingGateway()
     const { commands, session } = createHarness()
     const pendingRegistration = registerTools(gateway, session, commands)
@@ -44,6 +44,11 @@ describe('WebMCP tool registration', () => {
       'get_patch',
       'apply_patch',
       'set_lfo_shape',
+      'get_session_state',
+      'create_variant',
+      'select_variant',
+      'undo',
+      'redo',
     ])
 
     const getPatch = gateway.registrations[0].tool
@@ -55,6 +60,15 @@ describe('WebMCP tool registration', () => {
       readOnlyHint: false,
       untrustedContentHint: false,
     })
+    expect(
+      gateway.registrations.find(({ tool }) => tool.name === 'get_session_state')?.tool.annotations,
+    ).toEqual({ readOnlyHint: true, untrustedContentHint: false })
+    for (const toolName of ['create_variant', 'select_variant', 'undo', 'redo']) {
+      expect(gateway.registrations.find(({ tool }) => tool.name === toolName)?.tool.annotations).toEqual({
+        readOnlyHint: false,
+        untrustedContentHint: false,
+      })
+    }
     expect(getPatch.inputSchema).toMatchObject({ type: 'object', additionalProperties: false })
     expect(applyPatch.inputSchema).toMatchObject({
       type: 'object',
@@ -225,6 +239,115 @@ describe('WebMCP tool registration', () => {
     expect(session.getPatch().modulations).toEqual(before.modulations)
   })
 
+  it('reports absent B and keeps every session write result scoped to the active variant', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const tool = (name: string) =>
+      gateway.registrations.find(({ tool: candidate }) => candidate.name === name)!.tool
+
+    await expect(tool('get_session_state').execute({})).resolves.toMatchObject({
+      currentVariant: 'A',
+      hasVariantB: false,
+      canUndo: false,
+      canRedo: false,
+      summary: { name: 'Ethereal Gate' },
+    })
+    await expect(tool('select_variant').execute({ variant: 'B' })).resolves.toEqual({
+      ok: false,
+      error: {
+        code: 'VARIANT_B_UNAVAILABLE',
+        message: 'Variant B does not exist',
+      },
+    })
+
+    const created = await tool('create_variant').execute({
+      reason: 'Create a wider B alternative',
+      changes: [
+        { path: 'metadata.name', value: 'Ethereal Gate Wide B' },
+        { path: 'oscillators.0.stereoSpread', value: 1 },
+      ],
+    })
+    expect(created).toMatchObject({
+      changed: {
+        'metadata.name': { before: 'Ethereal Gate', after: 'Ethereal Gate Wide B' },
+        'oscillators.0.stereoSpread': { before: 0.88, after: 1 },
+      },
+      summary: { name: 'Ethereal Gate Wide B' },
+      canUndo: true,
+      canRedo: false,
+      session: { currentVariant: 'B', hasVariantB: true },
+    })
+    expect(created).not.toHaveProperty('content')
+    expect(session.getPatch('A').metadata.name).toBe('Ethereal Gate')
+
+    const undone = await tool('undo').execute({})
+    expect(undone).toMatchObject({
+      summary: { name: 'Ethereal Gate' },
+      canUndo: false,
+      canRedo: true,
+      session: { currentVariant: 'B' },
+    })
+    const redone = await tool('redo').execute({})
+    expect(redone).toMatchObject({
+      summary: { name: 'Ethereal Gate Wide B' },
+      canUndo: true,
+      canRedo: false,
+      session: { currentVariant: 'B' },
+    })
+
+    const selectedA = await tool('select_variant').execute({ variant: 'A' })
+    expect(selectedA).toMatchObject({
+      summary: { name: 'Ethereal Gate' },
+      canUndo: false,
+      canRedo: false,
+      session: { currentVariant: 'A', hasVariantB: true },
+    })
+    expect(session.getPatch('B').metadata.name).toBe('Ethereal Gate Wide B')
+  })
+
+  it('returns one normalized write error for duplicate B, empty undo, and empty redo', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const tool = (name: string) =>
+      gateway.registrations.find(({ tool: candidate }) => candidate.name === name)!.tool
+
+    await expect(tool('undo').execute({})).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'NOTHING_TO_UNDO' },
+    })
+    await expect(tool('redo').execute({})).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'NOTHING_TO_REDO' },
+    })
+
+    const input = {
+      reason: 'Create B',
+      changes: [{ path: 'metadata.name', value: 'Variant B' }],
+    }
+    await tool('create_variant').execute(input)
+    await expect(tool('create_variant').execute(input)).resolves.toEqual({
+      ok: false,
+      error: {
+        code: 'VARIANT_B_ALREADY_EXISTS',
+        message:
+          'Variant B already exists. Set replaceExisting to true to replace it explicitly.',
+      },
+    })
+
+    await expect(
+      tool('create_variant').execute({
+        reason: 'Explicitly replace B',
+        changes: [{ path: 'filter.cutoffHz', value: 4100 }],
+        replaceExisting: true,
+      }),
+    ).resolves.toMatchObject({
+      summary: { filter: { cutoffHz: 4100 } },
+      session: { currentVariant: 'B', hasVariantB: true, canUndo: true, canRedo: false },
+    })
+  })
+
   it('uses one AbortSignal to clean up all registrations', async () => {
     const gateway = new CapturingGateway()
     const { commands, session } = createHarness()
@@ -256,24 +379,32 @@ describe('WebMCP tool registration', () => {
     await registerTools(gateway, session, commands)
     const controller = new AbortController()
     controller.abort(new DOMException('Cancelled', 'AbortError'))
-    const inputs: Record<string, unknown>[] = [
-      {},
-      {
+    const inputs: Record<string, Record<string, unknown>> = {
+      get_patch: {},
+      apply_patch: {
         reason: 'This transaction must be cancelled',
         changes: [{ path: 'filter.cutoffHz', value: 3600 }],
       },
-      {
+      set_lfo_shape: {
         reason: 'This LFO transaction must be cancelled',
         points: [
           { x: 0, y: 0 },
           { x: 1, y: 1 },
         ],
       },
-    ]
+      get_session_state: {},
+      create_variant: {
+        reason: 'This B transaction must be cancelled',
+        changes: [{ path: 'metadata.name', value: 'Cancelled B' }],
+      },
+      select_variant: { variant: 'A' },
+      undo: {},
+      redo: {},
+    }
 
     await Promise.all(
-      gateway.registrations.map(({ tool }, index) =>
-        expect(tool.execute(inputs[index], { signal: controller.signal })).rejects.toMatchObject({
+      gateway.registrations.map(({ tool }) =>
+        expect(tool.execute(inputs[tool.name], { signal: controller.signal })).rejects.toMatchObject({
           name: 'AbortError',
         }),
       ),

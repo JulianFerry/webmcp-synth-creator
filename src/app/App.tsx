@@ -2,10 +2,12 @@ import { AuditionPanel } from '../ui/AuditionPanel'
 import { EnvelopePanel } from '../ui/EnvelopePanel'
 import { EffectsPanel } from '../ui/EffectsPanel'
 import { FilterPanel } from '../ui/FilterPanel'
+import { HistoryControls } from '../ui/HistoryControls'
 import { LfoPanel } from '../ui/LfoPanel'
 import { ModulationPanel } from '../ui/ModulationPanel'
 import { OscillatorPanel } from '../ui/OscillatorPanel'
 import { PatchHeader } from '../ui/PatchHeader'
+import { VariantSwitcher } from '../ui/VariantSwitcher'
 import { WorkbenchShell } from '../ui/WorkbenchShell'
 import type { AppStore } from './appStore'
 
@@ -24,7 +26,10 @@ export function App({ store }: AppProps) {
     patch,
     summary,
     changed,
+    currentVariant,
+    hasVariantB,
     canUndo,
+    canRedo,
     audio,
     webMcpStatus,
     webMcpReason,
@@ -34,6 +39,7 @@ export function App({ store }: AppProps) {
     lastError,
     transactionCount,
     historySize,
+    futureSize,
     controlResetKey,
     applyDarker,
     applyPatchChange,
@@ -44,7 +50,10 @@ export function App({ store }: AppProps) {
     noteOff,
     releaseAllNotes,
     toggleHeldNote,
+    createVariant,
+    selectVariant,
     undo,
+    redo,
     exportVital,
   } = store()
 
@@ -55,19 +64,34 @@ export function App({ store }: AppProps) {
   return (
     <WorkbenchShell>
       <PatchHeader
-        canUndo={canUndo}
         exportFilename={exportFilename}
         onExport={exportVital}
-        onUndo={undo}
         summary={summary}
         vitalStatus={vitalStatus}
       />
+
+      <section className="session-toolbar" aria-label="Variant and history session controls">
+        <VariantSwitcher
+          currentVariant={currentVariant}
+          hasVariantB={hasVariantB}
+          onCreateVariant={createVariant}
+          onSelectVariant={selectVariant}
+        />
+        <HistoryControls
+          canRedo={canRedo}
+          canUndo={canUndo}
+          futureSize={futureSize}
+          historySize={historySize}
+          onRedo={redo}
+          onUndo={undo}
+        />
+      </section>
 
       <section className="signal-strip" aria-label="Adapter and audio status">
         <div className={`status-cell status-${webMcpStatus}`} data-testid="webmcp-status">
           <span>WebMCP</span>
           <strong>{webMcpStatus}</strong>
-          <small>{webMcpReason ?? 'get_patch + apply_patch + set_lfo_shape'}</small>
+          <small>{webMcpReason ?? 'Patch, LFO, A/B, undo + redo tools'}</small>
         </div>
         <div
           className={`status-cell status-${audio.lifecycle}`}
@@ -86,6 +110,7 @@ export function App({ store }: AppProps) {
           data-route-count={patch.modulations.length}
           data-delay-enabled={patch.effects.delay.enabled}
           data-reverb-enabled={patch.effects.reverb.enabled}
+          data-variant={currentVariant}
           data-resonance={patch.filter.resonance}
           data-sustain={patch.ampEnvelope.sustainLevel}
           data-transpose={patch.oscillators[0].transposeSemitones}
@@ -236,12 +261,20 @@ export function App({ store }: AppProps) {
               <dd>{summary.modulations.length}</dd>
             </div>
             <div>
+              <dt>Variant</dt>
+              <dd data-testid="current-variant">{currentVariant}</dd>
+            </div>
+            <div>
               <dt>Transactions</dt>
               <dd data-testid="transaction-count">{transactionCount}</dd>
             </div>
             <div>
               <dt>Undo depth</dt>
               <dd data-testid="history-size">{historySize}</dd>
+            </div>
+            <div>
+              <dt>Redo depth</dt>
+              <dd data-testid="future-size">{futureSize}</dd>
             </div>
           </dl>
           <button className="darken-control" onClick={applyDarker} type="button">
@@ -274,8 +307,9 @@ export function App({ store }: AppProps) {
             </ol>
           )}
           <footer>
-            <span>Undo</span>
+            <span>Undo / redo</span>
             <strong data-testid="undo-available">{canUndo ? 'available' : 'empty'}</strong>
+            <strong data-testid="redo-available">{canRedo ? 'available' : 'empty'}</strong>
           </footer>
         </article>
       </section>

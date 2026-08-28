@@ -3,19 +3,15 @@ import type { VitalFixtureStatus } from '../app/appStore'
 
 interface PatchHeaderProps {
   summary: PatchSummary
-  canUndo: boolean
   vitalStatus: VitalFixtureStatus
   exportFilename: string
-  onUndo: () => void
   onExport: () => void
 }
 
 export function PatchHeader({
   summary,
-  canUndo,
   vitalStatus,
   exportFilename,
-  onUndo,
   onExport,
 }: PatchHeaderProps) {
   return (
@@ -26,9 +22,6 @@ export function PatchHeader({
         <p className="patch-description">{summary.description}</p>
       </div>
       <div className="masthead-actions">
-        <button className="button button-quiet" disabled={!canUndo} onClick={onUndo} type="button">
-          Undo transaction
-        </button>
         <button
           className="button button-export"
           data-testid="export-vital"

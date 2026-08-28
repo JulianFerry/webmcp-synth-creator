@@ -5,7 +5,7 @@ import { CommandService } from '../commands/CommandService'
 import type { SupportedPatchPath } from '../patch/paths'
 import { summarizePatch } from '../patch/summary'
 import type { PatchState, PatchSummary } from '../patch/types'
-import { SessionService } from '../session/SessionService'
+import { SessionService, type VariantId } from '../session/SessionService'
 import { vitalFilename, VitalPresetAdapter } from '../vital/VitalPresetAdapter'
 
 export type CapabilityStatus = 'checking' | 'available' | 'unavailable'
@@ -15,7 +15,10 @@ export interface AppStoreState {
   patch: PatchState
   summary: PatchSummary
   changed: Record<string, { before: unknown; after: unknown }>
+  currentVariant: VariantId
+  hasVariantB: boolean
   canUndo: boolean
+  canRedo: boolean
   audio: BrowserSynthState
   webMcpStatus: CapabilityStatus
   webMcpReason: string | null
@@ -25,6 +28,7 @@ export interface AppStoreState {
   lastError: string | null
   transactionCount: number
   historySize: number
+  futureSize: number
   controlResetKey: number
   applyDarker: () => void
   applyPatchChange: (path: SupportedPatchPath, value: unknown, reason: string) => boolean
@@ -35,7 +39,10 @@ export interface AppStoreState {
   noteOff: (midi: number) => void
   releaseAllNotes: () => void
   toggleHeldNote: () => Promise<void>
+  createVariant: () => void
+  selectVariant: (variantId: VariantId) => void
   undo: () => void
+  redo: () => void
   exportVital: () => void
   setWebMcpCapability: (status: CapabilityStatus, reason?: string) => void
   setVitalAdapter: (adapter: VitalPresetAdapter | null, error?: string) => void
@@ -53,15 +60,24 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'An unexpected error occurred'
 }
 
+function variantBName(name: string): string {
+  const suffix = name.endsWith(' [B]') ? ' [B2]' : ' [B]'
+  return `${name.slice(0, 80 - suffix.length)}${suffix}`
+}
+
 export function createAppStore({ session, commands, synth }: AppStoreDependencies): AppStore {
   let vitalAdapter: VitalPresetAdapter | null = null
   const initialPatch = session.getPatch()
+  const initialSession = session.getSummary()
 
   const store = create<AppStoreState>((set, get) => ({
     patch: initialPatch,
     summary: summarizePatch(initialPatch),
     changed: {},
-    canUndo: commands.canUndo,
+    currentVariant: initialSession.currentVariant,
+    hasVariantB: initialSession.hasVariantB,
+    canUndo: initialSession.canUndo,
+    canRedo: initialSession.canRedo,
     audio: synth.getState(),
     webMcpStatus: 'checking',
     webMcpReason: null,
@@ -71,6 +87,7 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
     lastError: null,
     transactionCount: 0,
     historySize: commands.historySize,
+    futureSize: commands.futureSize,
     controlResetKey: 0,
 
     applyDarker: () => {
@@ -163,9 +180,54 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
       }
     },
 
+    createVariant: () => {
+      const current = session.getPatch()
+      const changes: Array<{ path: SupportedPatchPath; value: unknown }> = [
+        { path: 'metadata.name', value: variantBName(current.metadata.name) },
+      ]
+      current.oscillators.forEach((oscillator, index) => {
+        const wider = Math.min(1, Number((oscillator.stereoSpread + 0.12).toFixed(2)))
+        if (wider !== oscillator.stereoSpread) {
+          changes.push({
+            path: `oscillators.${index}.stereoSpread` as SupportedPatchPath,
+            value: wider,
+          })
+        }
+      })
+
+      try {
+        commands.createVariant(
+          {
+            type: 'create_variant',
+            reason: 'Create a wider B alternative from the selected patch',
+            changes,
+          },
+          { source: 'ui' },
+        )
+      } catch (error) {
+        set({ lastError: errorMessage(error) })
+      }
+    },
+
+    selectVariant: (variantId) => {
+      try {
+        commands.selectVariant(variantId, { source: 'ui' })
+      } catch (error) {
+        set({ lastError: errorMessage(error) })
+      }
+    },
+
     undo: () => {
       try {
         commands.undo({ source: 'history' })
+      } catch (error) {
+        set({ lastError: errorMessage(error) })
+      }
+    },
+
+    redo: () => {
+      try {
+        commands.redo({ source: 'history' })
       } catch (error) {
         set({ lastError: errorMessage(error) })
       }
@@ -198,13 +260,22 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
   }))
 
   session.subscribe((event) => {
+    const sessionSummary = session.getSummary()
+    const isPatchTransaction = ['command', 'undo', 'redo', 'variant_create'].includes(event.kind)
     store.setState((state) => ({
       patch: event.patch,
       summary: summarizePatch(event.patch),
-      changed: event.changed,
-      canUndo: commands.canUndo,
-      transactionCount: state.transactionCount + 1,
+      changed:
+        event.kind === 'variant_select' || event.kind === 'variant_discard'
+          ? {}
+          : event.changed,
+      currentVariant: sessionSummary.currentVariant,
+      hasVariantB: sessionSummary.hasVariantB,
+      canUndo: sessionSummary.canUndo,
+      canRedo: sessionSummary.canRedo,
+      transactionCount: state.transactionCount + (isPatchTransaction ? 1 : 0),
       historySize: commands.historySize,
+      futureSize: commands.futureSize,
       controlResetKey: state.controlResetKey + 1,
       exportFilename: vitalFilename(event.patch.metadata.name),
       lastError: null,

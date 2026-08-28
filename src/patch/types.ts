@@ -192,11 +192,3 @@ export interface PatchSummary {
     frameCount: number
   }>
 }
-
-export interface CommandResult {
-  patch: PatchState
-  changed: Record<string, { before: unknown; after: unknown }>
-  summary: PatchSummary
-  canUndo: boolean
-  correlationId: string
-}

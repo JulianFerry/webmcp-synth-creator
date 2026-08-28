@@ -98,7 +98,16 @@ test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vit
     const tools = await document.modelContext!.getTools()
     return tools.map((tool) => tool.name)
   })
-  expect(toolNames).toEqual(['get_patch', 'apply_patch', 'set_lfo_shape'])
+  expect(toolNames).toEqual([
+    'get_patch',
+    'apply_patch',
+    'set_lfo_shape',
+    'get_session_state',
+    'create_variant',
+    'select_variant',
+    'undo',
+    'redo',
+  ])
 
   await page.getByTestId('hold-note').click()
   await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-held', 'true')

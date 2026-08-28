@@ -92,6 +92,8 @@ export function createApplyPatchTool(commandService: CommandService): WebMcpTool
           changed: result.changed,
           summary: result.summary,
           canUndo: result.canUndo,
+          canRedo: result.canRedo,
+          session: result.session,
           correlationId: result.correlationId,
         }
       } catch (error) {

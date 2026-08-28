@@ -9,29 +9,71 @@ export interface HistoryEntry {
 }
 
 export class PatchHistory {
-  private readonly entries: HistoryEntry[] = []
+  private readonly past: HistoryEntry[] = []
+  private readonly future: HistoryEntry[] = []
 
-  constructor(private readonly limit = 30) {
+  constructor(readonly limit = 30) {
     if (!Number.isInteger(limit) || limit < 1) {
       throw new RangeError('History limit must be a positive integer')
     }
   }
 
   push(entry: HistoryEntry): void {
-    this.entries.push(structuredClone(entry))
-    if (this.entries.length > this.limit) this.entries.shift()
+    this.past.push(structuredClone(entry))
+    this.future.length = 0
+    if (this.past.length > this.limit) this.past.shift()
   }
 
-  pop(): HistoryEntry | undefined {
-    const entry = this.entries.pop()
+  peekUndo(): HistoryEntry | undefined {
+    const entry = this.past.at(-1)
     return entry ? structuredClone(entry) : undefined
   }
 
+  peekRedo(): HistoryEntry | undefined {
+    const entry = this.future.at(-1)
+    return entry ? structuredClone(entry) : undefined
+  }
+
+  undo(): HistoryEntry | undefined {
+    const entry = this.past.pop()
+    if (!entry) return undefined
+    this.future.push(entry)
+    return structuredClone(entry)
+  }
+
+  redo(): HistoryEntry | undefined {
+    const entry = this.future.pop()
+    if (!entry) return undefined
+    this.past.push(entry)
+    if (this.past.length > this.limit) this.past.shift()
+    return structuredClone(entry)
+  }
+
+  pop(): HistoryEntry | undefined {
+    return this.undo()
+  }
+
+  getPast(): HistoryEntry[] {
+    return structuredClone(this.past)
+  }
+
+  getFuture(): HistoryEntry[] {
+    return structuredClone(this.future)
+  }
+
   get canUndo(): boolean {
-    return this.entries.length > 0
+    return this.past.length > 0
+  }
+
+  get canRedo(): boolean {
+    return this.future.length > 0
   }
 
   get size(): number {
-    return this.entries.length
+    return this.past.length
+  }
+
+  get futureSize(): number {
+    return this.future.length
   }
 }
