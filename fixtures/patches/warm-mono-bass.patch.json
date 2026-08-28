@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "metadata": {
+    "name": "Warm Mono Bass",
+    "category": "bass",
+    "description": "A focused mono bass with a warm saw fundamental and restrained square sub layer.",
+    "tags": ["mono", "warm", "sub"]
+  },
+  "oscillators": [
+    {
+      "enabled": true,
+      "wavetableId": "saw",
+      "wavetablePosition": 0.72,
+      "level": 0.72,
+      "transposeSemitones": -12,
+      "fineTuneCents": 0,
+      "unisonVoices": 1,
+      "unisonDetune": 0,
+      "stereoSpread": 0,
+      "randomPhase": 0
+    },
+    {
+      "enabled": true,
+      "wavetableId": "soft-square",
+      "wavetablePosition": 0.64,
+      "level": 0.32,
+      "transposeSemitones": -24,
+      "fineTuneCents": 0,
+      "unisonVoices": 1,
+      "unisonDetune": 0,
+      "stereoSpread": 0,
+      "randomPhase": 0
+    }
+  ],
+  "ampEnvelope": {
+    "attackSeconds": 0.008,
+    "holdSeconds": 0,
+    "decaySeconds": 0.34,
+    "sustainLevel": 0.78,
+    "releaseSeconds": 0.16
+  },
+  "modEnvelope": {
+    "attackSeconds": 0.004,
+    "holdSeconds": 0,
+    "decaySeconds": 0.42,
+    "sustainLevel": 0.08,
+    "releaseSeconds": 0.18
+  },
+  "filter": { "enabled": true, "type": "lowpass", "cutoffHz": 620, "resonance": 0.34 },
+  "lfo1": {
+    "enabled": false,
+    "points": [{ "x": 0, "y": 0 }, { "x": 0.5, "y": 1 }, { "x": 1, "y": 0 }],
+    "rate": { "mode": "sync", "division": "1/4" },
+    "phase": 0,
+    "smooth": true
+  },
+  "modulations": [
+    {
+      "id": "bass-env-filter",
+      "source": "modEnvelope",
+      "destination": "filter.cutoff",
+      "amount": 0.48,
+      "bipolar": false
+    }
+  ],
+  "voice": { "polyphony": 1, "legato": true, "glideSeconds": 0.08, "velocitySensitivity": 0.24 },
+  "effects": {
+    "delay": {
+      "enabled": false,
+      "mode": "sync",
+      "division": "1/8",
+      "timeSeconds": 0.25,
+      "feedback": 0.12,
+      "mix": 0
+    },
+    "reverb": { "enabled": false, "mix": 0, "decaySeconds": 1.2, "size": 0.28 }
+  }
+}

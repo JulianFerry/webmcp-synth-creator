@@ -96,7 +96,7 @@ p {
 .masthead {
   display: flex;
   gap: 34px;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 4px 2px 23px;
   border-bottom: 1px solid var(--line);
@@ -137,9 +137,10 @@ h2 {
 
 .masthead-actions {
   display: grid;
-  grid-template-columns: auto;
+  grid-template-columns: minmax(190px, 260px) repeat(2, max-content);
   gap: 8px;
-  min-width: 220px;
+  align-items: end;
+  min-width: 560px;
 }
 
 .masthead-actions code {
@@ -150,6 +151,53 @@ h2 {
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.header-preset-control {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.header-preset-control span {
+  color: var(--muted);
+  font: 8px var(--mono);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.header-preset-control select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 34px 0 11px;
+  overflow: hidden;
+  border: 1px solid var(--line-hot);
+  border-radius: 5px;
+  color: var(--active);
+  background: var(--panel-high);
+  font: 10px var(--mono);
+  text-overflow: ellipsis;
+}
+
+.masthead-actions .button {
+  white-space: nowrap;
+}
+
+.button-import {
+  border-color: var(--line-hot);
+  color: var(--text);
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  border: 0 !important;
+  white-space: nowrap !important;
 }
 
 .button {
@@ -291,6 +339,10 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
+}
+
+.webmcp-status-cell small {
+  white-space: normal;
 }
 
 .status-cell {
@@ -1052,6 +1104,15 @@ h2 {
   list-style: none;
 }
 
+.transaction-reason {
+  margin: -5px 0 12px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--active);
+  color: var(--muted);
+  background: var(--panel-low);
+  font: 9px/1.45 var(--mono);
+}
+
 .diff-list li {
   display: grid;
   grid-template-columns: minmax(170px, 1fr) minmax(70px, 0.45fr) 20px minmax(70px, 0.45fr);
@@ -1116,6 +1177,16 @@ h2 {
   font: 11px var(--mono);
 }
 
+.notice-banner {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--analysis);
+  border-radius: 6px;
+  color: #c8f5f0;
+  background: rgb(15 40 41 / 94%);
+  font: 10px/1.5 var(--mono);
+}
+
 @media (max-width: 960px) {
   .workbench-shell {
     width: min(100% - 28px, 760px);
@@ -1128,6 +1199,7 @@ h2 {
 
   .masthead-actions {
     min-width: 0;
+    width: 100%;
   }
 
   .signal-strip,
@@ -1170,11 +1242,18 @@ h2 {
     padding-top: 16px;
   }
 
-  .masthead-actions,
   .oscillator-controls,
   .filter-controls,
   .effects-columns {
     grid-template-columns: 1fr;
+  }
+
+  .masthead-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .header-preset-control {
+    grid-column: 1 / -1;
   }
 
   .variant-switcher,
@@ -1193,7 +1272,7 @@ h2 {
   }
 
   .masthead-actions code {
-    grid-column: auto;
+    grid-column: 1 / -1;
     text-align: left;
   }
 

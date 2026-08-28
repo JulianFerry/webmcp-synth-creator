@@ -144,6 +144,10 @@ export function planAudioPatchUpdate(changed: PatchDiff): AudioUpdatePlan {
   }
 
   for (const path of Object.keys(changed)) {
+    if (path === 'wavetableData') {
+      plan.oscillators[0].wavetable = true
+      plan.oscillators[1].wavetable = true
+    }
     const oscillatorMatch = /^oscillators\.(0|1)\.(.+)$/.exec(path)
     if (oscillatorMatch) {
       const index = Number(oscillatorMatch[1]) as 0 | 1

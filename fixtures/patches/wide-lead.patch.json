@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "metadata": {
+    "name": "Wide Lead",
+    "category": "lead",
+    "description": "A wide metallic lead softened by a moving vocal layer and controlled pitch drift.",
+    "tags": ["wide", "metallic", "vocal"]
+  },
+  "oscillators": [
+    {
+      "enabled": true,
+      "wavetableId": "metallic",
+      "wavetablePosition": 0.38,
+      "level": 0.56,
+      "transposeSemitones": 0,
+      "fineTuneCents": -2,
+      "unisonVoices": 7,
+      "unisonDetune": 0.3,
+      "stereoSpread": 0.96,
+      "randomPhase": 0.42
+    },
+    {
+      "enabled": true,
+      "wavetableId": "vocal",
+      "wavetablePosition": 0.58,
+      "level": 0.32,
+      "transposeSemitones": 0,
+      "fineTuneCents": 4,
+      "unisonVoices": 3,
+      "unisonDetune": 0.14,
+      "stereoSpread": 0.72,
+      "randomPhase": 0.34
+    }
+  ],
+  "ampEnvelope": {
+    "attackSeconds": 0.025,
+    "holdSeconds": 0,
+    "decaySeconds": 0.55,
+    "sustainLevel": 0.68,
+    "releaseSeconds": 0.48
+  },
+  "modEnvelope": {
+    "attackSeconds": 0.015,
+    "holdSeconds": 0,
+    "decaySeconds": 0.72,
+    "sustainLevel": 0.24,
+    "releaseSeconds": 0.5
+  },
+  "filter": { "enabled": true, "type": "lowpass", "cutoffHz": 5400, "resonance": 0.24 },
+  "lfo1": {
+    "enabled": true,
+    "points": [{ "x": 0, "y": 0.5 }, { "x": 0.25, "y": 1 }, { "x": 0.75, "y": 0 }, { "x": 1, "y": 0.5 }],
+    "rate": { "mode": "free", "hz": 5.2 },
+    "phase": 0.12,
+    "smooth": true
+  },
+  "modulations": [
+    {
+      "id": "lead-lfo-pitch",
+      "source": "lfo1",
+      "destination": "oscillator1.pitch",
+      "amount": 0.025,
+      "bipolar": true
+    },
+    {
+      "id": "lead-lfo-vocal",
+      "source": "lfo1",
+      "destination": "oscillator2.wavetablePosition",
+      "amount": 0.2,
+      "bipolar": true
+    },
+    {
+      "id": "lead-env-filter",
+      "source": "modEnvelope",
+      "destination": "filter.cutoff",
+      "amount": 0.26,
+      "bipolar": false
+    }
+  ],
+  "voice": { "polyphony": 6, "legato": true, "glideSeconds": 0.045, "velocitySensitivity": 0.46 },
+  "effects": {
+    "delay": {
+      "enabled": true,
+      "mode": "sync",
+      "division": "1/8",
+      "timeSeconds": 0.25,
+      "feedback": 0.3,
+      "mix": 0.2
+    },
+    "reverb": { "enabled": true, "mix": 0.22, "decaySeconds": 2.8, "size": 0.64 }
+  }
+}

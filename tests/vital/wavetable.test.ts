@@ -34,7 +34,7 @@ describe('Vital wavetable encoding', () => {
 
     expect(first).toEqual(second)
     expect(first.version).toBe('fixture-version')
-    expect(keyframes.map(({ position }) => position)).toEqual([0, 256])
+    expect(keyframes.map(({ position }) => position)).toEqual([0, 128, 256])
     for (const keyframe of keyframes) {
       expect(decodeBase64(keyframe.wave_data)).toHaveLength(
         VITAL_FRAME_SAMPLE_COUNT * Float32Array.BYTES_PER_ELEMENT,

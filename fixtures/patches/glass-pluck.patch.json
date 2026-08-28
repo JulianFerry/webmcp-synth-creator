@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "metadata": {
+    "name": "Glass Pluck",
+    "category": "pluck",
+    "description": "A bright glass transient with a clean triangle support and short tempo echo.",
+    "tags": ["bright", "glass", "short"]
+  },
+  "oscillators": [
+    {
+      "enabled": true,
+      "wavetableId": "glass",
+      "wavetablePosition": 0.78,
+      "level": 0.66,
+      "transposeSemitones": 0,
+      "fineTuneCents": 0,
+      "unisonVoices": 3,
+      "unisonDetune": 0.12,
+      "stereoSpread": 0.58,
+      "randomPhase": 0.2
+    },
+    {
+      "enabled": true,
+      "wavetableId": "triangle",
+      "wavetablePosition": 0,
+      "level": 0.14,
+      "transposeSemitones": 12,
+      "fineTuneCents": 2,
+      "unisonVoices": 1,
+      "unisonDetune": 0,
+      "stereoSpread": 0.18,
+      "randomPhase": 0
+    }
+  ],
+  "ampEnvelope": {
+    "attackSeconds": 0.004,
+    "holdSeconds": 0,
+    "decaySeconds": 0.28,
+    "sustainLevel": 0.08,
+    "releaseSeconds": 0.62
+  },
+  "modEnvelope": {
+    "attackSeconds": 0.005,
+    "holdSeconds": 0,
+    "decaySeconds": 0.18,
+    "sustainLevel": 0,
+    "releaseSeconds": 0.25
+  },
+  "filter": { "enabled": true, "type": "lowpass", "cutoffHz": 9200, "resonance": 0.28 },
+  "lfo1": {
+    "enabled": false,
+    "points": [{ "x": 0, "y": 0 }, { "x": 0.5, "y": 1 }, { "x": 1, "y": 0 }],
+    "rate": { "mode": "free", "hz": 0.8 },
+    "phase": 0,
+    "smooth": true
+  },
+  "modulations": [
+    {
+      "id": "pluck-env-wave",
+      "source": "modEnvelope",
+      "destination": "oscillator1.wavetablePosition",
+      "amount": -0.32,
+      "bipolar": false
+    },
+    {
+      "id": "pluck-env-filter",
+      "source": "modEnvelope",
+      "destination": "filter.cutoff",
+      "amount": 0.28,
+      "bipolar": false
+    }
+  ],
+  "voice": { "polyphony": 8, "legato": false, "glideSeconds": 0, "velocitySensitivity": 0.62 },
+  "effects": {
+    "delay": {
+      "enabled": true,
+      "mode": "sync",
+      "division": "1/8T",
+      "timeSeconds": 0.2,
+      "feedback": 0.26,
+      "mix": 0.24
+    },
+    "reverb": { "enabled": true, "mix": 0.26, "decaySeconds": 2.4, "size": 0.58 }
+  }
+}

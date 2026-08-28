@@ -67,6 +67,11 @@ Wait for **Vital fixture ready**, make the desired edits, and click **Export
 the browser use different synthesis engines, so use the browser as a functional
 preview rather than an expectation of identical sound.
 
+Use the header's curated-patch dropdown for a starting point. **Import Vital** accepts
+`.vital` files in the documented Vital `1.0.7` compatibility subset; a successful
+import replaces only the selected A/B variant as one undoable transaction. Invalid or
+unsupported files leave the patch and history unchanged.
+
 The exporter clones `fixtures/vital/init.vital`; dependency installation does
 not create or replace it. See [`fixtures/vital/README.md`](fixtures/vital/README.md)
 for fixture evidence, provenance limitations, and compatibility records.

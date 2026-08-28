@@ -4,6 +4,7 @@ import { mapVitalLfoRate } from './lfo'
 import {
   encodeVitalDelaySeconds,
   encodeVitalEnvelopeSeconds,
+  encodeVitalGlideSeconds,
   encodeVitalReverbDecaySeconds,
 } from './units'
 
@@ -25,10 +26,17 @@ export function mapPhaseOneVitalParameters(patch: PatchState): Record<string, nu
   const first = patch.oscillators[0]
   const second = patch.oscillators[1]
 
+  if (patch.filter.type !== 'lowpass') {
+    throw new VitalExportError(
+      `Vital 1.0.7 export supports only the logical lowpass Filter 1 model, not ${patch.filter.type}`,
+    )
+  }
+
   return {
     polyphony: patch.voice.polyphony,
     legato: Number(patch.voice.legato),
     velocity_track: patch.voice.velocitySensitivity,
+    portamento_time: encodeVitalGlideSeconds(patch.voice.glideSeconds),
     osc_1_on: Number(first.enabled),
     osc_1_destination: 0,
     osc_1_level: first.level,

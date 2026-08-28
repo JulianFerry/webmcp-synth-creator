@@ -42,4 +42,16 @@ describe('BrowserSynth diff planning', () => {
     expect(plan.voiceLevel).toBe(true)
     expect(plan.oscillators.every((oscillator) => oscillator.level === false)).toBe(true)
   })
+
+  it('rebuilds both oscillator tables when complete patch data is replaced', () => {
+    const plan = planAudioPatchUpdate({
+      wavetableData: {
+        before: { ids: ['airy', 'sine'], signature: 'before' },
+        after: { ids: ['glass', 'triangle'], signature: 'after' },
+      },
+    })
+
+    expect(plan.oscillators[0].wavetable).toBe(true)
+    expect(plan.oscillators[1].wavetable).toBe(true)
+  })
 })

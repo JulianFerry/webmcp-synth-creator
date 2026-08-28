@@ -49,6 +49,9 @@ describe('WebMCP tool registration', () => {
       'select_variant',
       'undo',
       'redo',
+      'create_patch',
+      'list_presets',
+      'load_preset',
     ])
 
     const getPatch = gateway.registrations[0].tool
@@ -64,6 +67,15 @@ describe('WebMCP tool registration', () => {
       gateway.registrations.find(({ tool }) => tool.name === 'get_session_state')?.tool.annotations,
     ).toEqual({ readOnlyHint: true, untrustedContentHint: false })
     for (const toolName of ['create_variant', 'select_variant', 'undo', 'redo']) {
+      expect(gateway.registrations.find(({ tool }) => tool.name === toolName)?.tool.annotations).toEqual({
+        readOnlyHint: false,
+        untrustedContentHint: false,
+      })
+    }
+    expect(
+      gateway.registrations.find(({ tool }) => tool.name === 'list_presets')?.tool.annotations,
+    ).toEqual({ readOnlyHint: true, untrustedContentHint: false })
+    for (const toolName of ['create_patch', 'load_preset']) {
       expect(gateway.registrations.find(({ tool }) => tool.name === toolName)?.tool.annotations).toEqual({
         readOnlyHint: false,
         untrustedContentHint: false,
@@ -306,6 +318,43 @@ describe('WebMCP tool registration', () => {
     expect(session.getPatch('B').metadata.name).toBe('Ethereal Gate Wide B')
   })
 
+  it('lists, loads, and creates patches through plain JSON tool results', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const tool = (name: string) =>
+      gateway.registrations.find(({ tool: candidate }) => candidate.name === name)!.tool
+
+    await expect(tool('list_presets').execute({ category: 'pad' })).resolves.toEqual([
+      expect.objectContaining({ id: 'ethereal-gate', category: 'pad' }),
+      expect.objectContaining({ id: 'midnight-pad', category: 'pad' }),
+    ])
+
+    const loaded = await tool('load_preset').execute({ presetId: 'glass-pluck' })
+    expect(loaded).toMatchObject({
+      summary: { name: 'Glass Pluck', category: 'pluck' },
+      session: { currentVariant: 'A', canUndo: true },
+    })
+    expect(loaded).not.toHaveProperty('content')
+
+    const createdPatch = session.getPatch()
+    createdPatch.metadata.name = 'Created Glass Variant'
+    createdPatch.filter.cutoffHz = 7600
+    const created = await tool('create_patch').execute({
+      reason: 'Create a complete glass variation',
+      patch: createdPatch,
+    })
+    expect(created).toMatchObject({
+      changed: {
+        'metadata.name': { before: 'Glass Pluck', after: 'Created Glass Variant' },
+        'filter.cutoffHz': { before: 9200, after: 7600 },
+      },
+      summary: { name: 'Created Glass Variant' },
+      session: { currentVariant: 'A', canUndo: true },
+    })
+    expect(commands.historySize).toBe(2)
+  })
+
   it('returns one normalized write error for duplicate B, empty undo, and empty redo', async () => {
     const gateway = new CapturingGateway()
     const { commands, session } = createHarness()
@@ -400,6 +449,12 @@ describe('WebMCP tool registration', () => {
       select_variant: { variant: 'A' },
       undo: {},
       redo: {},
+      create_patch: {
+        reason: 'This complete patch creation must be cancelled',
+        patch: session.getPatch(),
+      },
+      list_presets: {},
+      load_preset: { presetId: 'glass-pluck' },
     }
 
     await Promise.all(

@@ -7,7 +7,7 @@ export function createGetPatchTool(session: SessionService): WebMcpToolDefinitio
     name: 'get_patch',
     title: 'Read current synth patch',
     description:
-      'Read the authoritative logical synth patch before editing. Returns supported state in musical units.',
+      'Read the selected logical patch before refinement. Preserve unrelated settings and prefer one apply_patch call per perceptual request.',
     inputSchema: {
       type: 'object',
       properties: {},

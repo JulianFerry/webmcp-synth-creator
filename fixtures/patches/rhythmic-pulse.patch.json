@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "metadata": {
+    "name": "Rhythmic Pulse",
+    "category": "rhythmic",
+    "description": "A crisp digital sequence with alternating level gates and a tightly synced echo.",
+    "tags": ["digital", "pulse", "sync"]
+  },
+  "oscillators": [
+    {
+      "enabled": true,
+      "wavetableId": "digital",
+      "wavetablePosition": 0.46,
+      "level": 0.58,
+      "transposeSemitones": 0,
+      "fineTuneCents": 0,
+      "unisonVoices": 3,
+      "unisonDetune": 0.1,
+      "stereoSpread": 0.66,
+      "randomPhase": 0.18
+    },
+    {
+      "enabled": true,
+      "wavetableId": "sine",
+      "wavetablePosition": 0,
+      "level": 0.2,
+      "transposeSemitones": -12,
+      "fineTuneCents": 0,
+      "unisonVoices": 1,
+      "unisonDetune": 0,
+      "stereoSpread": 0.1,
+      "randomPhase": 0
+    }
+  ],
+  "ampEnvelope": {
+    "attackSeconds": 0.006,
+    "holdSeconds": 0,
+    "decaySeconds": 0.18,
+    "sustainLevel": 0.62,
+    "releaseSeconds": 0.16
+  },
+  "modEnvelope": {
+    "attackSeconds": 0.01,
+    "holdSeconds": 0,
+    "decaySeconds": 0.3,
+    "sustainLevel": 0.12,
+    "releaseSeconds": 0.2
+  },
+  "filter": { "enabled": true, "type": "lowpass", "cutoffHz": 6800, "resonance": 0.2 },
+  "lfo1": {
+    "enabled": true,
+    "points": [
+      { "x": 0, "y": 0 },
+      { "x": 0.02, "y": 1 },
+      { "x": 0.22, "y": 0 },
+      { "x": 0.34, "y": 0 },
+      { "x": 0.36, "y": 0.86 },
+      { "x": 0.54, "y": 0 },
+      { "x": 0.7, "y": 0.68 },
+      { "x": 0.82, "y": 0 },
+      { "x": 1, "y": 0 }
+    ],
+    "rate": { "mode": "sync", "division": "1/16" },
+    "phase": 0,
+    "smooth": false
+  },
+  "modulations": [
+    {
+      "id": "pulse-level-1",
+      "source": "lfo1",
+      "destination": "oscillator1.level",
+      "amount": 0.68,
+      "bipolar": false
+    },
+    {
+      "id": "pulse-level-2",
+      "source": "lfo1",
+      "destination": "oscillator2.level",
+      "amount": 0.42,
+      "bipolar": false
+    },
+    {
+      "id": "pulse-filter",
+      "source": "lfo1",
+      "destination": "filter.cutoff",
+      "amount": 0.18,
+      "bipolar": false
+    }
+  ],
+  "voice": { "polyphony": 8, "legato": false, "glideSeconds": 0, "velocitySensitivity": 0.42 },
+  "effects": {
+    "delay": {
+      "enabled": true,
+      "mode": "sync",
+      "division": "1/16T",
+      "timeSeconds": 0.125,
+      "feedback": 0.34,
+      "mix": 0.26
+    },
+    "reverb": { "enabled": true, "mix": 0.16, "decaySeconds": 1.8, "size": 0.42 }
+  }
+}

@@ -1,5 +1,4 @@
 import { LatencyTrace, type RequestSource } from '../dev/latencyTrace'
-import { SUPPORTED_PATCH_PATHS } from '../patch/paths'
 import { parseApplyPatchCommand } from '../patch/schemas'
 import { summarizePatch } from '../patch/summary'
 import type {
@@ -20,8 +19,10 @@ import {
   type CreateVariantCommand,
 } from '../session/variantCommands'
 import { applyPatchChanges } from './applyPatch'
-import { diffSupportedPaths, type PatchDiff } from './diff'
+import { createPatchTransaction, type CreatePatchCommand } from './createPatch'
+import { diffCompletePatch, diffSupportedPaths, type PatchDiff } from './diff'
 import { PatchHistory } from './history'
+import { createLoadPresetTransaction, type LoadPresetCommand } from './loadPreset'
 import { createSetLfoShapeTransaction } from './setLfoShape'
 
 export class CommandError extends Error {}
@@ -75,6 +76,22 @@ export class CommandService {
     )
   }
 
+  createPatch(commandInput: CreatePatchCommand, context: CommandContext = {}): CommandResult {
+    const { correlationId, source } = this.beginRequest(context, 'ui')
+    const before = this.session.getPatch()
+    const transaction = createPatchTransaction(before, commandInput)
+    this.commitReplacement(transaction, correlationId, source, 'patch_create')
+    return this.commandResult(transaction.patch, transaction.changed, correlationId)
+  }
+
+  loadPreset(commandInput: LoadPresetCommand, context: CommandContext = {}): CommandResult {
+    const { correlationId, source } = this.beginRequest(context, 'ui')
+    const before = this.session.getPatch()
+    const transaction = createLoadPresetTransaction(before, commandInput)
+    this.commitReplacement(transaction, correlationId, source, 'preset_load')
+    return this.commandResult(transaction.patch, transaction.changed, correlationId)
+  }
+
   createVariant(commandInput: CreateVariantCommand, context: CommandContext = {}): CommandResult {
     const { correlationId, source } = this.beginRequest(context, 'ui')
     if (this.session.hasVariant('B') && commandInput.replaceExisting !== true) {
@@ -109,7 +126,7 @@ export class CommandService {
     const { correlationId, source } = this.beginRequest(context, 'ui')
     const before = this.session.getPatch()
     const selectedPatch = this.session.getPatch(variantId)
-    const changed = diffSupportedPaths(before, selectedPatch, SUPPORTED_PATCH_PATHS)
+    const changed = diffCompletePatch(before, selectedPatch)
     this.session.selectVariant(
       variantId,
       this.commitInput(
@@ -130,7 +147,7 @@ export class CommandService {
     const { correlationId, source } = this.beginRequest(context, 'ui')
     const before = this.session.getPatch()
     const variantA = this.session.getPatch('A')
-    const changed = diffSupportedPaths(before, variantA, SUPPORTED_PATCH_PATHS)
+    const changed = diffCompletePatch(before, variantA)
     this.session.discardVariantB(
       this.commitInput(
         variantA,
@@ -151,7 +168,7 @@ export class CommandService {
     if (!entry) throw new CommandError('There is no patch transaction to undo')
 
     const current = this.session.getPatch()
-    const changed = diffSupportedPaths(current, entry.before, SUPPORTED_PATCH_PATHS)
+    const changed = diffCompletePatch(current, entry.before)
     this.session.commitHistory(
       'undo',
       this.commitInput(
@@ -174,7 +191,7 @@ export class CommandService {
     if (!entry) throw new CommandError('There is no patch transaction to redo')
 
     const current = this.session.getPatch()
-    const changed = diffSupportedPaths(current, entry.after, SUPPORTED_PATCH_PATHS)
+    const changed = diffCompletePatch(current, entry.after)
     this.session.commitHistory(
       'redo',
       this.commitInput(
@@ -247,6 +264,27 @@ export class CommandService {
       session: this.session.getSummary(),
       correlationId,
     }
+  }
+
+  private commitReplacement(
+    transaction: ReturnType<typeof createPatchTransaction>,
+    correlationId: string,
+    source: RequestSource,
+    kind: 'patch_create' | 'preset_load',
+  ): void {
+    this.assertChanged(transaction.changed)
+    this.session.commitTransaction(
+      this.commitInput(
+        transaction.patch,
+        transaction.changed,
+        correlationId,
+        transaction.reason,
+        source,
+        kind,
+      ),
+      transaction.historyEntry,
+      () => this.trace.record(correlationId, 'patch_committed', source),
+    )
   }
 
   private assertChanged(changed: PatchDiff): void {

@@ -1,10 +1,13 @@
 import { CommandService } from '../commands/CommandService'
 import { SessionService } from '../session/SessionService'
 import { createApplyPatchTool } from './applyPatchTool'
+import { createCreatePatchTool } from './createPatchTool'
 import { createCreateVariantTool } from './createVariantTool'
 import { createGetPatchTool } from './getPatchTool'
 import { createGetSessionStateTool } from './getSessionStateTool'
 import type { ModelContextGateway, WebMcpToolDefinition } from './ModelContextGateway'
+import { createListPresetsTool } from './listPresetsTool'
+import { createLoadPresetTool } from './loadPresetTool'
 import { createRedoTool } from './redoTool'
 import { createSelectVariantTool } from './selectVariantTool'
 import { createSetLfoShapeTool } from './setLfoShapeTool'
@@ -43,6 +46,9 @@ export async function registerTools(
     createSelectVariantTool(commandService),
     createUndoTool(commandService),
     createRedoTool(commandService),
+    createCreatePatchTool(commandService),
+    createListPresetsTool(),
+    createLoadPresetTool(commandService),
   ]
 
   try {

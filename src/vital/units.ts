@@ -61,3 +61,16 @@ export function decodeVitalReverbDecaySeconds(value: number): number {
   assertRange(value, -6, 6, 'Vital reverb decay value')
   return 2 ** value
 }
+
+const VITAL_GLIDE_OFF_VALUE = -10
+
+export function encodeVitalGlideSeconds(seconds: number): number {
+  assertRange(seconds, 0, 5, 'Vital glide time')
+  if (seconds === 0) return VITAL_GLIDE_OFF_VALUE
+  return Math.max(VITAL_GLIDE_OFF_VALUE, Math.log2(seconds))
+}
+
+export function decodeVitalGlideSeconds(value: number): number {
+  assertRange(value, VITAL_GLIDE_OFF_VALUE, Math.log2(5), 'Vital portamento time')
+  return value === VITAL_GLIDE_OFF_VALUE ? 0 : 2 ** value
+}

@@ -30,7 +30,15 @@ export interface SessionCommitInput {
   correlationId: string
   reason: string
   source: RequestSource
-  kind: 'command' | 'undo' | 'redo' | 'variant_create' | 'variant_select' | 'variant_discard'
+  kind:
+    | 'command'
+    | 'patch_create'
+    | 'preset_load'
+    | 'undo'
+    | 'redo'
+    | 'variant_create'
+    | 'variant_select'
+    | 'variant_discard'
 }
 
 export interface SessionCommitEvent extends SessionCommitInput {

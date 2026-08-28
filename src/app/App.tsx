@@ -1,4 +1,5 @@
 import { AuditionPanel } from '../ui/AuditionPanel'
+import { ChangeSummary } from '../ui/ChangeSummary'
 import { EnvelopePanel } from '../ui/EnvelopePanel'
 import { EffectsPanel } from '../ui/EffectsPanel'
 import { FilterPanel } from '../ui/FilterPanel'
@@ -9,16 +10,11 @@ import { OscillatorPanel } from '../ui/OscillatorPanel'
 import { PatchHeader } from '../ui/PatchHeader'
 import { VariantSwitcher } from '../ui/VariantSwitcher'
 import { WorkbenchShell } from '../ui/WorkbenchShell'
+import { WebMcpStatus } from '../ui/WebMcpStatus'
 import type { AppStore } from './appStore'
 
 interface AppProps {
   store: AppStore
-}
-
-function formatValue(value: unknown): string {
-  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(2)
-  if (typeof value === 'string') return value
-  return JSON.stringify(value)
 }
 
 export function App({ store }: AppProps) {
@@ -26,6 +22,9 @@ export function App({ store }: AppProps) {
     patch,
     summary,
     changed,
+    lastTransactionReason,
+    presets,
+    currentPresetId,
     currentVariant,
     hasVariantB,
     canUndo,
@@ -37,6 +36,7 @@ export function App({ store }: AppProps) {
     vitalError,
     exportFilename,
     lastError,
+    vitalImportNotice,
     transactionCount,
     historySize,
     futureSize,
@@ -51,21 +51,26 @@ export function App({ store }: AppProps) {
     releaseAllNotes,
     toggleHeldNote,
     createVariant,
+    loadPreset,
+    importVitalFile,
     selectVariant,
     undo,
     redo,
     exportVital,
   } = store()
 
-  const changedEntries = Object.entries(changed)
   const wavetables = Object.values(patch.wavetableData)
   const previewPaths = Object.keys(audio.previewValues)
 
   return (
     <WorkbenchShell>
       <PatchHeader
+        currentPresetId={currentPresetId}
         exportFilename={exportFilename}
         onExport={exportVital}
+        onImport={importVitalFile}
+        onLoadPreset={loadPreset}
+        presets={presets}
         summary={summary}
         vitalStatus={vitalStatus}
       />
@@ -88,11 +93,7 @@ export function App({ store }: AppProps) {
       </section>
 
       <section className="signal-strip" aria-label="Adapter and audio status">
-        <div className={`status-cell status-${webMcpStatus}`} data-testid="webmcp-status">
-          <span>WebMCP</span>
-          <strong>{webMcpStatus}</strong>
-          <small>{webMcpReason ?? 'Patch, LFO, A/B, undo + redo tools'}</small>
-        </div>
+        <WebMcpStatus reason={webMcpReason} status={webMcpStatus} />
         <div
           className={`status-cell status-${audio.lifecycle}`}
           data-active-count={audio.activeVoiceCount}
@@ -283,36 +284,19 @@ export function App({ store }: AppProps) {
           </button>
         </article>
 
-        <article className="panel panel-diff">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Atomic command result</p>
-              <h2>Latest compact diff</h2>
-            </div>
-            <span className="count-chip">{changedEntries.length} paths</span>
-          </div>
-
-          {changedEntries.length === 0 ? (
-            <p className="empty-diff">Waiting for one completed UI gesture or WebMCP transaction.</p>
-          ) : (
-            <ol className="diff-list" data-testid="latest-diff">
-              {changedEntries.map(([path, values]) => (
-                <li key={path}>
-                  <code>{path}</code>
-                  <span>{formatValue(values.before)}</span>
-                  <b aria-hidden="true">-&gt;</b>
-                  <strong>{formatValue(values.after)}</strong>
-                </li>
-              ))}
-            </ol>
-          )}
-          <footer>
-            <span>Undo / redo</span>
-            <strong data-testid="undo-available">{canUndo ? 'available' : 'empty'}</strong>
-            <strong data-testid="redo-available">{canRedo ? 'available' : 'empty'}</strong>
-          </footer>
-        </article>
+        <ChangeSummary
+          canRedo={canRedo}
+          canUndo={canUndo}
+          changed={changed}
+          reason={lastTransactionReason}
+        />
       </section>
+
+      {vitalImportNotice ? (
+        <div className="notice-banner" data-testid="vital-import-notice" role="status">
+          {vitalImportNotice}
+        </div>
+      ) : null}
 
       {lastError ? (
         <div className="error-banner" role="alert">

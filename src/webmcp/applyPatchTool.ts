@@ -33,7 +33,7 @@ export function createApplyPatchTool(commandService: CommandService): WebMcpTool
     name: 'apply_patch',
     title: 'Apply one patch transaction',
     description:
-      'Apply one coherent sound-design change. Include coordinated edits in one call and preserve unrelated settings.',
+      'After get_patch, apply one coherent perceptual change. Include coordinated edits in one call, preserve unrelated settings, and use set_lfo_shape for focused pulse edits.',
     inputSchema: {
       type: 'object',
       examples: [documentedApplyPatchInput],

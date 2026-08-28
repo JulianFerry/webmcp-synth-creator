@@ -107,6 +107,9 @@ test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vit
     'select_variant',
     'undo',
     'redo',
+    'create_patch',
+    'list_presets',
+    'load_preset',
   ])
 
   await page.getByTestId('hold-note').click()

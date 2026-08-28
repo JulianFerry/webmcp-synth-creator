@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "metadata": {
+    "name": "Midnight Pad",
+    "category": "pad",
+    "description": "A dark, slow-blooming pad with warm saw body and a hollow upper layer.",
+    "tags": ["dark", "warm", "slow"]
+  },
+  "oscillators": [
+    {
+      "enabled": true,
+      "wavetableId": "warm-saw",
+      "wavetablePosition": 0.68,
+      "level": 0.58,
+      "transposeSemitones": 0,
+      "fineTuneCents": -3,
+      "unisonVoices": 5,
+      "unisonDetune": 0.24,
+      "stereoSpread": 0.74,
+      "randomPhase": 0.58
+    },
+    {
+      "enabled": true,
+      "wavetableId": "hollow",
+      "wavetablePosition": 0.42,
+      "level": 0.3,
+      "transposeSemitones": 12,
+      "fineTuneCents": 5,
+      "unisonVoices": 3,
+      "unisonDetune": 0.16,
+      "stereoSpread": 0.62,
+      "randomPhase": 0.48
+    }
+  ],
+  "ampEnvelope": {
+    "attackSeconds": 0.42,
+    "holdSeconds": 0,
+    "decaySeconds": 2.6,
+    "sustainLevel": 0.72,
+    "releaseSeconds": 3.8
+  },
+  "modEnvelope": {
+    "attackSeconds": 0.12,
+    "holdSeconds": 0,
+    "decaySeconds": 2.2,
+    "sustainLevel": 0.2,
+    "releaseSeconds": 2.8
+  },
+  "filter": { "enabled": true, "type": "lowpass", "cutoffHz": 3800, "resonance": 0.22 },
+  "lfo1": {
+    "enabled": false,
+    "points": [{ "x": 0, "y": 0 }, { "x": 0.5, "y": 1 }, { "x": 1, "y": 0 }],
+    "rate": { "mode": "free", "hz": 0.18 },
+    "phase": 0,
+    "smooth": true
+  },
+  "modulations": [
+    {
+      "id": "midnight-env-filter",
+      "source": "modEnvelope",
+      "destination": "filter.cutoff",
+      "amount": 0.36,
+      "bipolar": true
+    }
+  ],
+  "voice": { "polyphony": 10, "legato": false, "glideSeconds": 0, "velocitySensitivity": 0.38 },
+  "effects": {
+    "delay": {
+      "enabled": true,
+      "mode": "sync",
+      "division": "1/4",
+      "timeSeconds": 0.5,
+      "feedback": 0.38,
+      "mix": 0.2
+    },
+    "reverb": { "enabled": true, "mix": 0.4, "decaySeconds": 5.6, "size": 0.9 }
+  }
+}

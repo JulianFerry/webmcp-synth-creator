@@ -5,7 +5,13 @@ import { CommandService } from '../commands/CommandService'
 import type { SupportedPatchPath } from '../patch/paths'
 import { summarizePatch } from '../patch/summary'
 import type { PatchState, PatchSummary } from '../patch/types'
+import {
+  findMatchingPresetId,
+  listPresets,
+  type CuratedPresetSummary,
+} from '../presets/registry'
 import { SessionService, type VariantId } from '../session/SessionService'
+import { readVitalImportFile } from '../vital/importFile'
 import { vitalFilename, VitalPresetAdapter } from '../vital/VitalPresetAdapter'
 
 export type CapabilityStatus = 'checking' | 'available' | 'unavailable'
@@ -15,6 +21,9 @@ export interface AppStoreState {
   patch: PatchState
   summary: PatchSummary
   changed: Record<string, { before: unknown; after: unknown }>
+  lastTransactionReason: string | null
+  presets: CuratedPresetSummary[]
+  currentPresetId: string | null
   currentVariant: VariantId
   hasVariantB: boolean
   canUndo: boolean
@@ -26,6 +35,7 @@ export interface AppStoreState {
   vitalError: string | null
   exportFilename: string
   lastError: string | null
+  vitalImportNotice: string | null
   transactionCount: number
   historySize: number
   futureSize: number
@@ -40,6 +50,8 @@ export interface AppStoreState {
   releaseAllNotes: () => void
   toggleHeldNote: () => Promise<void>
   createVariant: () => void
+  loadPreset: (presetId: string) => void
+  importVitalFile: (file: File) => Promise<void>
   selectVariant: (variantId: VariantId) => void
   undo: () => void
   redo: () => void
@@ -74,6 +86,9 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
     patch: initialPatch,
     summary: summarizePatch(initialPatch),
     changed: {},
+    lastTransactionReason: null,
+    presets: listPresets(),
+    currentPresetId: findMatchingPresetId(initialPatch),
     currentVariant: initialSession.currentVariant,
     hasVariantB: initialSession.hasVariantB,
     canUndo: initialSession.canUndo,
@@ -85,6 +100,7 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
     vitalError: null,
     exportFilename: vitalFilename(initialPatch.metadata.name),
     lastError: null,
+    vitalImportNotice: null,
     transactionCount: 0,
     historySize: commands.historySize,
     futureSize: commands.futureSize,
@@ -209,6 +225,40 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
       }
     },
 
+    loadPreset: (presetId) => {
+      try {
+        commands.loadPreset({ type: 'load_preset', presetId }, { source: 'ui' })
+      } catch (error) {
+        set({ lastError: errorMessage(error) })
+      }
+    },
+
+    importVitalFile: async (file) => {
+      if (!vitalAdapter) {
+        set({ lastError: get().vitalError ?? 'The Vital compatibility fixture is unavailable' })
+        return
+      }
+
+      try {
+        const document = await readVitalImportFile(file)
+        const imported = vitalAdapter.importPatch(document)
+        commands.createPatch(
+          {
+            type: 'create_patch',
+            reason: `Import Vital preset: ${file.name}`,
+            patch: imported.patch,
+          },
+          { source: 'ui' },
+        )
+        set({
+          lastError: null,
+          vitalImportNotice: imported.warnings.join(' '),
+        })
+      } catch (error) {
+        set({ lastError: errorMessage(error), vitalImportNotice: null })
+      }
+    },
+
     selectVariant: (variantId) => {
       try {
         commands.selectVariant(variantId, { source: 'ui' })
@@ -261,14 +311,24 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
 
   session.subscribe((event) => {
     const sessionSummary = session.getSummary()
-    const isPatchTransaction = ['command', 'undo', 'redo', 'variant_create'].includes(event.kind)
+    const isPatchTransaction = [
+      'command',
+      'patch_create',
+      'preset_load',
+      'undo',
+      'redo',
+      'variant_create',
+    ].includes(event.kind)
     store.setState((state) => ({
       patch: event.patch,
       summary: summarizePatch(event.patch),
+      currentPresetId: findMatchingPresetId(event.patch),
       changed:
         event.kind === 'variant_select' || event.kind === 'variant_discard'
           ? {}
           : event.changed,
+      lastTransactionReason:
+        event.kind === 'variant_select' || event.kind === 'variant_discard' ? null : event.reason,
       currentVariant: sessionSummary.currentVariant,
       hasVariantB: sessionSummary.hasVariantB,
       canUndo: sessionSummary.canUndo,
@@ -279,6 +339,7 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
       controlResetKey: state.controlResetKey + 1,
       exportFilename: vitalFilename(event.patch.metadata.name),
       lastError: null,
+      vitalImportNotice: null,
     }))
   })
   synth.subscribe((audio) => store.setState({ audio }))
