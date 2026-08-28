@@ -1,6 +1,16 @@
 import { z, type ZodTypeAny } from 'zod'
 
-import { FILTER_CUTOFF_MAX_HZ, FILTER_CUTOFF_MIN_HZ } from './limits'
+import {
+  DELAY_TIME_MAX_SECONDS,
+  DELAY_TIME_MIN_SECONDS,
+  ENVELOPE_HOLD_MAX_SECONDS,
+  FILTER_CUTOFF_MAX_HZ,
+  FILTER_CUTOFF_MIN_HZ,
+  REVERB_DECAY_MAX_SECONDS,
+  REVERB_DECAY_MIN_SECONDS,
+  TEMPO_SYNC_DIVISIONS,
+} from './limits'
+import { isAllowedModulationRoute } from './modulation'
 import type { PatchState } from './types'
 
 export const SUPPORTED_PATCH_PATHS = [
@@ -42,6 +52,7 @@ export const SUPPORTED_PATCH_PATHS = [
   'filter.type',
   'filter.cutoffHz',
   'filter.resonance',
+  'lfo1.enabled',
   'lfo1.points',
   'lfo1.rate',
   'lfo1.phase',
@@ -67,6 +78,8 @@ export type SupportedPatchPath = (typeof SUPPORTED_PATCH_PATHS)[number]
 
 const unitInterval = z.number().finite().min(0).max(1)
 const seconds = (maximum: number) => z.number().finite().min(0).max(maximum)
+const secondsRange = (minimum: number, maximum: number) =>
+  z.number().finite().min(minimum).max(maximum)
 const patchCategory = z.enum([
   'pad',
   'bass',
@@ -88,11 +101,26 @@ const lfoRate = z.discriminatedUnion('mode', [
   z
     .object({
       mode: z.literal('sync'),
-      division: z.enum(['1/1', '1/2', '1/4', '1/8', '1/8T', '1/16', '1/16T']),
+      division: z.enum(TEMPO_SYNC_DIVISIONS),
     })
     .strict(),
   z.object({ mode: z.literal('free'), hz: z.number().finite().min(0.01).max(40) }).strict(),
 ])
+const lfoPoints = z
+  .array(lfoPoint)
+  .min(2)
+  .max(32)
+  .superRefine((points, context) => {
+    for (let index = 1; index < points.length; index += 1) {
+      if (points[index].x < points[index - 1].x) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'LFO points must be sorted by x',
+          path: [index, 'x'],
+        })
+      }
+    }
+  })
 const modulationRoute = z
   .object({
     id: z.string().min(1).max(64),
@@ -110,6 +138,15 @@ const modulationRoute = z
     bipolar: z.boolean(),
   })
   .strict()
+  .superRefine((route, context) => {
+    if (!isAllowedModulationRoute(route.source, route.destination)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Unsupported modulation route: ${route.source} -> ${route.destination}`,
+        path: ['destination'],
+      })
+    }
+  })
 
 const pathValueSchemas: Record<SupportedPatchPath, ZodTypeAny> = {
   'metadata.name': z.string().trim().min(1).max(80),
@@ -137,12 +174,12 @@ const pathValueSchemas: Record<SupportedPatchPath, ZodTypeAny> = {
   'oscillators.1.stereoSpread': unitInterval,
   'oscillators.1.randomPhase': unitInterval,
   'ampEnvelope.attackSeconds': seconds(10),
-  'ampEnvelope.holdSeconds': seconds(5),
+  'ampEnvelope.holdSeconds': seconds(ENVELOPE_HOLD_MAX_SECONDS),
   'ampEnvelope.decaySeconds': seconds(10),
   'ampEnvelope.sustainLevel': unitInterval,
   'ampEnvelope.releaseSeconds': seconds(20),
   'modEnvelope.attackSeconds': seconds(10),
-  'modEnvelope.holdSeconds': seconds(5),
+  'modEnvelope.holdSeconds': seconds(ENVELOPE_HOLD_MAX_SECONDS),
   'modEnvelope.decaySeconds': seconds(10),
   'modEnvelope.sustainLevel': unitInterval,
   'modEnvelope.releaseSeconds': seconds(20),
@@ -155,7 +192,8 @@ const pathValueSchemas: Record<SupportedPatchPath, ZodTypeAny> = {
     .min(FILTER_CUTOFF_MIN_HZ)
     .max(FILTER_CUTOFF_MAX_HZ),
   'filter.resonance': unitInterval,
-  'lfo1.points': z.array(lfoPoint).min(2).max(32),
+  'lfo1.enabled': z.boolean(),
+  'lfo1.points': lfoPoints,
   'lfo1.rate': lfoRate,
   'lfo1.phase': unitInterval,
   'lfo1.smooth': z.boolean(),
@@ -166,13 +204,16 @@ const pathValueSchemas: Record<SupportedPatchPath, ZodTypeAny> = {
   'voice.velocitySensitivity': unitInterval,
   'effects.delay.enabled': z.boolean(),
   'effects.delay.mode': z.enum(['sync', 'free']),
-  'effects.delay.division': z.enum(['1/4', '1/8', '1/8T', '1/16']),
-  'effects.delay.timeSeconds': seconds(4),
+  'effects.delay.division': z.enum(TEMPO_SYNC_DIVISIONS),
+  'effects.delay.timeSeconds': secondsRange(DELAY_TIME_MIN_SECONDS, DELAY_TIME_MAX_SECONDS),
   'effects.delay.feedback': unitInterval,
   'effects.delay.mix': unitInterval,
   'effects.reverb.enabled': z.boolean(),
   'effects.reverb.mix': unitInterval,
-  'effects.reverb.decaySeconds': seconds(20),
+  'effects.reverb.decaySeconds': secondsRange(
+    REVERB_DECAY_MIN_SECONDS,
+    REVERB_DECAY_MAX_SECONDS,
+  ),
   'effects.reverb.size': unitInterval,
 }
 

@@ -20,6 +20,7 @@ export function summarizePatch(patch: PatchState): PatchSummary {
     modEnvelope: structuredClone(patch.modEnvelope),
     filter: structuredClone(patch.filter),
     lfo1: {
+      enabled: patch.lfo1.enabled,
       pointCount: patch.lfo1.points.length,
       points: structuredClone(patch.lfo1.points),
       rate: structuredClone(patch.lfo1.rate),

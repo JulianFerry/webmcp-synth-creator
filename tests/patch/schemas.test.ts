@@ -43,6 +43,16 @@ describe('PatchState schema', () => {
       expect(parsePatchState(patch).filter.type).toBe(type)
     }
   })
+
+  it.each(['1/1', '1/2', '1/4', '1/8', '1/8T', '1/16', '1/16T', '1/32', '1/64'])(
+    'accepts synchronized delay division %s',
+    (division) => {
+      const patch = createDefaultPatch()
+      patch.effects.delay.mode = 'sync'
+      patch.effects.delay.division = division as never
+      expect(parsePatchState(patch).effects.delay.division).toBe(division)
+    },
+  )
 })
 
 describe('apply_patch command schema', () => {

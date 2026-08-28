@@ -101,4 +101,26 @@ describe('CommandService', () => {
     expect(history.size).toBe(0)
     expect(result.canUndo).toBe(false)
   })
+
+  it('toggles LFO modulation without replacing its retained configuration', () => {
+    const { commands, session } = createHarness()
+    const before = session.getPatch()
+
+    const result = commands.applyPatch({
+      type: 'apply_patch',
+      reason: 'Disable the rhythmic gate without deleting it',
+      changes: [{ path: 'lfo1.enabled', value: false }],
+    })
+
+    expect(result.changed).toEqual({
+      'lfo1.enabled': { before: true, after: false },
+    })
+    expect(result.summary.lfo1.enabled).toBe(false)
+    expect(result.patch.lfo1.points).toEqual(before.lfo1.points)
+    expect(result.patch.lfo1.rate).toEqual(before.lfo1.rate)
+    expect(result.patch.modulations).toEqual(before.modulations)
+    expect(commands.historySize).toBe(1)
+
+    expect(commands.undo().patch.lfo1.enabled).toBe(true)
+  })
 })

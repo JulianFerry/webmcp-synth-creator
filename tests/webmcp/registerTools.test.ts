@@ -32,7 +32,7 @@ function createHarness() {
 }
 
 describe('WebMCP tool registration', () => {
-  it('asynchronously registers only get_patch and apply_patch with current annotations and schemas', async () => {
+  it('asynchronously registers get_patch, apply_patch, and set_lfo_shape with current annotations and schemas', async () => {
     const gateway = new CapturingGateway()
     const { commands, session } = createHarness()
     const pendingRegistration = registerTools(gateway, session, commands)
@@ -43,12 +43,18 @@ describe('WebMCP tool registration', () => {
     expect(gateway.registrations.map(({ tool }) => tool.name)).toEqual([
       'get_patch',
       'apply_patch',
+      'set_lfo_shape',
     ])
 
     const getPatch = gateway.registrations[0].tool
     const applyPatch = gateway.registrations[1].tool
+    const setLfoShape = gateway.registrations[2].tool
     expect(getPatch.annotations).toEqual({ readOnlyHint: true, untrustedContentHint: false })
     expect(applyPatch.annotations).toEqual({ readOnlyHint: false, untrustedContentHint: false })
+    expect(setLfoShape.annotations).toEqual({
+      readOnlyHint: false,
+      untrustedContentHint: false,
+    })
     expect(getPatch.inputSchema).toMatchObject({ type: 'object', additionalProperties: false })
     expect(applyPatch.inputSchema).toMatchObject({
       type: 'object',
@@ -60,6 +66,11 @@ describe('WebMCP tool registration', () => {
           changes: [{ path: 'filter.cutoffHz', value: 3200 }],
         },
       ],
+    })
+    expect(setLfoShape.inputSchema).toMatchObject({
+      type: 'object',
+      required: ['reason', 'points'],
+      additionalProperties: false,
     })
   })
 
@@ -76,6 +87,7 @@ describe('WebMCP tool registration', () => {
     expect(JSON.parse(JSON.stringify(readResult))).toMatchObject({
       name: 'Ethereal Gate',
       filter: { cutoffHz: 7200 },
+      lfo1: { enabled: true },
     })
 
     const writeResult = await gateway.registrations[1].tool.execute(
@@ -164,12 +176,61 @@ describe('WebMCP tool registration', () => {
     })
   })
 
-  it('uses one AbortSignal to clean up both registrations', async () => {
+  it('edits LFO points in one transaction while preserving rate and routes', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const setLfoShape = gateway.registrations.find(
+      ({ tool }) => tool.name === 'set_lfo_shape',
+    )!.tool
+    const before = session.getPatch()
+    const points = [
+      { x: 0, y: 0 },
+      { x: 0.02, y: 1 },
+      { x: 0.11, y: 0 },
+      { x: 1, y: 0 },
+    ]
+
+    const result = await setLfoShape.execute({
+      reason: 'Shorten the second pulse',
+      points,
+    })
+
+    expect(result).toMatchObject({
+      changed: { 'lfo1.points': { before: before.lfo1.points, after: points } },
+      summary: { lfo1: { enabled: true, points, rate: before.lfo1.rate } },
+      canUndo: true,
+    })
+    expect(session.getPatch().modulations).toEqual(before.modulations)
+    expect(commands.historySize).toBe(1)
+    expect(result).not.toHaveProperty('content')
+  })
+
+  it('reports LFO enablement and preserves retained configuration through apply_patch', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const applyPatch = gateway.registrations.find(({ tool }) => tool.name === 'apply_patch')!.tool
+    const before = session.getPatch()
+
+    const result = await applyPatch.execute({
+      reason: 'Disable LFO modulation but retain its setup',
+      changes: [{ path: 'lfo1.enabled', value: false }],
+    })
+
+    expect(result).toMatchObject({
+      changed: { 'lfo1.enabled': { before: true, after: false } },
+      summary: { lfo1: { enabled: false, points: before.lfo1.points, rate: before.lfo1.rate } },
+    })
+    expect(session.getPatch().modulations).toEqual(before.modulations)
+  })
+
+  it('uses one AbortSignal to clean up all registrations', async () => {
     const gateway = new CapturingGateway()
     const { commands, session } = createHarness()
     const registration = await registerTools(gateway, session, commands)
 
-    expect(gateway.registrations[0].signal).toBe(gateway.registrations[1].signal)
+    expect(new Set(gateway.registrations.map(({ signal }) => signal)).size).toBe(1)
     expect(registration.signal?.aborted).toBe(false)
     registration.dispose()
     expect(registration.signal?.aborted).toBe(true)
@@ -200,6 +261,13 @@ describe('WebMCP tool registration', () => {
       {
         reason: 'This transaction must be cancelled',
         changes: [{ path: 'filter.cutoffHz', value: 3600 }],
+      },
+      {
+        reason: 'This LFO transaction must be cancelled',
+        points: [
+          { x: 0, y: 0 },
+          { x: 1, y: 1 },
+        ],
       },
     ]
 

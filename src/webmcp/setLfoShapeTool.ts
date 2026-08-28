@@ -1,0 +1,113 @@
+import { z } from 'zod'
+
+import { CommandError, CommandService } from '../commands/CommandService'
+import type { LfoPoint } from '../patch/types'
+import type { WebMcpToolDefinition } from './ModelContextGateway'
+
+const documentedSetLfoShapeInput = {
+  reason: 'Shorten the second pulse while preserving the current rate and routes',
+  points: [
+    { x: 0, y: 0 },
+    { x: 0.02, y: 1 },
+    { x: 0.2, y: 0 },
+    { x: 0.27, y: 0.9 },
+    { x: 0.36, y: 0 },
+    { x: 0.52, y: 1 },
+    { x: 0.7, y: 0 },
+    { x: 1, y: 0 },
+  ],
+}
+
+function invalidInputResult(error: z.ZodError) {
+  const issues = error.issues.map((issue) => ({
+    path: issue.path.join('.'),
+    message: issue.message,
+  }))
+  const firstIssue = issues[0]
+  return {
+    ok: false,
+    error: {
+      code: 'INVALID_LFO_SHAPE_INPUT',
+      message: firstIssue
+        ? `Invalid set_lfo_shape input at ${firstIssue.path || 'input'}: ${firstIssue.message}`
+        : 'Invalid set_lfo_shape input.',
+      issues,
+    },
+  }
+}
+
+export function createSetLfoShapeTool(commandService: CommandService): WebMcpToolDefinition {
+  return {
+    name: 'set_lfo_shape',
+    title: 'Edit the point-based LFO shape',
+    description:
+      'Edit LFO 1 points for a focused rhythmic change. Preserve its enabled state, rate, and modulation routes unless the request explicitly requires apply_patch.',
+    inputSchema: {
+      type: 'object',
+      examples: [documentedSetLfoShapeInput],
+      properties: {
+        reason: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 500,
+          description: 'Concise structural intent for this one LFO transaction.',
+        },
+        points: {
+          type: 'array',
+          minItems: 2,
+          maxItems: 32,
+          description: 'Normalized LFO points sorted by x from 0 to 1.',
+          items: {
+            type: 'object',
+            properties: {
+              x: { type: 'number', minimum: 0, maximum: 1 },
+              y: { type: 'number', minimum: 0, maximum: 1 },
+              power: { type: 'number', minimum: -1, maximum: 1 },
+            },
+            required: ['x', 'y'],
+            additionalProperties: false,
+          },
+        },
+        smooth: {
+          type: 'boolean',
+          description: 'Optional curve smoothing change. Omit to preserve the current setting.',
+        },
+      },
+      required: ['reason', 'points'],
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      untrustedContentHint: false,
+    },
+    async execute(input, context) {
+      context?.signal.throwIfAborted()
+      try {
+        const result = commandService.setLfoShape(
+          {
+            type: 'set_lfo_shape',
+            reason: input.reason as string,
+            points: input.points as LfoPoint[],
+            ...(input.smooth === undefined ? {} : { smooth: input.smooth as boolean }),
+          },
+          { source: 'webmcp' },
+        )
+        return {
+          changed: result.changed,
+          summary: result.summary,
+          canUndo: result.canUndo,
+          correlationId: result.correlationId,
+        }
+      } catch (error) {
+        if (error instanceof z.ZodError) return invalidInputResult(error)
+        if (error instanceof CommandError) {
+          return {
+            ok: false,
+            error: { code: 'LFO_NOT_CHANGED', message: error.message },
+          }
+        }
+        throw error
+      }
+    },
+  }
+}

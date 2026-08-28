@@ -29,3 +29,11 @@ The browser preview and Vital use different synthesis and rendering engines.
 The preview indicates the musical direction of edits, but it is not timbrally
 or sample-level identical to Vital; the confirmed export sounded substantially
 richer and different in Vital.
+
+## Pinned export mappings
+
+- Vital `1.0.7` stores envelope delay/attack/hold/decay/release controls as fourth roots; exports encode logical seconds with `seconds ** 0.25` and tests decode with `raw ** 4`.
+- Free delay stores log2 frequency with an inverted seconds display, so exports use `log2(1 / seconds)`; synchronized delay uses tempo indexes `6..12` for `1/1..1/64`, with sync mode `3` for retained triplets.
+- Vital LFO point Y coordinates are UI coordinates: logical `0..1` values export as `1 - y`, so low remains low and high remains high when Vital decodes the shape.
+- Vital `1.0.7` has no fixture-backed LFO enable key. Disabled logical LFOs keep their exported routes and amounts but set those route slots' `modulation_N_bypass` to `1`.
+- The one logical amp envelope maps to ENV 1, the modulation envelope maps to ENV 2, and both oscillators use destination `0` (Filter 1). Filter 2 is forced off; extra envelopes and unsupported Filter 2 settings remain at Init values.

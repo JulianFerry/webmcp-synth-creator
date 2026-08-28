@@ -2,10 +2,14 @@ import { diffSupportedPaths, type PatchDiff } from '../commands/diff'
 import { LatencyTrace } from '../dev/latencyTrace'
 import type { SupportedPatchPath } from '../patch/paths'
 import type {
+  DelayState,
   EnvelopeState,
   FilterState,
+  LfoState,
+  ModulationRoute,
   OscillatorState,
   PatchState,
+  ReverbState,
   VoiceState,
 } from '../patch/types'
 import { SessionService, type SessionCommitEvent } from '../session/SessionService'
@@ -17,6 +21,12 @@ import {
   updateEnvelopeSustain,
 } from './envelope'
 import { applyFilterState } from './filter'
+import { DelayEffect } from './delay'
+import {
+  ModulationScheduler,
+  type ModulationFrame,
+  type ModulationTarget,
+} from './ModulationScheduler'
 import {
   createDraftAudioPatch,
   createEffectiveAudioPatch,
@@ -24,6 +34,12 @@ import {
   type AudioPreviewValues,
 } from './preview'
 import { VoiceAllocator } from './VoiceAllocator'
+import { ReverbEffect } from './reverb'
+import {
+  BROWSER_OUTPUT_GAIN,
+  configureOutputLimiter,
+  VOICE_BUS_HEADROOM_GAIN,
+} from './output'
 import {
   WavetableVoiceOscillator,
   type UnisonConfiguration,
@@ -46,8 +62,12 @@ export interface OscillatorReflection {
 export interface AudioPatchReflection {
   oscillators: [OscillatorReflection, OscillatorReflection]
   ampEnvelope: EnvelopeState
+  modEnvelope: EnvelopeState
   filter: FilterState
+  lfo1: LfoState
+  modulations: ModulationRoute[]
   voice: VoiceState
+  effects: { delay: DelayState; reverb: ReverbState }
 }
 
 export interface AudioOscillatorUpdatePlan {
@@ -70,6 +90,9 @@ export interface AudioUpdatePlan {
   polyphony: boolean
   voiceLevel: boolean
   voiceGlide: boolean
+  modulation: boolean
+  delay: boolean
+  reverb: boolean
 }
 
 export interface BrowserSynthState {
@@ -86,6 +109,8 @@ export interface BrowserSynthState {
   draft: AudioPatchReflection
   effective: AudioPatchReflection
   previewValues: AudioPreviewValues
+  modulationScheduleVersion: number
+  effects: { delay: DelayState; reverb: ReverbState }
   reflectedPatchName: string
   lastCorrelationId: string | null
   lastUpdatePlan: AudioUpdatePlan | null
@@ -113,6 +138,9 @@ export function planAudioPatchUpdate(changed: PatchDiff): AudioUpdatePlan {
     polyphony: false,
     voiceLevel: false,
     voiceGlide: false,
+    modulation: false,
+    delay: false,
+    reverb: false,
   }
 
   for (const path of Object.keys(changed)) {
@@ -146,6 +174,19 @@ export function planAudioPatchUpdate(changed: PatchDiff): AudioUpdatePlan {
     if (path === 'voice.polyphony') plan.polyphony = true
     if (path === 'voice.velocitySensitivity') plan.voiceLevel = true
     if (path === 'voice.glideSeconds') plan.voiceGlide = true
+    if (
+      path.startsWith('lfo1.') ||
+      path.startsWith('modEnvelope.') ||
+      path === 'modulations' ||
+      path.startsWith('filter.') ||
+      /^oscillators\.(0|1)\.(enabled|level|wavetablePosition|transposeSemitones|fineTuneCents)$/.test(
+        path,
+      )
+    ) {
+      plan.modulation = true
+    }
+    if (path.startsWith('effects.delay.')) plan.delay = true
+    if (path.startsWith('effects.reverb.')) plan.reverb = true
   }
 
   return plan
@@ -179,18 +220,23 @@ function patchReflection(patch: PatchState): AudioPatchReflection {
       oscillatorReflection(patch.oscillators[1]),
     ],
     ampEnvelope: structuredClone(patch.ampEnvelope),
+    modEnvelope: structuredClone(patch.modEnvelope),
     filter: structuredClone(patch.filter),
+    lfo1: structuredClone(patch.lfo1),
+    modulations: structuredClone(patch.modulations),
     voice: structuredClone(patch.voice),
+    effects: structuredClone(patch.effects),
   }
 }
 
-class BrowserVoice {
+class BrowserVoice implements ModulationTarget {
   private patch: PatchState
   private readonly oscillators: [WavetableVoiceOscillator, WavetableVoiceOscillator]
   private readonly oscillatorLevels: [GainNode, GainNode]
   private readonly filter: BiquadFilterNode
   private readonly amplitude: GainNode
   private readonly velocityGain: number
+  private readonly modulation: ModulationScheduler
   private released = false
   private releaseTimer: ReturnType<typeof setTimeout> | null = null
   private disposed = false
@@ -248,6 +294,7 @@ class BrowserVoice {
     })
     applyFilterState(this.filter, patch.filter, now)
     scheduleEnvelopeAttack(this.amplitude.gain, patch.ampEnvelope, now)
+    this.modulation = new ModulationScheduler(context, patch, midi, now, this)
   }
 
   applyPatch(patch: PatchState, plan: AudioUpdatePlan, time: number): void {
@@ -285,11 +332,45 @@ class BrowserVoice {
       updateEnvelopeSustain(this.amplitude.gain, patch.ampEnvelope.sustainLevel, time)
     }
     this.patch = patch
+    if (plan.modulation) this.modulation.updatePatch(patch, time)
+  }
+
+  applyModulationFrame(frame: ModulationFrame, time: number): void {
+    frame.oscillatorLevels.forEach((level, index) => {
+      const oscillator = this.patch.oscillators[index]
+      this.oscillatorLevels[index].gain.linearRampToValueAtTime(
+        oscillator.enabled ? level * this.velocityGain * OSCILLATOR_OUTPUT_GAIN : 0,
+        time,
+      )
+      this.oscillators[index].setPositionAtTime(frame.wavetablePositions[index], time)
+      this.oscillators[index].scheduleFrequencyAtTime(frame.oscillatorFrequencies[index], time)
+    })
+    const cutoff = this.patch.filter.enabled
+      ? frame.filterCutoffHz
+      : Math.min(20_000, this.context.sampleRate * 0.49)
+    this.filter.frequency.linearRampToValueAtTime(cutoff, time)
+  }
+
+  resetModulation(patch: PatchState, time: number): void {
+    patch.oscillators.forEach((oscillator, index) => {
+      this.applyOscillatorLevel(index, oscillator, time)
+      this.oscillators[index].setPositionAtTime(oscillator.wavetablePosition, time)
+      this.oscillators[index].setFrequencyAtTime(
+        transposeFrequency(
+          this.midi,
+          oscillator.transposeSemitones,
+          oscillator.fineTuneCents,
+        ),
+        time,
+      )
+    })
+    applyFilterState(this.filter, patch.filter, time)
   }
 
   release(time: number, stolen = false): void {
     if (this.released) return
     this.released = true
+    this.modulation.release(time)
     const releaseSeconds = stolen ? 0.025 : this.patch.ampEnvelope.releaseSeconds
     this.scheduleRelease(releaseSeconds, time)
   }
@@ -317,6 +398,7 @@ class BrowserVoice {
   private disposeOscillators(time: number): void {
     if (this.disposed) return
     this.disposed = true
+    this.modulation.dispose()
     if (this.releaseTimer !== null) clearTimeout(this.releaseTimer)
     this.releaseTimer = null
     this.oscillators.forEach((oscillator) => oscillator.dispose(time))
@@ -345,6 +427,10 @@ export class BrowserSynth {
   private state: BrowserSynthState
   private context: AudioContext | null = null
   private master: GainNode | null = null
+  private output: GainNode | null = null
+  private limiter: DynamicsCompressorNode | null = null
+  private delayEffect: DelayEffect | null = null
+  private reverbEffect: ReverbEffect | null = null
   private allocator: VoiceAllocator<BrowserVoice>
   private readonly voices = new Set<BrowserVoice>()
   private lastPlayedMidi: number | null = null
@@ -380,6 +466,8 @@ export class BrowserSynth {
       draft: patchReflection(this.draftPatch),
       effective: patchReflection(this.effectivePatch),
       previewValues: {},
+      modulationScheduleVersion: 0,
+      effects: structuredClone(this.patch.effects),
       reflectedPatchName: this.patch.metadata.name,
       lastCorrelationId: null,
       lastUpdatePlan: null,
@@ -405,8 +493,17 @@ export class BrowserSynth {
       if (!this.context) {
         this.context = this.createAudioContext()
         this.master = this.context.createGain()
-        this.master.gain.setValueAtTime(0.72, this.context.currentTime)
-        this.master.connect(this.context.destination)
+        this.master.gain.setValueAtTime(VOICE_BUS_HEADROOM_GAIN, this.context.currentTime)
+        this.output = this.context.createGain()
+        this.output.gain.setValueAtTime(BROWSER_OUTPUT_GAIN, this.context.currentTime)
+        this.limiter = this.context.createDynamicsCompressor()
+        configureOutputLimiter(this.limiter, this.context.currentTime)
+        this.delayEffect = new DelayEffect(this.context, this.effectivePatch.effects.delay)
+        this.reverbEffect = new ReverbEffect(this.context, this.effectivePatch.effects.reverb)
+        this.master.connect(this.delayEffect.input)
+        this.delayEffect.connect(this.reverbEffect.input)
+        this.reverbEffect.connect(this.output)
+        this.output.connect(this.limiter).connect(this.context.destination)
         this.context.addEventListener('statechange', () => this.reflectContextState())
       }
       if (this.context.state === 'suspended') await this.context.resume()
@@ -512,6 +609,10 @@ export class BrowserSynth {
     void this.context?.close()
     this.context = null
     this.master = null
+    this.output = null
+    this.limiter = null
+    this.delayEffect = null
+    this.reverbEffect = null
     this.previewValues = {}
     this.draftPatch = structuredClone(this.patch)
     this.effectivePatch = structuredClone(this.patch)
@@ -528,6 +629,7 @@ export class BrowserSynth {
       draft: patchReflection(this.draftPatch),
       effective: patchReflection(this.effectivePatch),
       previewValues: {},
+      effects: structuredClone(this.patch.effects),
     }
   }
 
@@ -567,6 +669,9 @@ export class BrowserSynth {
       draft: patchReflection(this.draftPatch),
       effective: patchReflection(this.effectivePatch),
       previewValues: {},
+      modulationScheduleVersion:
+        this.state.modulationScheduleVersion + (plan.modulation && this.voices.size > 0 ? 1 : 0),
+      effects: structuredClone(this.patch.effects),
       reflectedPatchName: this.patch.metadata.name,
       lastCorrelationId: event.correlationId,
       lastUpdatePlan: plan,
@@ -614,6 +719,8 @@ export class BrowserSynth {
         }
       }
     }
+    if (plan.delay) this.delayEffect?.applyState(patch.effects.delay, now)
+    if (plan.reverb) this.reverbEffect?.applyState(patch.effects.reverb, now)
     this.voices.forEach((voice) => voice.applyPatch(patch, plan, now))
     return plan
   }
@@ -634,6 +741,7 @@ export class BrowserSynth {
       draft: patchReflection(this.draftPatch),
       effective: reflection,
       previewValues: structuredClone(this.previewValues),
+      effects: structuredClone(this.effectivePatch.effects),
       lastUpdatePlan: plan,
     }
     this.notify()

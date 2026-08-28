@@ -1,11 +1,23 @@
 import { z } from 'zod'
 
-import { FILTER_CUTOFF_MAX_HZ, FILTER_CUTOFF_MIN_HZ } from './limits'
+import {
+  DELAY_TIME_MAX_SECONDS,
+  DELAY_TIME_MIN_SECONDS,
+  ENVELOPE_HOLD_MAX_SECONDS,
+  FILTER_CUTOFF_MAX_HZ,
+  FILTER_CUTOFF_MIN_HZ,
+  REVERB_DECAY_MAX_SECONDS,
+  REVERB_DECAY_MIN_SECONDS,
+  TEMPO_SYNC_DIVISIONS,
+} from './limits'
+import { isAllowedModulationRoute } from './modulation'
 import { isSupportedPatchPath, parsePatchPathValue } from './paths'
-import type { ApplyPatchCommand, PatchState } from './types'
+import type { ApplyPatchCommand, PatchState, SetLfoShapeCommand } from './types'
 
 const unitInterval = z.number().finite().min(0).max(1)
 const seconds = (maximum: number) => z.number().finite().min(0).max(maximum)
+const secondsRange = (minimum: number, maximum: number) =>
+  z.number().finite().min(minimum).max(maximum)
 
 export const patchMetadataSchema = z
   .object({
@@ -36,7 +48,7 @@ export const oscillatorStateSchema = z
 export const envelopeStateSchema = z
   .object({
     attackSeconds: seconds(10),
-    holdSeconds: seconds(5),
+    holdSeconds: seconds(ENVELOPE_HOLD_MAX_SECONDS),
     decaySeconds: seconds(10),
     sustainLevel: unitInterval,
     releaseSeconds: seconds(20),
@@ -65,11 +77,27 @@ export const lfoPointSchema = z
   })
   .strict()
 
+export const lfoPointsSchema = z
+  .array(lfoPointSchema)
+  .min(2)
+  .max(32)
+  .superRefine((points, context) => {
+    for (let index = 1; index < points.length; index += 1) {
+      if (points[index].x < points[index - 1].x) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'LFO points must be sorted by x',
+          path: [index, 'x'],
+        })
+      }
+    }
+  })
+
 export const lfoRateSchema = z.discriminatedUnion('mode', [
   z
     .object({
       mode: z.literal('sync'),
-      division: z.enum(['1/1', '1/2', '1/4', '1/8', '1/8T', '1/16', '1/16T']),
+      division: z.enum(TEMPO_SYNC_DIVISIONS),
     })
     .strict(),
   z.object({ mode: z.literal('free'), hz: z.number().finite().min(0.01).max(40) }).strict(),
@@ -77,23 +105,13 @@ export const lfoRateSchema = z.discriminatedUnion('mode', [
 
 export const lfoStateSchema = z
   .object({
-    points: z.array(lfoPointSchema).min(2).max(32),
+    enabled: z.boolean(),
+    points: lfoPointsSchema,
     rate: lfoRateSchema,
     phase: unitInterval,
     smooth: z.boolean(),
   })
   .strict()
-  .superRefine((lfo, context) => {
-    for (let index = 1; index < lfo.points.length; index += 1) {
-      if (lfo.points[index].x < lfo.points[index - 1].x) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'LFO points must be sorted by x',
-          path: ['points', index, 'x'],
-        })
-      }
-    }
-  })
 
 export const modulationRouteSchema = z
   .object({
@@ -112,6 +130,15 @@ export const modulationRouteSchema = z
     bipolar: z.boolean(),
   })
   .strict()
+  .superRefine((route, context) => {
+    if (!isAllowedModulationRoute(route.source, route.destination)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Unsupported modulation route: ${route.source} -> ${route.destination}`,
+        path: ['destination'],
+      })
+    }
+  })
 
 export const voiceStateSchema = z
   .object({
@@ -126,8 +153,8 @@ export const delayStateSchema = z
   .object({
     enabled: z.boolean(),
     mode: z.enum(['sync', 'free']),
-    division: z.enum(['1/4', '1/8', '1/8T', '1/16']).optional(),
-    timeSeconds: seconds(4).optional(),
+    division: z.enum(TEMPO_SYNC_DIVISIONS).optional(),
+    timeSeconds: secondsRange(DELAY_TIME_MIN_SECONDS, DELAY_TIME_MAX_SECONDS).optional(),
     feedback: unitInterval,
     mix: unitInterval,
   })
@@ -153,7 +180,7 @@ export const reverbStateSchema = z
   .object({
     enabled: z.boolean(),
     mix: unitInterval,
-    decaySeconds: seconds(20),
+    decaySeconds: secondsRange(REVERB_DECAY_MIN_SECONDS, REVERB_DECAY_MAX_SECONDS),
     size: unitInterval,
   })
   .strict()
@@ -209,6 +236,7 @@ export const patchStateSchema = z
     })
 
     const routeIds = new Set<string>()
+    const routePairs = new Set<string>()
     patch.modulations.forEach((route, index) => {
       if (routeIds.has(route.id)) {
         context.addIssue({
@@ -218,6 +246,16 @@ export const patchStateSchema = z
         })
       }
       routeIds.add(route.id)
+
+      const pair = `${route.source}:${route.destination}`
+      if (routePairs.has(pair)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate modulation route: ${route.source} -> ${route.destination}`,
+          path: ['modulations', index, 'destination'],
+        })
+      }
+      routePairs.add(pair)
     })
   })
 
@@ -236,6 +274,15 @@ const rawApplyPatchCommandSchema = z
       )
       .min(1)
       .max(32),
+  })
+  .strict()
+
+const setLfoShapeCommandSchema = z
+  .object({
+    type: z.literal('set_lfo_shape'),
+    reason: z.string().trim().min(1).max(500),
+    points: lfoPointsSchema,
+    smooth: z.boolean().optional(),
   })
   .strict()
 
@@ -283,4 +330,8 @@ export function parseApplyPatchCommand(value: unknown): ApplyPatchCommand {
   }
 
   return command as ApplyPatchCommand
+}
+
+export function parseSetLfoShapeCommand(value: unknown): SetLfoShapeCommand {
+  return setLfoShapeCommandSchema.parse(value) as SetLfoShapeCommand
 }

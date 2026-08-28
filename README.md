@@ -24,6 +24,8 @@ uses `http://127.0.0.1:4173`.
 
 Set a safe output level, then click **Hold C4** to start audio. Browser autoplay
 rules require this direct user gesture; a WebMCP tool call cannot start audio.
+The browser keeps the existing `0.72` voice-bus headroom and adds exactly `2x`
+post-effects output gain (`+6.02 dB`) before a `-1 dB`, `20:1` peak limiter.
 Use **Make darker** or WebMCP while the note is held, **Undo transaction** to
 revert the latest edit, and **Release C4** when finished.
 

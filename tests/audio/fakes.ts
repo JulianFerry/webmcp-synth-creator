@@ -32,10 +32,13 @@ export class FakeAudioParam {
   }
 }
 
-class FakeAudioNode {
+export class FakeAudioNode {
+  readonly connections: unknown[] = []
+
   constructor(readonly context: FakeAudioContext) {}
 
   connect<T>(destination: T): T {
+    this.connections.push(destination)
     return destination
   }
 }
@@ -52,6 +55,44 @@ export class FakeBiquadFilterNode extends FakeAudioNode {
 
 export class FakeStereoPannerNode extends FakeAudioNode {
   readonly pan = new FakeAudioParam()
+}
+
+export class FakeDelayNode extends FakeAudioNode {
+  readonly delayTime = new FakeAudioParam()
+}
+
+export class FakeConvolverNode extends FakeAudioNode {
+  buffer: AudioBuffer | null = null
+  normalize = true
+}
+
+export class FakeDynamicsCompressorNode extends FakeAudioNode {
+  readonly threshold = new FakeAudioParam()
+  readonly knee = new FakeAudioParam()
+  readonly ratio = new FakeAudioParam()
+  readonly attack = new FakeAudioParam()
+  readonly release = new FakeAudioParam()
+  readonly reduction = 0
+}
+
+class FakeAudioBuffer {
+  readonly numberOfChannels: number
+  readonly length: number
+  readonly sampleRate: number
+  readonly duration: number
+  private readonly channels: Float32Array[]
+
+  constructor(numberOfChannels: number, length: number, sampleRate: number) {
+    this.numberOfChannels = numberOfChannels
+    this.length = length
+    this.sampleRate = sampleRate
+    this.duration = length / sampleRate
+    this.channels = Array.from({ length: numberOfChannels }, () => new Float32Array(length))
+  }
+
+  getChannelData(channel: number): Float32Array {
+    return this.channels[channel]
+  }
 }
 
 export class FakeOscillatorNode extends FakeAudioNode {
@@ -83,6 +124,9 @@ export class FakeAudioContext {
   readonly filters: FakeBiquadFilterNode[] = []
   readonly oscillators: FakeOscillatorNode[] = []
   readonly panners: FakeStereoPannerNode[] = []
+  readonly delays: FakeDelayNode[] = []
+  readonly convolvers: FakeConvolverNode[] = []
+  readonly compressors: FakeDynamicsCompressorNode[] = []
   private readonly stateListeners = new Set<() => void>()
 
   createGain(): GainNode {
@@ -107,6 +151,28 @@ export class FakeAudioContext {
     const node = new FakeStereoPannerNode(this)
     this.panners.push(node)
     return node as unknown as StereoPannerNode
+  }
+
+  createDelay(): DelayNode {
+    const node = new FakeDelayNode(this)
+    this.delays.push(node)
+    return node as unknown as DelayNode
+  }
+
+  createConvolver(): ConvolverNode {
+    const node = new FakeConvolverNode(this)
+    this.convolvers.push(node)
+    return node as unknown as ConvolverNode
+  }
+
+  createDynamicsCompressor(): DynamicsCompressorNode {
+    const node = new FakeDynamicsCompressorNode(this)
+    this.compressors.push(node)
+    return node as unknown as DynamicsCompressorNode
+  }
+
+  createBuffer(numberOfChannels: number, length: number, sampleRate: number): AudioBuffer {
+    return new FakeAudioBuffer(numberOfChannels, length, sampleRate) as unknown as AudioBuffer
   }
 
   createPeriodicWave(): PeriodicWave {

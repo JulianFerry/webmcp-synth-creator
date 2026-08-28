@@ -3,6 +3,7 @@ import { SessionService } from '../session/SessionService'
 import { createApplyPatchTool } from './applyPatchTool'
 import { createGetPatchTool } from './getPatchTool'
 import type { ModelContextGateway, WebMcpToolDefinition } from './ModelContextGateway'
+import { createSetLfoShapeTool } from './setLfoShapeTool'
 
 export interface ToolRegistration {
   status: 'available' | 'unavailable'
@@ -28,7 +29,11 @@ export async function registerTools(
   }
 
   const registrationController = new AbortController()
-  const tools = [createGetPatchTool(session), createApplyPatchTool(commandService)]
+  const tools = [
+    createGetPatchTool(session),
+    createApplyPatchTool(commandService),
+    createSetLfoShapeTool(commandService),
+  ]
 
   try {
     await Promise.all(

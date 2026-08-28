@@ -75,6 +75,16 @@ export class WavetableVoiceOscillator {
     this.frequencyHz = target
   }
 
+  scheduleFrequencyAtTime(hz: number, time: number): void {
+    this.ensureActive()
+    const target = Math.max(1, hz)
+    this.group.lanes.forEach((lane) => {
+      lane.oscillatorA.frequency.linearRampToValueAtTime(target, time)
+      lane.oscillatorB.frequency.linearRampToValueAtTime(target, time)
+    })
+    this.frequencyHz = target
+  }
+
   setUnisonAtTime(unison: UnisonConfiguration, time: number): void {
     this.ensureActive()
     if (

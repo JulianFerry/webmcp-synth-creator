@@ -67,6 +67,7 @@ select:disabled {
 
 h1,
 h2,
+h3,
 p {
   margin-top: 0;
 }
@@ -255,10 +256,18 @@ h2 {
 }
 
 .engine-grid,
+.structured-grid,
 .state-monitor-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+.structured-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
 }
 
 .state-monitor-grid {
@@ -604,6 +613,131 @@ h2 {
   opacity: 0.45;
 }
 
+.lfo-plot {
+  margin: 0;
+  padding: 8px 12px 10px;
+  border: 1px solid rgb(69 200 189 / 22%);
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgb(69 200 189 / 6%), transparent 60%),
+    var(--panel-low);
+}
+
+.lfo-plot svg {
+  display: block;
+  width: 100%;
+  height: 154px;
+}
+
+.lfo-shape-line {
+  stroke-width: 1.5;
+}
+
+.lfo-point {
+  fill: var(--active);
+  stroke: var(--panel-low);
+  stroke-width: 0.55;
+}
+
+.lfo-plot figcaption {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font: 8px var(--mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.lfo-plot figcaption strong {
+  color: var(--analysis);
+  font-weight: 500;
+}
+
+.lfo-controls,
+.modulation-envelope-controls,
+.effect-controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.modulation-envelope-plot {
+  height: 104px;
+}
+
+.route-list {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.route-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--analysis);
+  border-radius: 4px;
+  background: var(--panel-high);
+  font-family: var(--mono);
+}
+
+.route-list span {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-list strong {
+  color: var(--active);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.route-list small {
+  color: var(--muted);
+  font-size: 7px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.effects-panel {
+  grid-column: 1 / -1;
+}
+
+.effects-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.effect-block {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background:
+    linear-gradient(145deg, rgb(255 159 74 / 5%), transparent 42%),
+    var(--panel-low);
+}
+
+.effect-block header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 11px;
+}
+
+.effect-block h3 {
+  color: var(--text);
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
 .audition-panel {
   grid-column: 1 / -1;
 }
@@ -892,6 +1026,7 @@ h2 {
 
   .signal-strip,
   .engine-grid,
+  .structured-grid,
   .state-monitor-grid {
     grid-template-columns: 1fr;
   }
@@ -909,6 +1044,10 @@ h2 {
     grid-column: auto;
   }
 
+  .effects-panel {
+    grid-column: auto;
+  }
+
   .audition-layout {
     grid-template-columns: 1fr;
   }
@@ -922,7 +1061,8 @@ h2 {
 
   .masthead-actions,
   .oscillator-controls,
-  .filter-controls {
+  .filter-controls,
+  .effects-columns {
     grid-template-columns: 1fr;
   }
 
@@ -941,6 +1081,12 @@ h2 {
 
   .envelope-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lfo-controls,
+  .modulation-envelope-controls,
+  .effect-controls {
+    grid-template-columns: 1fr;
   }
 
   .audio-transport {

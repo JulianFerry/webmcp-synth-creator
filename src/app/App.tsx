@@ -1,6 +1,9 @@
 import { AuditionPanel } from '../ui/AuditionPanel'
 import { EnvelopePanel } from '../ui/EnvelopePanel'
+import { EffectsPanel } from '../ui/EffectsPanel'
 import { FilterPanel } from '../ui/FilterPanel'
+import { LfoPanel } from '../ui/LfoPanel'
+import { ModulationPanel } from '../ui/ModulationPanel'
 import { OscillatorPanel } from '../ui/OscillatorPanel'
 import { PatchHeader } from '../ui/PatchHeader'
 import { WorkbenchShell } from '../ui/WorkbenchShell'
@@ -64,7 +67,7 @@ export function App({ store }: AppProps) {
         <div className={`status-cell status-${webMcpStatus}`} data-testid="webmcp-status">
           <span>WebMCP</span>
           <strong>{webMcpStatus}</strong>
-          <small>{webMcpReason ?? 'get_patch + apply_patch'}</small>
+          <small>{webMcpReason ?? 'get_patch + apply_patch + set_lfo_shape'}</small>
         </div>
         <div
           className={`status-cell status-${audio.lifecycle}`}
@@ -76,6 +79,13 @@ export function App({ store }: AppProps) {
           data-fine={patch.oscillators[0].fineTuneCents}
           data-glide={patch.voice.glideSeconds}
           data-level={patch.oscillators[0].level}
+          data-lfo-enabled={patch.lfo1.enabled}
+          data-lfo-points={patch.lfo1.points.length}
+          data-lfo-rate={patch.lfo1.rate.mode === 'sync' ? patch.lfo1.rate.division : patch.lfo1.rate.hz}
+          data-modulation-version={audio.modulationScheduleVersion}
+          data-route-count={patch.modulations.length}
+          data-delay-enabled={patch.effects.delay.enabled}
+          data-reverb-enabled={patch.effects.reverb.enabled}
           data-resonance={patch.filter.resonance}
           data-sustain={patch.ampEnvelope.sustainLevel}
           data-transpose={patch.oscillators[0].transposeSemitones}
@@ -172,6 +182,25 @@ export function App({ store }: AppProps) {
         />
       </section>
 
+      <section className="structured-grid" aria-label="Structured modulation and effects">
+        <LfoPanel
+          lfo={patch.lfo1}
+          onChange={applyPatchChange}
+          resetKey={controlResetKey}
+        />
+        <ModulationPanel
+          envelope={patch.modEnvelope}
+          modulations={patch.modulations}
+          onChange={applyPatchChange}
+          resetKey={controlResetKey}
+        />
+        <EffectsPanel
+          effects={patch.effects}
+          onChange={applyPatchChange}
+          resetKey={controlResetKey}
+        />
+      </section>
+
       <section className="state-monitor-grid" aria-label="Committed patch transaction">
         <article className="panel canonical-panel">
           <div className="panel-heading">
@@ -197,6 +226,14 @@ export function App({ store }: AppProps) {
             <div>
               <dt>Polyphony</dt>
               <dd>{summary.voice.polyphony}</dd>
+            </div>
+            <div>
+              <dt>LFO 1</dt>
+              <dd>{summary.lfo1.pointCount} pts</dd>
+            </div>
+            <div>
+              <dt>Routes</dt>
+              <dd>{summary.modulations.length}</dd>
             </div>
             <div>
               <dt>Transactions</dt>

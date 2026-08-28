@@ -1,10 +1,21 @@
 import { expect, test } from '@playwright/test'
 
 import { createDefaultPatch } from '../../src/patch/defaults'
-import { mapPhaseOneVitalParameters } from '../../src/vital/parameterMap'
+import {
+  mapPhaseOneVitalParameters,
+  mapStructuredVitalParameters,
+} from '../../src/vital/parameterMap'
 
 function syntheticVitalFixture(): string {
   const patch = createDefaultPatch()
+  const modulationValues = Object.fromEntries(
+    Array.from({ length: 16 }, (_, index) => index + 1).flatMap((slot) =>
+      ['amount', 'bipolar', 'stereo', 'power', 'bypass'].map((field) => [
+        `modulation_${slot}_${field}`,
+        0,
+      ]),
+    ),
+  )
   return JSON.stringify({
     author: '',
     comments: '',
@@ -13,9 +24,15 @@ function syntheticVitalFixture(): string {
     synth_version: 'phase-1-e2e-version',
     settings: {
       ...Object.fromEntries(
-        Object.keys(mapPhaseOneVitalParameters(patch)).map((key) => [key, 0]),
+        Object.keys({
+          ...mapPhaseOneVitalParameters(patch),
+          ...mapStructuredVitalParameters(patch),
+        }).map((key) => [key, 0]),
       ),
+      ...modulationValues,
       wavetables: [{}, {}, {}],
+      lfos: [{}],
+      modulations: Array.from({ length: 16 }, () => ({ source: '', destination: '' })),
     },
   })
 }
@@ -81,7 +98,7 @@ test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vit
     const tools = await document.modelContext!.getTools()
     return tools.map((tool) => tool.name)
   })
-  expect(toolNames).toEqual(['get_patch', 'apply_patch'])
+  expect(toolNames).toEqual(['get_patch', 'apply_patch', 'set_lfo_shape'])
 
   await page.getByTestId('hold-note').click()
   await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-held', 'true')

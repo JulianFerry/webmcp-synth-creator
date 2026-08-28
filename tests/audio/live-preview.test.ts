@@ -8,7 +8,11 @@ import { CommandService } from '../../src/commands/CommandService'
 import { LatencyTrace } from '../../src/dev/latencyTrace'
 import { createDefaultPatch } from '../../src/patch/defaults'
 import { SessionService } from '../../src/session/SessionService'
-import { FakeAudioContext, type FakeAudioParam } from './fakes'
+import {
+  FakeAudioContext,
+  type FakeAudioParam,
+  type FakeGainNode,
+} from './fakes'
 
 function createHarness() {
   let now = 0
@@ -70,9 +74,9 @@ describe('held-note slider preview', () => {
     const { commands, context, session, store, synth, trace } = createHarness()
     await synth.holdNote()
 
-    const amplitude = context.gains[1].gain
-    const oscillatorOneLevel = context.gains.at(-2)!.gain
     const filter = context.filters[0]
+    const amplitude = (filter.connections[0] as FakeGainNode).gain
+    const oscillatorOneLevel = context.gains.at(-2)!.gain
     const oscillatorOneLanes = context.oscillators.slice(0, 10)
     const initialWaveAssignments = oscillatorOneLanes.map((oscillator) => oscillator.waves.length)
     const expectedVelocityGain = velocityToGain(0.85, 0.3)
@@ -99,12 +103,15 @@ describe('held-note slider preview', () => {
     expect(context.panners.slice(0, 5).some((panner) => hasRamp(panner.pan, 0.44))).toBe(true)
 
     const oscillatorCountBeforeUnisonPreview = context.oscillators.length
-    const gainCountBeforeUnisonPreview = context.gains.length
+    const pannerCountBeforeUnisonPreview = context.panners.length
+    const previousGroupOutput = context.panners[0].connections[0] as FakeGainNode
     store.getState().previewPatchChange('oscillators.0.unisonVoices', 3)
     expect(context.oscillators.length - oscillatorCountBeforeUnisonPreview).toBe(6)
     expect(oscillatorOneLanes.every((oscillator) => oscillator.stops.includes(0.03))).toBe(true)
-    expect(hasRamp(context.gains[3].gain, 0, 0.02)).toBe(true)
-    expect(hasRamp(context.gains[gainCountBeforeUnisonPreview].gain, 1, 0.02)).toBe(true)
+    expect(hasRamp(previousGroupOutput.gain, 0, 0.02)).toBe(true)
+    const nextGroupOutput = context.panners[pannerCountBeforeUnisonPreview]
+      .connections[0] as FakeGainNode
+    expect(hasRamp(nextGroupOutput.gain, 1, 0.02)).toBe(true)
 
     store.getState().previewPatchChange('filter.cutoffHz', 2_400)
     store.getState().previewPatchChange('filter.resonance', 0.65)
@@ -169,7 +176,9 @@ describe('held-note slider preview', () => {
 
     expect(synth.getState().previewValues).toEqual({})
     expect(synth.getState().effective.oscillators[0].fineTuneCents).toBe(0)
-    expect(filter.frequency.value).toBe(7_200)
+    expect(synth.getState().effective.filter.cutoffHz).toBe(7_200)
+    expect(filter.frequency.value).toBeGreaterThan(0)
+    expect(filter.frequency.value).toBeLessThanOrEqual(7_200)
     expect(filter.Q.value).toBe(resonanceToQ(0.6))
 
     store.getState().previewPatchChange('oscillators.0.level', 0.25)
@@ -221,7 +230,7 @@ describe('envelope gesture semantics', () => {
   it('keeps attack and decay off active automation and uses committed values for the next note', async () => {
     const { context, store, synth } = createHarness()
     await synth.holdNote()
-    const heldAmplitude = context.gains[1].gain
+    const heldAmplitude = (context.filters[0].connections[0] as FakeGainNode).gain
     heldAmplitude.calls.length = 0
 
     store.getState().previewPatchChange('ampEnvelope.attackSeconds', 0.8)
@@ -257,7 +266,7 @@ describe('envelope gesture semantics', () => {
   it('uses only a committed release value at a held voice subsequent note-off', async () => {
     const { context, store, synth } = createHarness()
     await synth.holdNote()
-    const amplitude = context.gains[1].gain
+    const amplitude = (context.filters[0].connections[0] as FakeGainNode).gain
     amplitude.calls.length = 0
 
     store.getState().previewPatchChange('ampEnvelope.releaseSeconds', 4.1)

@@ -2,11 +2,12 @@ import { LatencyTrace, type RequestSource } from '../dev/latencyTrace'
 import { SUPPORTED_PATCH_PATHS } from '../patch/paths'
 import { parseApplyPatchCommand } from '../patch/schemas'
 import { summarizePatch } from '../patch/summary'
-import type { ApplyPatchCommand, CommandResult } from '../patch/types'
+import type { ApplyPatchCommand, CommandResult, SetLfoShapeCommand } from '../patch/types'
 import { SessionService } from '../session/SessionService'
 import { applyPatchChanges } from './applyPatch'
 import { diffSupportedPaths } from './diff'
 import { PatchHistory } from './history'
+import { createSetLfoShapeTransaction } from './setLfoShape'
 
 export class CommandError extends Error {}
 
@@ -57,6 +58,13 @@ export class CommandService {
       canUndo: this.history.canUndo,
       correlationId,
     }
+  }
+
+  setLfoShape(commandInput: SetLfoShapeCommand, context: CommandContext = {}): CommandResult {
+    return this.applyPatch(
+      createSetLfoShapeTransaction(commandInput, this.session.getPatch()),
+      context,
+    )
   }
 
   undo(context: CommandContext = {}): CommandResult {

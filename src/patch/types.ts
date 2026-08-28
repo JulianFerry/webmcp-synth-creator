@@ -1,4 +1,5 @@
 import type { SupportedPatchPath } from './paths'
+import type { TempoSyncDivision } from './limits'
 
 export type PatchCategory =
   | 'pad'
@@ -56,7 +57,7 @@ export interface LfoPoint {
 export type LfoRate =
   | {
       mode: 'sync'
-      division: '1/1' | '1/2' | '1/4' | '1/8' | '1/8T' | '1/16' | '1/16T'
+      division: TempoSyncDivision
     }
   | {
       mode: 'free'
@@ -64,6 +65,7 @@ export type LfoRate =
     }
 
 export interface LfoState {
+  enabled: boolean
   points: LfoPoint[]
   rate: LfoRate
   phase: number
@@ -99,7 +101,7 @@ export interface VoiceState {
 export interface DelayState {
   enabled: boolean
   mode: 'sync' | 'free'
-  division?: '1/4' | '1/8' | '1/8T' | '1/16'
+  division?: TempoSyncDivision
   timeSeconds?: number
   feedback: number
   mix: number
@@ -148,6 +150,13 @@ export interface ApplyPatchCommand {
   }>
 }
 
+export interface SetLfoShapeCommand {
+  type: 'set_lfo_shape'
+  reason: string
+  points: LfoPoint[]
+  smooth?: boolean
+}
+
 export interface PatchSummary {
   name: string
   category: PatchCategory | null
@@ -167,6 +176,7 @@ export interface PatchSummary {
   modEnvelope: EnvelopeState
   filter: FilterState
   lfo1: {
+    enabled: boolean
     pointCount: number
     points: LfoPoint[]
     rate: LfoRate

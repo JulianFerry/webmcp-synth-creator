@@ -58,6 +58,7 @@ export function createDefaultPatch(): PatchState {
       resonance: 0.14,
     },
     lfo1: {
+      enabled: true,
       points: [
         { x: 0, y: 0 },
         { x: 0.02, y: 1 },
@@ -101,6 +102,7 @@ export function createDefaultPatch(): PatchState {
         enabled: true,
         mode: 'sync',
         division: '1/8',
+        timeSeconds: 0.25,
         feedback: 0.32,
         mix: 0.18,
       },

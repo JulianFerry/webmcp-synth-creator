@@ -1,7 +1,15 @@
 import type { PatchState } from '../patch/types'
 import { resolveWavetable } from '../wavetables/registry'
 import { scheduleEnvelopeAttack, scheduleEnvelopeRelease } from './envelope'
+import { DelayEffect } from './delay'
 import { applyFilterState } from './filter'
+import { evaluateEnvelope } from './lfo'
+import {
+  scheduleModulationRange,
+  type ModulationFrame,
+  type ModulationTarget,
+} from './ModulationScheduler'
+import { ReverbEffect } from './reverb'
 import { transposeFrequency, velocityToGain } from './units'
 import { WavetableVoiceOscillator } from './WavetableVoiceOscillator'
 
@@ -19,6 +27,8 @@ export interface OfflineRenderOptions {
   noteOffSeconds?: number
   durationSeconds?: number
   sampleRate?: number
+  includeModulation?: boolean
+  includeEffects?: boolean
 }
 
 function analyzeBuffer(buffer: AudioBuffer): OfflineVoiceMetrics {
@@ -97,8 +107,17 @@ export async function renderOfflineVoice(
   )
   const filter = context.createBiquadFilter()
   const amplitude = context.createGain()
-  filter.connect(amplitude).connect(context.destination)
+  if (options.includeEffects) {
+    const delay = new DelayEffect(context, patch.effects.delay)
+    const reverb = new ReverbEffect(context, patch.effects.reverb)
+    filter.connect(amplitude).connect(delay.input)
+    delay.connect(reverb.input)
+    reverb.connect(context.destination)
+  } else {
+    filter.connect(amplitude).connect(context.destination)
+  }
 
+  const oscillatorLevels: GainNode[] = []
   const oscillators = patch.oscillators.map((oscillator) => {
     const voice = new WavetableVoiceOscillator(
       context,
@@ -118,6 +137,7 @@ export async function renderOfflineVoice(
     )
     voice.connect(level)
     level.connect(filter)
+    oscillatorLevels.push(level)
     voice.setPositionAtTime(oscillator.wavetablePosition, 0)
     voice.setFrequencyAtTime(
       transposeFrequency(midi, oscillator.transposeSemitones, oscillator.fineTuneCents),
@@ -128,6 +148,37 @@ export async function renderOfflineVoice(
 
   applyFilterState(filter, patch.filter, 0)
   scheduleEnvelopeAttack(amplitude.gain, patch.ampEnvelope, 0)
+  if (options.includeModulation) {
+    const target: ModulationTarget = {
+      applyModulationFrame(frame: ModulationFrame, time: number) {
+        frame.oscillatorLevels.forEach((logicalLevel, index) => {
+          const oscillator = patch.oscillators[index]
+          oscillatorLevels[index].gain.linearRampToValueAtTime(
+            oscillator.enabled
+              ? logicalLevel * velocityToGain(velocity, patch.voice.velocitySensitivity) * 0.24
+              : 0,
+            time,
+          )
+          oscillators[index].setPositionAtTime(frame.wavetablePositions[index], time)
+          oscillators[index].scheduleFrequencyAtTime(frame.oscillatorFrequencies[index], time)
+        })
+        filter.frequency.linearRampToValueAtTime(
+          patch.filter.enabled ? frame.filterCutoffHz : Math.min(20_000, sampleRate * 0.49),
+          time,
+        )
+      },
+      resetModulation() {
+        return
+      },
+    }
+    scheduleModulationRange(patch, midi, 0, 0, durationSeconds, target, {
+      intervalSeconds: 0.01,
+      release: {
+        elapsedSeconds: noteOffSeconds,
+        startValue: evaluateEnvelope(patch.modEnvelope, noteOffSeconds),
+      },
+    })
+  }
   const releaseEnd = scheduleEnvelopeRelease(
     amplitude.gain,
     patch.ampEnvelope.releaseSeconds,
