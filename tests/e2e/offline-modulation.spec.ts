@@ -108,6 +108,15 @@ test('offline modulation direction covers LFO gate, mod envelope, delay tail, an
     const wetReverb = structuredClone(dryReverb)
     wetReverb.effects.reverb = { enabled: true, mix: 0.55, decaySeconds: 1.8, size: 0.8 }
 
+    const staticOscillator3 = createBase()
+    staticOscillator3.oscillators[0].enabled = false
+    staticOscillator3.oscillators[2].enabled = true
+    staticOscillator3.oscillators[2].level = 0.6
+    staticOscillator3.oscillators[2].randomPhase = 0
+    staticOscillator3.modulations = []
+    const modulatedOscillator3 = structuredClone(staticOscillator3)
+    modulatedOscillator3.modulations = [{ id: 'osc-3-level', source: 'lfo1', destination: 'oscillator3.level', amount: 0.8, bipolar: false }]
+
     const [
       ungatedMetrics,
       gatedMetrics,
@@ -117,6 +126,8 @@ test('offline modulation direction covers LFO gate, mod envelope, delay tail, an
       wetDelayMetrics,
       dryReverbMetrics,
       wetReverbMetrics,
+      staticOscillator3Metrics,
+      modulatedOscillator3Metrics,
     ] = await Promise.all([
       render(ungated, {
         durationSeconds: 1,
@@ -158,6 +169,8 @@ test('offline modulation direction covers LFO gate, mod envelope, delay tail, an
         noteOffSeconds: 0.12,
         includeEffects: true,
       }),
+      render(staticOscillator3, { durationSeconds: .8, noteOffSeconds: .6, includeModulation: true }),
+      render(modulatedOscillator3, { durationSeconds: .8, noteOffSeconds: .6, includeModulation: true }),
     ])
 
     return {
@@ -169,6 +182,8 @@ test('offline modulation direction covers LFO gate, mod envelope, delay tail, an
       wetDelay: wetDelayMetrics,
       dryReverb: dryReverbMetrics,
       wetReverb: wetReverbMetrics,
+      staticOscillator3: staticOscillator3Metrics,
+      modulatedOscillator3: modulatedOscillator3Metrics,
     }
   })
 
@@ -178,5 +193,6 @@ test('offline modulation direction covers LFO gate, mod envelope, delay tail, an
   )
   expect(metrics.wetDelay.tailRms).toBeGreaterThan(metrics.dryDelay.tailRms + 0.00001)
   expect(metrics.wetReverb.tailRms).toBeGreaterThan(metrics.dryReverb.tailRms + 0.00001)
+  expect(metrics.modulatedOscillator3.rms).toBeGreaterThan(metrics.staticOscillator3.rms * 1.05)
   expect(metrics.wetReverb.tailCrestFactor).toBeLessThan(6)
 })

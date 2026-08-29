@@ -38,8 +38,7 @@ export function App({ store, previewRenderer = undefined, session = undefined }:
   }))
   const lfo = { lfo: patch.lfo1, onChange: state.applyPatchChange, resetKey: state.controlResetKey }
   const envelope = { envelope: patch.ampEnvelope, onCancelPreview: state.cancelPatchPreview, onChange: state.applyPatchChange, onPreview: state.previewPatchChange, previewEnvelope: audio.draft.ampEnvelope, resetKey: state.controlResetKey }
-  const filter = { filter: patch.filter, onCancelPreview: state.cancelPatchPreview, onChange: state.applyPatchChange, onPreview: state.previewPatchChange, previewFilter: audio.draft.filter, resetKey: state.controlResetKey }
-  const audition = { audio, onCancelPreview: state.cancelPatchPreview, onChange: state.applyPatchChange, onNoteOff: state.noteOff, onNoteOn: state.noteOn, onPreview: state.previewPatchChange, onReleaseAll: state.releaseAllNotes, onStartAudio: state.startAudio, onToggleHeldNote: state.toggleHeldNote, resetKey: state.controlResetKey, voice: patch.voice }
+  const audition = { audio, onNoteOff: state.noteOff, onNoteOn: state.noteOn, onReleaseAll: state.releaseAllNotes, onStartAudio: state.startAudio, onToggleHeldNote: state.toggleHeldNote }
 
   const bar = <GlobalPatchBar
     LastChange={LastChangeIndicator}
@@ -57,7 +56,7 @@ export function App({ store, previewRenderer = undefined, session = undefined }:
     <WorkbenchTabs active={activeTab} onChange={setActiveTab}>
       {activeTab === 'overview' ? <OverviewTab audition={audition} effects={patch.effects} envelope={envelope} filter={patch.filter} lfo={lfo} oscillators={oscillators} preview={{ ...preview, activeVoiceCount: audio.activeVoiceCount }} /> : null}
       {activeTab === 'oscillators' ? <OscillatorsTab oscillators={oscillators} /> : null}
-      {activeTab === 'modulation-effects' ? <ModulationEffectsTab effects={{ effects: patch.effects, onChange: state.applyPatchChange, resetKey: state.controlResetKey }} filter={filter} lfo={lfo} modulation={{ envelope: patch.modEnvelope, modulations: patch.modulations, onChange: state.applyPatchChange, resetKey: state.controlResetKey }} /> : null}
+      {activeTab === 'modulation-effects' ? <ModulationEffectsTab audio={audio} patch={patch} resetKey={state.controlResetKey} onCancelPreview={state.cancelPatchPreview} onChange={state.applyPatchChange} onPreview={state.previewPatchChange} /> : null}
     </WorkbenchTabs>
   </WorkbenchShell>
 }

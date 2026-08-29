@@ -976,6 +976,20 @@ h2 {
   text-transform: uppercase;
 }
 
+.modfx-workspace { display: grid; gap: var(--space-3); }
+.signal-flow { overflow: hidden; }
+.signal-flow-stages { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.signal-stage { position: relative; padding: 16px 8px; border: 1px solid var(--line); border-top: 2px solid var(--analysis); border-radius: 5px; background: var(--panel-high); color: var(--text); text-align: center; font: 10px var(--mono); }
+.signal-stage span { position: absolute; right: -10px; z-index: 1; color: var(--active); }
+.signal-stage[data-bypassed="true"] { opacity: .42; border-top-color: var(--muted); }
+.route-arcs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.route-arcs span { padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--analysis); background: var(--panel-low); font: 8px var(--mono); }
+.modfx-modulators, .modfx-processors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.matrix-routes { display: grid; gap: 8px; }
+.matrix-route { display: grid; grid-template-columns: minmax(120px, .8fr) minmax(190px, 1.25fr) minmax(150px, 1fr) 130px auto; gap: 8px; align-items: end; padding: 10px; border: 1px solid var(--line); border-left: 2px solid var(--analysis); border-radius: 5px; background: var(--panel-low); }
+.matrix-remove { min-height: 38px; }
+.matrix-add { margin-top: 12px; }
+
 .effects-panel {
   grid-column: 1 / -1;
 }
@@ -1348,6 +1362,7 @@ h2 {
   .global-session-row { grid-template-columns: 1fr; }
   .oscillator-overview-deck { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .overview-analysis-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .matrix-route { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .history-controls {
     justify-content: flex-start;
@@ -1391,6 +1406,8 @@ h2 {
   .tab-grid { grid-template-columns: 1fr; }
   .overview-analysis-row { grid-template-columns: 1fr; }
   .oscillator-overview-deck { grid-template-columns: 1fr; }
+  .signal-flow-stages, .modfx-modulators, .modfx-processors, .matrix-route { grid-template-columns: 1fr; }
+  .signal-stage span { right: 50%; bottom: -12px; transform: rotate(90deg); }
   .global-patch-bar { padding: var(--space-2); }
 
   .oscillator-controls,

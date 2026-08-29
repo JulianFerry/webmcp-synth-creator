@@ -1,22 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { AUDITION_HELD_MIDI_NOTE, type BrowserSynthState } from '../audio/BrowserSynth'
-import type { SupportedPatchPath } from '../patch/paths'
-import type { VoiceState } from '../patch/types'
 import { ParameterSlider } from './controls/ParameterSlider'
 
 interface AuditionPanelProps {
   audio: BrowserSynthState
-  voice: VoiceState
-  onChange: (path: SupportedPatchPath, value: unknown, reason: string) => boolean
-  onPreview: (path: SupportedPatchPath, value: unknown) => void
-  onCancelPreview: (path: SupportedPatchPath) => void
   onStartAudio: () => Promise<void>
   onNoteOn: (midi: number, velocity?: number, requestedAtMs?: number) => Promise<void>
   onNoteOff: (midi: number) => void
   onReleaseAll: () => void
   onToggleHeldNote: (requestedAtMs?: number) => Promise<void>
-  resetKey: number
 }
 
 const KEYBOARD_NOTES = [
@@ -66,16 +59,11 @@ function formatTiming(value: number | null): string {
 
 export function AuditionPanel({
   audio,
-  voice,
-  onChange,
-  onPreview,
-  onCancelPreview,
   onStartAudio,
   onNoteOn,
   onNoteOff,
   onReleaseAll,
   onToggleHeldNote,
-  resetKey,
 }: AuditionPanelProps) {
   const [velocity, setVelocity] = useState(0.85)
   const activeComputerKeys = useRef(new Set<string>())
@@ -159,18 +147,6 @@ export function AuditionPanel({
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
     onNoteOff(midi)
-  }
-
-  const commitVoice = (field: keyof VoiceState, value: unknown, label: string) => {
-    return onChange(`voice.${field}` as SupportedPatchPath, value, `Set voice ${label}`)
-  }
-  const previewVoice = (field: keyof VoiceState) => {
-    const path = `voice.${field}` as SupportedPatchPath
-    return {
-      onCancel: () => onCancelPreview(path),
-      onPreview: (value: number) => onPreview(path, value),
-      resetKey,
-    }
   }
 
   return (
@@ -297,42 +273,6 @@ export function AuditionPanel({
             }}
             step={0.01}
             value={velocity}
-          />
-          <ParameterSlider
-            formatValue={(value) => `${value} voices`}
-            id="voice-polyphony"
-            label="Polyphony"
-            max={16}
-            min={1}
-            onCommit={(value) => commitVoice('polyphony', value, 'polyphony')}
-            resetKey={resetKey}
-            step={1}
-            testId="voice-polyphony"
-            value={voice.polyphony}
-          />
-          <ParameterSlider
-            formatValue={(value) => `${Math.round(value * 1000)} ms`}
-            id="voice-glide"
-            label="Glide"
-            max={1}
-            min={0}
-            onCommit={(value) => commitVoice('glideSeconds', value, 'glide')}
-            {...previewVoice('glideSeconds')}
-            step={0.01}
-            testId="voice-glide"
-            value={voice.glideSeconds}
-          />
-          <ParameterSlider
-            formatValue={(value) => `${Math.round(value * 100)}%`}
-            id="voice-velocity"
-            label="Velocity response"
-            max={1}
-            min={0}
-            onCommit={(value) => commitVoice('velocitySensitivity', value, 'velocity response')}
-            {...previewVoice('velocitySensitivity')}
-            step={0.01}
-            testId="voice-velocity-sensitivity"
-            value={voice.velocitySensitivity}
           />
           <div className="steal-readout">
             <span>Steal policy</span>

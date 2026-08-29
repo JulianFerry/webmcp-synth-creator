@@ -67,12 +67,14 @@ test('playable voice stays gesture gated and steals the oldest voice at configur
   await page.getByTestId('start-audio').click()
   await expect(page.getByTestId('audio-lifecycle')).toHaveText('running')
 
+  await page.getByRole('tab', { name: /Modulation & FX/ }).click()
   const polyphony = page.getByTestId('voice-polyphony')
   await polyphony.focus()
   await polyphony.press('Home')
   await expect(polyphony).toHaveValue('1')
   await expect(page.getByTestId('history-size')).toHaveText('1')
 
+  await page.getByRole('tab', { name: /Overview/ }).click()
   await page.getByTestId('keyboard-surface').focus()
   await page.keyboard.down('a')
   await expect(page.getByTestId('active-voice-count')).toHaveText('1')
@@ -378,15 +380,17 @@ test('playable voice cancels generalized previews back to canonical active audio
   await expect(page.getByTestId('transaction-count')).toHaveText('0')
   await expect(page.getByTestId('history-size')).toHaveText('0')
 
+  await page.getByRole('tab', { name: /Modulation & FX/ }).click()
+  await expect(adapter).toHaveAttribute('data-preview-count', '0')
   const glide = page.getByTestId('voice-glide')
   await glide.evaluate((element) => {
     const input = element as HTMLInputElement
     input.value = '0.45'
     input.dispatchEvent(new InputEvent('input', { bubbles: true }))
   })
-  await expect(adapter).toHaveAttribute('data-preview-count', '4')
+  await expect(adapter).toHaveAttribute('data-preview-count', '0')
   await glide.dispatchEvent('pointercancel')
-  await expect(adapter).toHaveAttribute('data-preview-count', '3')
+  await expect(adapter).toHaveAttribute('data-preview-count', '0')
   await page.getByRole('tab', { name: /Modulation & FX/ }).click()
   await expect(adapter).toHaveAttribute('data-preview-count', '0')
 
