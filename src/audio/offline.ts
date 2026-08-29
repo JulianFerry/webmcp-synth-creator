@@ -32,8 +32,13 @@ export interface OfflineRenderOptions {
   includeEffects?: boolean
 }
 
-function analyzeBuffer(buffer: AudioBuffer): OfflineVoiceMetrics {
-  const sampleRate = buffer.sampleRate
+export interface OfflineVoiceRender {
+  metrics: OfflineVoiceMetrics
+  samples: Float32Array
+  sampleRate: number
+}
+
+function mixToMono(buffer: AudioBuffer): Float32Array {
   const samples = new Float32Array(buffer.length)
   for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
     const data = buffer.getChannelData(channel)
@@ -41,6 +46,12 @@ function analyzeBuffer(buffer: AudioBuffer): OfflineVoiceMetrics {
       samples[index] += data[index] / buffer.numberOfChannels
     }
   }
+  return samples
+}
+
+function analyzeBuffer(buffer: AudioBuffer): OfflineVoiceMetrics {
+  const sampleRate = buffer.sampleRate
+  const samples = mixToMono(buffer)
 
   let squared = 0
   let differenceSquared = 0
@@ -100,6 +111,13 @@ export async function renderOfflineVoice(
   patch: PatchState,
   options: OfflineRenderOptions = {},
 ): Promise<OfflineVoiceMetrics> {
+  return (await renderOfflineVoiceBuffer(patch, options)).metrics
+}
+
+export async function renderOfflineVoiceBuffer(
+  patch: PatchState,
+  options: OfflineRenderOptions = {},
+): Promise<OfflineVoiceRender> {
   const sampleRate = options.sampleRate ?? 24_000
   const durationSeconds = options.durationSeconds ?? 1
   const noteOffSeconds = options.noteOffSeconds ?? 0.35
@@ -194,5 +212,10 @@ export async function renderOfflineVoice(
   )
   oscillators.forEach((oscillator) => oscillator.dispose(releaseEnd + 0.005))
 
-  return analyzeBuffer(await context.startRendering())
+  const buffer = await context.startRendering()
+  return {
+    metrics: analyzeBuffer(buffer),
+    samples: mixToMono(buffer),
+    sampleRate: buffer.sampleRate,
+  }
 }

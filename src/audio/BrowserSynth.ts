@@ -45,6 +45,13 @@ import {
   type UnisonConfiguration,
 } from './WavetableVoiceOscillator'
 import { transposeFrequency, velocityToGain } from './units'
+import { renderOfflineVoiceBuffer } from './offline'
+import {
+  FIXED_C3_MIDI,
+  type SynthPreviewRender,
+  type SynthPreviewRenderer,
+  type SynthPreviewRequest,
+} from './previewRender'
 
 export type BrowserSynthLifecycle = 'suspended' | 'running' | 'unavailable' | 'error'
 
@@ -473,7 +480,7 @@ class BrowserVoice implements ModulationTarget {
   }
 }
 
-export class BrowserSynth {
+export class BrowserSynth implements SynthPreviewRenderer {
   private patch: PatchState
   private draftPatch: PatchState
   private effectivePatch: PatchState
@@ -541,6 +548,37 @@ export class BrowserSynth {
   subscribe(subscriber: StateSubscriber): () => void {
     this.subscribers.add(subscriber)
     return () => this.subscribers.delete(subscriber)
+  }
+
+  async renderPreview(
+    request: SynthPreviewRequest,
+    signal: AbortSignal,
+  ): Promise<SynthPreviewRender> {
+    if (signal.aborted) throw new DOMException('Preview render aborted', 'AbortError')
+    const releaseStartSeconds = request.attackHoldSeconds + request.sustainWindowSeconds
+    const durationSeconds = Math.max(
+      releaseStartSeconds + this.patch.ampEnvelope.releaseSeconds + 1.25,
+      releaseStartSeconds + 1.5,
+    )
+    const rendered = await renderOfflineVoiceBuffer(structuredClone(this.patch), {
+      midi: FIXED_C3_MIDI,
+      velocity: request.velocity,
+      noteOffSeconds: releaseStartSeconds,
+      durationSeconds,
+      sampleRate: 24_000,
+      includeModulation: true,
+      includeEffects: request.includeEffects,
+    })
+    if (signal.aborted) throw new DOMException('Preview render aborted', 'AbortError')
+    return {
+      samples: rendered.samples,
+      sampleRate: rendered.sampleRate,
+      attackHoldEndSeconds: request.attackHoldSeconds,
+      sustainStartSeconds: request.attackHoldSeconds,
+      sustainEndSeconds: releaseStartSeconds,
+      releaseStartSeconds,
+      durationSeconds,
+    }
   }
 
   async startAudio(): Promise<void> {

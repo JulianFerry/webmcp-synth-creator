@@ -1,5 +1,7 @@
 import { useState } from 'react'
 
+import type { SynthPreviewRenderer } from '../audio/previewRender'
+import type { SessionService } from '../session/SessionService'
 import { WorkbenchShell } from '../ui/WorkbenchShell'
 import { DiagnosticDrawer } from '../ui/shell/DiagnosticDrawer'
 import { GlobalPatchBar } from '../ui/shell/GlobalPatchBar'
@@ -8,13 +10,19 @@ import { WorkbenchTabs } from '../ui/shell/WorkbenchTabs'
 import { ModulationEffectsTab } from '../ui/tabs/ModulationEffectsTab'
 import { OscillatorsTab } from '../ui/tabs/OscillatorsTab'
 import { OverviewTab } from '../ui/tabs/OverviewTab'
+import { usePreviewRender } from '../ui/analysis/usePreviewRender'
 import type { AppStore } from './appStore'
 import type { WorkbenchTab } from './uiState'
 
-interface AppProps { store: AppStore }
+interface AppProps {
+  store: AppStore
+  previewRenderer?: SynthPreviewRenderer
+  session?: SessionService
+}
 
-export function App({ store }: AppProps) {
+export function App({ store, previewRenderer = undefined, session = undefined }: AppProps) {
   const [activeTab, setActiveTab] = useState<WorkbenchTab>('overview')
+  const preview = usePreviewRender(previewRenderer ?? null, session ?? null)
   const state = store()
   const { patch, audio } = state
   const wavetables = Object.values(patch.wavetableData)
@@ -47,7 +55,7 @@ export function App({ store }: AppProps) {
 
   return <WorkbenchShell bar={bar} diagnostics={diagnostics} notices={notices}>
     <WorkbenchTabs active={activeTab} onChange={setActiveTab}>
-      {activeTab === 'overview' ? <OverviewTab audition={audition} envelope={envelope} lfo={lfo} oscillators={oscillators} /> : null}
+      {activeTab === 'overview' ? <OverviewTab audition={audition} envelope={envelope} lfo={lfo} oscillators={oscillators} preview={{ ...preview, activeVoiceCount: audio.activeVoiceCount }} /> : null}
       {activeTab === 'oscillators' ? <OscillatorsTab oscillators={oscillators} /> : null}
       {activeTab === 'modulation-effects' ? <ModulationEffectsTab effects={{ effects: patch.effects, onChange: state.applyPatchChange, resetKey: state.controlResetKey }} filter={filter} lfo={lfo} modulation={{ envelope: patch.modEnvelope, modulations: patch.modulations, onChange: state.applyPatchChange, resetKey: state.controlResetKey }} /> : null}
     </WorkbenchTabs>
