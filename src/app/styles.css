@@ -148,13 +148,17 @@ p {
 .oscillator-tab-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .overview-tab-grid .audition-panel, .modfx-tab-grid .effects-panel { grid-column: 1 / -1; }
 
-.processed-waveform-panel { grid-column: 1 / -1; }
+.overview-analysis-row { display: grid; grid-column: 1 / -1; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--space-3); }
 .processed-waveform-figure { margin: 0; padding: 12px 14px 10px; overflow: hidden; border: 1px solid rgb(69 200 189 / 24%); border-radius: 7px; background: linear-gradient(180deg, rgb(69 200 189 / 8%), transparent 58%), var(--panel-low); }
 .processed-waveform-figure svg { display: block; width: 100%; height: 190px; }
 .processed-waveform-path { fill: none; stroke: var(--analysis); stroke-linecap: round; stroke-width: 0.42; filter: drop-shadow(0 0 2px rgb(69 200 189 / 55%)); }
 .processed-waveform-playhead { stroke: var(--active); stroke-width: 0.55; filter: drop-shadow(0 0 2px var(--active)); }
 .processed-waveform-figure figcaption { display: flex; justify-content: space-between; gap: var(--space-2); color: var(--muted); font: 8px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; }
 .processed-waveform-figure figcaption strong { color: var(--analysis); font-weight: 500; }
+.spectrogram-figure { margin: 0; padding: 12px 14px 10px; overflow: hidden; border: 1px solid rgb(69 200 189 / 24%); border-radius: 7px; background: linear-gradient(180deg, rgb(69 200 189 / 8%), transparent 58%), var(--panel-low); }
+.spectrogram-figure canvas { display: block; width: 100%; height: 190px; }
+.spectrogram-figure figcaption { display: flex; justify-content: space-between; gap: var(--space-2); color: var(--muted); font: 8px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; }
+.spectrogram-figure figcaption strong { color: var(--analysis); font-weight: 500; }
 
 .diagnostic-drawer { margin-top: var(--space-3); border: 1px solid var(--line); border-radius: 9px; background: var(--panel-low); }
 .diagnostic-drawer > summary { display: flex; justify-content: space-between; padding: 12px 15px; color: var(--muted); font: 9px var(--mono); text-transform: uppercase; cursor: pointer; }
@@ -1315,6 +1319,7 @@ h2 {
   }
 
   .global-session-row, .oscillator-tab-grid { grid-template-columns: 1fr; }
+  .overview-analysis-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .history-controls {
     justify-content: flex-start;
@@ -1352,6 +1357,7 @@ h2 {
   .workbench-tab { flex: none; padding: 0 14px; }
   .workbench-tabpanel { padding: var(--space-2); }
   .tab-grid { grid-template-columns: 1fr; }
+  .overview-analysis-row { grid-template-columns: 1fr; }
   .global-patch-bar { padding: var(--space-2); }
 
   .oscillator-controls,

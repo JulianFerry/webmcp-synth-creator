@@ -4,6 +4,7 @@ import { EnvelopePanel } from '../EnvelopePanel'
 import { LfoPanel } from '../LfoPanel'
 import { OscillatorPanel } from '../OscillatorPanel'
 import { ProcessedWaveformPreview } from '../analysis/ProcessedWaveformPreview'
+import { SpectrogramWaterfall } from '../analysis/SpectrogramWaterfall'
 
 interface OverviewTabProps {
   audition: ComponentProps<typeof AuditionPanel>
@@ -16,7 +17,10 @@ interface OverviewTabProps {
 export function OverviewTab({ audition, envelope, lfo, oscillators, preview }: OverviewTabProps) {
   return (
     <div className="tab-grid overview-tab-grid">
-      <ProcessedWaveformPreview {...preview} />
+      <div className="overview-analysis-row">
+        <ProcessedWaveformPreview {...preview} />
+        <SpectrogramWaterfall render={preview.render} />
+      </div>
       <EnvelopePanel {...envelope} />
       <LfoPanel {...lfo} />
       {oscillators.map((props) => <OscillatorPanel key={props.index} {...props} />)}
