@@ -2,8 +2,8 @@ import type { ComponentProps } from 'react'
 import { AuditionPanel } from '../AuditionPanel'
 import { EnvelopePanel } from '../EnvelopePanel'
 import { LfoPanel } from '../LfoPanel'
-import { OscillatorPanel } from '../OscillatorPanel'
 import type { FilterState, PatchState } from '../../patch/types'
+import type { DetailedOscillatorEditorProps } from '../oscillators/DetailedOscillatorEditor'
 import { OscillatorOverviewDeck } from '../overview/OscillatorOverviewDeck'
 import { ProcessedWaveformPreview } from '../analysis/ProcessedWaveformPreview'
 import { SpectrogramWaterfall } from '../analysis/SpectrogramWaterfall'
@@ -12,7 +12,7 @@ interface OverviewTabProps {
   audition: ComponentProps<typeof AuditionPanel>
   envelope: ComponentProps<typeof EnvelopePanel>
   lfo: ComponentProps<typeof LfoPanel>
-  oscillators: Array<ComponentProps<typeof OscillatorPanel>>
+  oscillators: DetailedOscillatorEditorProps[]
   preview: ComponentProps<typeof ProcessedWaveformPreview>
   effects: PatchState['effects']
   filter: FilterState

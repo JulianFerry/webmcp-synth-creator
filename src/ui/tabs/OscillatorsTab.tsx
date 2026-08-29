@@ -1,10 +1,11 @@
 import type { ComponentProps } from 'react'
-import { OscillatorPanel } from '../OscillatorPanel'
+import { DetailedOscillatorEditor } from '../oscillators/DetailedOscillatorEditor'
+import { OscillatorEditorDeck } from '../oscillators/OscillatorEditorDeck'
 
 interface OscillatorsTabProps {
-  oscillators: Array<ComponentProps<typeof OscillatorPanel>>
+  oscillators: Array<ComponentProps<typeof DetailedOscillatorEditor>>
 }
 
 export function OscillatorsTab({ oscillators }: OscillatorsTabProps) {
-  return <div className="tab-grid oscillator-tab-grid">{oscillators.map((props) => <OscillatorPanel key={props.index} {...props} />)}</div>
+  return <OscillatorEditorDeck oscillators={oscillators} />
 }

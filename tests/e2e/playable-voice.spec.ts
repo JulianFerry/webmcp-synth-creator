@@ -144,6 +144,30 @@ test('playable voice commits one command after a slider gesture with many epheme
   await expect(page.getByTestId('undo-available')).toHaveText('available')
 })
 
+test('oscillator detail editors expose all three sources without selection and stack on mobile', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('tab', { name: /Oscillators/ }).click()
+
+  for (const number of [1, 2, 3]) {
+    const editor = page.getByTestId(`oscillator-${number}-editor`)
+    await expect(editor).toBeVisible()
+    await expect(editor.getByRole('button', { name: 'Edit wavetable' })).toBeDisabled()
+    const level = page.getByTestId(`oscillator-${number}-level`)
+    await level.focus()
+    await level.press('ArrowRight')
+    await expect(page.getByTestId('history-size')).toHaveText(String(number))
+  }
+
+  await expect(page.getByTestId('latest-diff')).toContainText('oscillators.2.level')
+  await page.setViewportSize({ width: 360, height: 800 })
+  const boxes = await Promise.all([1, 2, 3].map((number) => page.getByTestId(`oscillator-${number}-editor`).boundingBox()))
+  expect(boxes.every(Boolean)).toBe(true)
+  expect(boxes[1]!.y).toBeGreaterThan(boxes[0]!.y + boxes[0]!.height - 1)
+  expect(boxes[2]!.y).toBeGreaterThan(boxes[1]!.y + boxes[1]!.height - 1)
+  await page.getByTestId('oscillator-3-random-phase').scrollIntoViewIfNeeded()
+  await expect(page.getByTestId('oscillator-3-random-phase')).toBeVisible()
+})
+
 test('playable voice cancels an ephemeral wavetable position without state or history drift', async ({
   page,
 }) => {
