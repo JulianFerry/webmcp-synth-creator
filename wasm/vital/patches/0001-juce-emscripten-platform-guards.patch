@@ -1,0 +1,46 @@
+diff --git a/third_party/JUCE/modules/juce_audio_basics/buffers/juce_FloatVectorOperations.cpp b/third_party/JUCE/modules/juce_audio_basics/buffers/juce_FloatVectorOperations.cpp
+index 5a761a3..da2d99a 100644
+--- a/third_party/JUCE/modules/juce_audio_basics/buffers/juce_FloatVectorOperations.cpp
++++ b/third_party/JUCE/modules/juce_audio_basics/buffers/juce_FloatVectorOperations.cpp
+@@ -1031,7 +1031,7 @@ double JUCE_CALLTYPE FloatVectorOperations::findMaximum (const double* src, int
+ intptr_t JUCE_CALLTYPE FloatVectorOperations::getFpStatusRegister() noexcept
+ {
+     intptr_t fpsr = 0;
+-  #if JUCE_INTEL && JUCE_USE_SSE_INTRINSICS
++  #if JUCE_INTEL && JUCE_USE_SSE_INTRINSICS && ! defined (__EMSCRIPTEN__)
+     fpsr = static_cast<intptr_t> (_mm_getcsr());
+   #elif defined (__arm64__) || defined (__aarch64__) || JUCE_USE_ARM_NEON
+    #if defined (__arm64__) || defined (__aarch64__)
+@@ -1050,7 +1050,7 @@ intptr_t JUCE_CALLTYPE FloatVectorOperations::getFpStatusRegister() noexcept
+
+ void JUCE_CALLTYPE FloatVectorOperations::setFpStatusRegister (intptr_t fpsr) noexcept
+ {
+-  #if JUCE_INTEL && JUCE_USE_SSE_INTRINSICS
++  #if JUCE_INTEL && JUCE_USE_SSE_INTRINSICS && ! defined (__EMSCRIPTEN__)
+     auto fpsr_w = static_cast<uint32_t> (fpsr);
+     _mm_setcsr (fpsr_w);
+   #elif defined (__arm64__) || defined (__aarch64__) || JUCE_USE_ARM_NEON
+diff --git a/third_party/JUCE/modules/juce_core/native/juce_BasicNativeHeaders.h b/third_party/JUCE/modules/juce_core/native/juce_BasicNativeHeaders.h
+index 306bb53..f58af68 100644
+--- a/third_party/JUCE/modules/juce_core/native/juce_BasicNativeHeaders.h
++++ b/third_party/JUCE/modules/juce_core/native/juce_BasicNativeHeaders.h
+@@ -238,8 +238,6 @@
+  #include <sys/file.h>
+  #include <sys/ioctl.h>
+  #include <sys/mman.h>
+- #include <sys/prctl.h>
+- #include <sys/ptrace.h>
+  #include <sys/socket.h>
+  #include <sys/stat.h>
+  #include <sys/sysinfo.h>
+@@ -247,6 +245,10 @@
+  #include <sys/time.h>
+  #include <sys/types.h>
+  #include <sys/vfs.h>
+  #include <sys/wait.h>
++ #if ! defined (__EMSCRIPTEN__)
++  #include <sys/prctl.h>
++  #include <sys/ptrace.h>
++ #endif
+  #include <utime.h>
+  #include <poll.h>
