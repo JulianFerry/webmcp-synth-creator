@@ -26,7 +26,7 @@ describe('note-on timing measurement', () => {
 
     await synth.noteOn(48)
 
-    const oscillatorOneLevel = context.gains.at(-2)!.gain
+    const oscillatorOneLevel = context.gains.at(-3)!.gain
     const targetCall = oscillatorOneLevel.calls.find(
       (call) => call.value !== undefined && Math.abs(call.value - 0.24) < 1e-8,
     )

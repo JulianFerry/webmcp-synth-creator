@@ -1,10 +1,14 @@
 {
-  "version": 1,
+  "version": 2,
   "metadata": {
     "name": "Ethereal Gate",
     "category": "pad",
     "description": "An airy trance pad with four point-defined pulses and a spacious stereo tail.",
-    "tags": ["airy", "wide", "rhythmic"]
+    "tags": [
+      "airy",
+      "wide",
+      "rhythmic"
+    ]
   },
   "oscillators": [
     {
@@ -30,6 +34,18 @@
       "unisonDetune": 0,
       "stereoSpread": 0.2,
       "randomPhase": 0
+    },
+    {
+      "enabled": false,
+      "wavetableId": "airy",
+      "wavetablePosition": 0,
+      "level": 0,
+      "transposeSemitones": 0,
+      "fineTuneCents": 0,
+      "unisonVoices": 1,
+      "unisonDetune": 0,
+      "stereoSpread": 0,
+      "randomPhase": 0
     }
   ],
   "ampEnvelope": {
@@ -46,22 +62,60 @@
     "sustainLevel": 0.35,
     "releaseSeconds": 1.2
   },
-  "filter": { "enabled": true, "type": "lowpass", "cutoffHz": 7200, "resonance": 0.14 },
+  "filter": {
+    "enabled": true,
+    "type": "lowpass",
+    "cutoffHz": 7200,
+    "resonance": 0.14
+  },
   "lfo1": {
     "enabled": true,
     "points": [
-      { "x": 0, "y": 0 },
-      { "x": 0.02, "y": 1 },
-      { "x": 0.2, "y": 0 },
-      { "x": 0.27, "y": 0.9 },
-      { "x": 0.44, "y": 0 },
-      { "x": 0.52, "y": 1 },
-      { "x": 0.7, "y": 0 },
-      { "x": 0.78, "y": 0.76 },
-      { "x": 0.94, "y": 0 },
-      { "x": 1, "y": 0 }
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0.02,
+        "y": 1
+      },
+      {
+        "x": 0.2,
+        "y": 0
+      },
+      {
+        "x": 0.27,
+        "y": 0.9
+      },
+      {
+        "x": 0.44,
+        "y": 0
+      },
+      {
+        "x": 0.52,
+        "y": 1
+      },
+      {
+        "x": 0.7,
+        "y": 0
+      },
+      {
+        "x": 0.78,
+        "y": 0.76
+      },
+      {
+        "x": 0.94,
+        "y": 0
+      },
+      {
+        "x": 1,
+        "y": 0
+      }
     ],
-    "rate": { "mode": "sync", "division": "1/8" },
+    "rate": {
+      "mode": "sync",
+      "division": "1/8"
+    },
     "phase": 0,
     "smooth": false
   },
@@ -81,7 +135,12 @@
       "bipolar": false
     }
   ],
-  "voice": { "polyphony": 8, "legato": false, "glideSeconds": 0, "velocitySensitivity": 0.3 },
+  "voice": {
+    "polyphony": 8,
+    "legato": false,
+    "glideSeconds": 0,
+    "velocitySensitivity": 0.3
+  },
   "effects": {
     "delay": {
       "enabled": true,
@@ -91,6 +150,11 @@
       "feedback": 0.32,
       "mix": 0.18
     },
-    "reverb": { "enabled": true, "mix": 0.32, "decaySeconds": 3.8, "size": 0.78 }
+    "reverb": {
+      "enabled": true,
+      "mix": 0.32,
+      "decaySeconds": 3.8,
+      "size": 0.78
+    }
   }
 }

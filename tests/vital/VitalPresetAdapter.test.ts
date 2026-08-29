@@ -49,7 +49,7 @@ describe('VitalPresetAdapter', () => {
     )
   })
 
-  it('maps metadata, logical parameters, and two generated wavetables without replacing the template', () => {
+  it('maps metadata, logical parameters, and three generated wavetables without replacing the template', () => {
     const adapter = new VitalPresetAdapter(createSyntheticVitalInit())
     const patch = createDefaultPatch()
     patch.metadata.name = 'Air / Night'
@@ -70,6 +70,7 @@ describe('VitalPresetAdapter', () => {
       osc_1_wave_frame: 0.62 * 256,
       osc_1_destination: 0,
       osc_2_destination: 0,
+      osc_3_destination: 0,
       untouched_fixture_value: 99,
     })
     expect(
@@ -79,7 +80,7 @@ describe('VitalPresetAdapter', () => {
     const wavetables = exported.document.settings.wavetables as Array<Record<string, unknown>>
     expect(wavetables[0]).toMatchObject({ name: 'Generated Air Spectrum' })
     expect(wavetables[1]).toMatchObject({ name: 'Generated Sine' })
-    expect(wavetables[2]).toEqual({ original: 3 })
+    expect(wavetables[2]).toMatchObject({ name: 'Generated Air Spectrum' })
   })
 
   it('keeps export filenames safe and deterministic', () => {
@@ -87,7 +88,7 @@ describe('VitalPresetAdapter', () => {
     expect(vitalFilename('***')).toBe('wavetable-workbench-patch.vital')
   })
 
-  it('requires versioned fixture metadata and two oscillator slots', () => {
+  it('requires versioned fixture metadata and three oscillator slots', () => {
     expect(() =>
       new VitalPresetAdapter({
         synth_version: '',
@@ -99,6 +100,6 @@ describe('VitalPresetAdapter', () => {
         synth_version: '1',
         settings: { wavetables: [{}], lfos: [{}], modulations: [{}] },
       }),
-    ).toThrow(/at least two wavetable slots/)
+    ).toThrow(/at least three wavetable slots/)
   })
 })

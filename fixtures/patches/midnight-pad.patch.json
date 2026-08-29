@@ -1,10 +1,14 @@
 {
-  "version": 1,
+  "version": 2,
   "metadata": {
     "name": "Midnight Pad",
     "category": "pad",
     "description": "A dark, slow-blooming pad with warm saw body and a hollow upper layer.",
-    "tags": ["dark", "warm", "slow"]
+    "tags": [
+      "dark",
+      "warm",
+      "slow"
+    ]
   },
   "oscillators": [
     {
@@ -30,6 +34,18 @@
       "unisonDetune": 0.16,
       "stereoSpread": 0.62,
       "randomPhase": 0.48
+    },
+    {
+      "enabled": false,
+      "wavetableId": "warm-saw",
+      "wavetablePosition": 0,
+      "level": 0,
+      "transposeSemitones": 0,
+      "fineTuneCents": 0,
+      "unisonVoices": 1,
+      "unisonDetune": 0,
+      "stereoSpread": 0,
+      "randomPhase": 0
     }
   ],
   "ampEnvelope": {
@@ -46,11 +62,32 @@
     "sustainLevel": 0.2,
     "releaseSeconds": 2.8
   },
-  "filter": { "enabled": true, "type": "lowpass", "cutoffHz": 3800, "resonance": 0.22 },
+  "filter": {
+    "enabled": true,
+    "type": "lowpass",
+    "cutoffHz": 3800,
+    "resonance": 0.22
+  },
   "lfo1": {
     "enabled": false,
-    "points": [{ "x": 0, "y": 0 }, { "x": 0.5, "y": 1 }, { "x": 1, "y": 0 }],
-    "rate": { "mode": "free", "hz": 0.18 },
+    "points": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0.5,
+        "y": 1
+      },
+      {
+        "x": 1,
+        "y": 0
+      }
+    ],
+    "rate": {
+      "mode": "free",
+      "hz": 0.18
+    },
     "phase": 0,
     "smooth": true
   },
@@ -63,7 +100,12 @@
       "bipolar": true
     }
   ],
-  "voice": { "polyphony": 10, "legato": false, "glideSeconds": 0, "velocitySensitivity": 0.38 },
+  "voice": {
+    "polyphony": 10,
+    "legato": false,
+    "glideSeconds": 0,
+    "velocitySensitivity": 0.38
+  },
   "effects": {
     "delay": {
       "enabled": true,
@@ -73,6 +115,11 @@
       "feedback": 0.38,
       "mix": 0.2
     },
-    "reverb": { "enabled": true, "mix": 0.4, "decaySeconds": 5.6, "size": 0.9 }
+    "reverb": {
+      "enabled": true,
+      "mix": 0.4,
+      "decaySeconds": 5.6,
+      "size": 0.9
+    }
   }
 }

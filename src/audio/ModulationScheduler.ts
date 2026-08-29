@@ -10,9 +10,9 @@ import {
 } from './lfo'
 
 export interface ModulationFrame {
-  oscillatorLevels: [number, number]
-  wavetablePositions: [number, number]
-  oscillatorFrequencies: [number, number]
+  oscillatorLevels: [number, number, number]
+  wavetablePositions: [number, number, number]
+  oscillatorFrequencies: [number, number, number]
   filterCutoffHz: number
   lfoValue: number
   modEnvelopeValue: number
@@ -30,6 +30,9 @@ interface DestinationAmounts {
   'oscillator2.level': number
   'oscillator2.wavetablePosition': number
   'oscillator2.pitch': number
+  'oscillator3.level': number
+  'oscillator3.wavetablePosition': number
+  'oscillator3.pitch': number
   'filter.cutoff': number
 }
 
@@ -43,6 +46,9 @@ const EMPTY_AMOUNTS: DestinationAmounts = {
   'oscillator2.level': 0,
   'oscillator2.wavetablePosition': 0,
   'oscillator2.pitch': 0,
+  'oscillator3.level': 0,
+  'oscillator3.wavetablePosition': 0,
+  'oscillator3.pitch': 0,
   'filter.cutoff': 0,
 }
 
@@ -88,7 +94,7 @@ export function evaluateModulationFrame(
       oscillator.transposeSemitones + amounts[destination] * VITAL_TUNE_RANGE_SEMITONES,
       oscillator.fineTuneCents,
     )
-  }) as [number, number]
+  }) as [number, number, number]
 
   return {
     oscillatorLevels: patch.oscillators.map((oscillator, index) => {
@@ -98,11 +104,11 @@ export function evaluateModulationFrame(
       return (
         clamp(encodeVitalOscillatorLevel(oscillator.level) + amounts[destination], 0, 1) ** 2 * 2
       )
-    }) as [number, number],
+    }) as [number, number, number],
     wavetablePositions: patch.oscillators.map((oscillator, index) => {
       const destination = `oscillator${index + 1}.wavetablePosition` as ModulationDestination
       return clamp(oscillator.wavetablePosition + amounts[destination], 0, 1)
-    }) as [number, number],
+    }) as [number, number, number],
     oscillatorFrequencies,
     filterCutoffHz: clamp(
       patch.filter.cutoffHz *

@@ -96,6 +96,16 @@ const SUPPORTED_SETTING_KEYS = new Set([
   'osc_2_unison_detune',
   'osc_2_stereo_spread',
   'osc_2_random_phase',
+  'osc_3_on',
+  'osc_3_destination',
+  'osc_3_level',
+  'osc_3_wave_frame',
+  'osc_3_transpose',
+  'osc_3_tune',
+  'osc_3_unison_voices',
+  'osc_3_unison_detune',
+  'osc_3_stereo_spread',
+  'osc_3_random_phase',
   'env_1_attack',
   'env_1_hold',
   'env_1_decay',
@@ -520,7 +530,7 @@ function parseEnvelope(settings: Record<string, unknown>, prefix: 'env_1' | 'env
 
 function parseOscillator(
   settings: Record<string, unknown>,
-  index: 1 | 2,
+  index: 1 | 2 | 3,
   wavetableId: string,
 ): OscillatorState {
   const prefix = `osc_${index}`
@@ -707,18 +717,19 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
 
   const importedWavetables = array(settings.wavetables, 'Vital wavetables')
   const templateWavetables = array(templateSettings.wavetables, 'Template Vital wavetables')
-  if (importedWavetables.length !== templateWavetables.length || importedWavetables.length < 2) {
+  if (importedWavetables.length !== templateWavetables.length || importedWavetables.length < 3) {
     throw new VitalImportError('Vital preset must retain the pinned wavetable slot count')
   }
-  for (let index = 2; index < importedWavetables.length; index += 1) {
+  for (let index = 3; index < importedWavetables.length; index += 1) {
     if (!valuesEqual(importedWavetables[index], templateWavetables[index])) {
       throw new VitalImportError(`Unsupported Vital wavetable slot ${index + 1} contains material`)
     }
   }
   const firstWavetable = parseWavetable(importedWavetables[0], 1, document.synth_version)
   const secondWavetable = parseWavetable(importedWavetables[1], 2, document.synth_version)
+  const thirdWavetable = parseWavetable(importedWavetables[2], 3, document.synth_version)
   const wavetableData = Object.fromEntries(
-    [firstWavetable, secondWavetable].map((wavetable) => [wavetable.id, wavetable]),
+    [firstWavetable, secondWavetable, thirdWavetable].map((wavetable) => [wavetable.id, wavetable]),
   )
 
   const modulationValues = array(settings.modulations, 'Vital modulation slots')
@@ -760,7 +771,7 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
 
   const delayMode = delaySync === 0 ? 'free' : 'sync'
   const patchCandidate = {
-    version: 1,
+    version: 2,
     metadata: {
       name,
       category,
@@ -770,6 +781,7 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
     oscillators: [
       parseOscillator(settings, 1, firstWavetable.id),
       parseOscillator(settings, 2, secondWavetable.id),
+      parseOscillator(settings, 3, thirdWavetable.id),
     ],
     ampEnvelope: parseEnvelope(settings, 'env_1'),
     modEnvelope: parseEnvelope(settings, 'env_2'),
@@ -1092,7 +1104,7 @@ function parseLossyOscillator(
   settings: Record<string, unknown>,
   templateSettings: Record<string, unknown>,
   routes: readonly LossyVitalRoute[],
-  index: 1 | 2,
+  index: 1 | 2 | 3,
   wavetableId: string,
   warnings: Set<string>,
 ): OscillatorState {
@@ -1187,6 +1199,10 @@ function parseLossyModulations(
     osc_2_wave_frame: 'oscillator2.wavetablePosition',
     osc_2_tune: 'oscillator2.pitch',
     osc_2_transpose: 'oscillator2.pitch',
+    osc_3_level: 'oscillator3.level',
+    osc_3_wave_frame: 'oscillator3.wavetablePosition',
+    osc_3_tune: 'oscillator3.pitch',
+    osc_3_transpose: 'oscillator3.pitch',
     filter_1_cutoff: 'filter.cutoff',
   }
   const imported: ModulationRoute[] = []
@@ -1323,15 +1339,16 @@ function parseLossyPatch(
   }
   const modulation = parseLossyModulations(routes, warnings)
 
-  if (!Array.isArray(settings.wavetables) || settings.wavetables.length < 2) {
-    throw new VitalImportError('Vital preset must contain at least two wavetable slots')
+  if (!Array.isArray(settings.wavetables) || settings.wavetables.length < 3) {
+    throw new VitalImportError('Vital preset must contain at least three wavetable slots')
   }
   const firstWavetable = parseLossyWavetable(settings.wavetables[0], 1, warnings)
   const secondWavetable = parseLossyWavetable(settings.wavetables[1], 2, warnings)
+  const thirdWavetable = parseLossyWavetable(settings.wavetables[2], 3, warnings)
   const wavetableData = Object.fromEntries(
-    [firstWavetable, secondWavetable].map((wavetable) => [wavetable.id, wavetable]),
+    [firstWavetable, secondWavetable, thirdWavetable].map((wavetable) => [wavetable.id, wavetable]),
   )
-  const oscillators: [OscillatorState, OscillatorState] = [
+  const oscillators: [OscillatorState, OscillatorState, OscillatorState] = [
     parseLossyOscillator(
       settings,
       templateSettings,
@@ -1346,6 +1363,14 @@ function parseLossyPatch(
       routes,
       2,
       secondWavetable.id,
+      warnings,
+    ),
+    parseLossyOscillator(
+      settings,
+      templateSettings,
+      routes,
+      3,
+      thirdWavetable.id,
       warnings,
     ),
   ]
@@ -1363,7 +1388,6 @@ function parseLossyPatch(
   }
 
   const omittedSources: string[] = []
-  if (lossyBoolean(lossySetting(settings, templateSettings, 'osc_3_on', warnings))) omittedSources.push('oscillator 3')
   if (lossyBoolean(lossySetting(settings, templateSettings, 'sample_on', warnings))) omittedSources.push('sample layer')
   if (omittedSources.length > 0) warnOnce(warnings, `Unsupported sound sources were omitted: ${omittedSources.join(', ')}.`)
 
@@ -1413,7 +1437,7 @@ function parseLossyPatch(
   )
 
   const patchCandidate = {
-    version: 1,
+    version: 2,
     metadata: {
       name,
       category,

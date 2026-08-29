@@ -7,7 +7,7 @@ import { ToggleControl } from './controls/ToggleControl'
 import { buildWaveformPath } from './visualizations'
 
 interface OscillatorPanelProps {
-  index: 0 | 1
+  index: 0 | 1 | 2
   oscillator: OscillatorState
   previewPosition: number
   resetKey: number

@@ -89,7 +89,7 @@ describe('held-note slider preview', () => {
 
     const filter = context.filters.at(-1)!
     const amplitude = (filter.connections[0] as FakeGainNode).gain
-    const oscillatorOneLevel = context.gains.at(-2)!.gain
+    const oscillatorOneLevel = context.gains.at(-3)!.gain
     const oscillatorOneLanes = voiceOscillators(context).slice(0, 10)
     const voicePanners = context.panners.slice(-6)
     const initialWaveAssignments = oscillatorOneLanes.map((oscillator) => oscillator.waves.length)
@@ -164,7 +164,7 @@ describe('held-note slider preview', () => {
   it('reconciles active nodes after cancellation, external update, and undo', async () => {
     const { commands, context, session, store, synth } = createHarness()
     await synth.holdNote()
-    const oscillatorOneLevel = context.gains.at(-2)!.gain
+    const oscillatorOneLevel = context.gains.at(-3)!.gain
     const filter = context.filters.at(-1)!
 
     store.getState().previewPatchChange('oscillators.0.level', 0.18)
@@ -210,8 +210,8 @@ describe('held-note slider preview', () => {
   it('keeps glide and velocity sensitivity on future note-ons', async () => {
     const { context, store, synth } = createHarness()
     await synth.noteOn(60, 0.5)
-    const heldLevel = context.gains.at(-2)!.gain
-    const heldOscillators = voiceOscillators(context).slice(0, 10)
+    const heldLevel = context.gains.at(-3)!.gain
+    const heldOscillators = voiceOscillators(context).slice(0, 14)
     heldLevel.calls.length = 0
     heldOscillators.forEach((oscillator) => {
       oscillator.frequency.calls.length = 0
@@ -226,14 +226,14 @@ describe('held-note slider preview', () => {
 
     const gainCountBeforeNextNote = context.gains.length
     await synth.noteOn(64, 0.5)
-    const nextOscillatorOneLevel = context.gains.at(-2)!.gain
+    const nextOscillatorOneLevel = context.gains.at(-3)!.gain
     expect(context.gains.length).toBeGreaterThan(gainCountBeforeNextNote)
     expect(
       hasRamp(nextOscillatorOneLevel, 0.62 * velocityToGain(0.5, 0.9) * 0.24),
     ).toBe(true)
     expect(
       voiceOscillators(context)
-        .slice(12, 22)
+        .slice(14, 28)
         .every((oscillator) =>
           oscillator.frequency.calls.some((call) => call.method === 'exponentialRamp'),
         ),

@@ -13,6 +13,7 @@ import {
 import { isAllowedModulationRoute } from './modulation'
 import { isSupportedPatchPath, parsePatchPathValue } from './paths'
 import type { ApplyPatchCommand, PatchState, SetLfoShapeCommand } from './types'
+import { upgradePatchDocument } from './upgrade'
 
 const unitInterval = z.number().finite().min(0).max(1)
 const seconds = (maximum: number) => z.number().finite().min(0).max(maximum)
@@ -124,6 +125,9 @@ export const modulationRouteSchema = z
       'oscillator2.level',
       'oscillator2.wavetablePosition',
       'oscillator2.pitch',
+      'oscillator3.level',
+      'oscillator3.wavetablePosition',
+      'oscillator3.pitch',
       'filter.cutoff',
     ]),
     amount: z.number().finite().min(-1).max(1),
@@ -201,9 +205,9 @@ export const wavetableStateSchema = z
 
 export const patchStateSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
     metadata: patchMetadataSchema,
-    oscillators: z.tuple([oscillatorStateSchema, oscillatorStateSchema]),
+    oscillators: z.tuple([oscillatorStateSchema, oscillatorStateSchema, oscillatorStateSchema]),
     ampEnvelope: envelopeStateSchema,
     modEnvelope: envelopeStateSchema,
     filter: filterStateSchema,
@@ -287,7 +291,7 @@ const setLfoShapeCommandSchema = z
   .strict()
 
 export function parsePatchState(value: unknown): PatchState {
-  return patchStateSchema.parse(value) as PatchState
+  return patchStateSchema.parse(upgradePatchDocument(value)) as PatchState
 }
 
 export function parseApplyPatchCommand(value: unknown): ApplyPatchCommand {

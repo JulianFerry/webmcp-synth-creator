@@ -62,7 +62,7 @@ export interface OscillatorReflection {
 }
 
 export interface AudioPatchReflection {
-  oscillators: [OscillatorReflection, OscillatorReflection]
+  oscillators: [OscillatorReflection, OscillatorReflection, OscillatorReflection]
   ampEnvelope: EnvelopeState
   modEnvelope: EnvelopeState
   filter: FilterState
@@ -81,7 +81,7 @@ export interface AudioOscillatorUpdatePlan {
 }
 
 export interface AudioUpdatePlan {
-  oscillators: [AudioOscillatorUpdatePlan, AudioOscillatorUpdatePlan]
+  oscillators: [AudioOscillatorUpdatePlan, AudioOscillatorUpdatePlan, AudioOscillatorUpdatePlan]
   envelope: boolean
   envelopeAttack: boolean
   envelopeHold: boolean
@@ -124,8 +124,8 @@ export interface BrowserSynthState {
   stolenVoiceCount: number
   cutoffHz: number
   wavetablePosition: number
-  previewWavetablePositions: [number | null, number | null]
-  oscillators: [OscillatorReflection, OscillatorReflection]
+  previewWavetablePositions: [number | null, number | null, number | null]
+  oscillators: [OscillatorReflection, OscillatorReflection, OscillatorReflection]
   draft: AudioPatchReflection
   effective: AudioPatchReflection
   previewValues: AudioPreviewValues
@@ -158,7 +158,7 @@ function emptyOscillatorPlan(): AudioOscillatorUpdatePlan {
 
 export function planAudioPatchUpdate(changed: PatchDiff): AudioUpdatePlan {
   const plan: AudioUpdatePlan = {
-    oscillators: [emptyOscillatorPlan(), emptyOscillatorPlan()],
+    oscillators: [emptyOscillatorPlan(), emptyOscillatorPlan(), emptyOscillatorPlan()],
     envelope: false,
     envelopeAttack: false,
     envelopeHold: false,
@@ -178,10 +178,11 @@ export function planAudioPatchUpdate(changed: PatchDiff): AudioUpdatePlan {
     if (path === 'wavetableData') {
       plan.oscillators[0].wavetable = true
       plan.oscillators[1].wavetable = true
+      plan.oscillators[2].wavetable = true
     }
-    const oscillatorMatch = /^oscillators\.(0|1)\.(.+)$/.exec(path)
+    const oscillatorMatch = /^oscillators\.(0|1|2)\.(.+)$/.exec(path)
     if (oscillatorMatch) {
-      const index = Number(oscillatorMatch[1]) as 0 | 1
+      const index = Number(oscillatorMatch[1]) as 0 | 1 | 2
       const property = oscillatorMatch[2]
       if (property === 'wavetableId') plan.oscillators[index].wavetable = true
       if (property === 'wavetablePosition') plan.oscillators[index].position = true
@@ -214,7 +215,7 @@ export function planAudioPatchUpdate(changed: PatchDiff): AudioUpdatePlan {
       path.startsWith('modEnvelope.') ||
       path === 'modulations' ||
       path.startsWith('filter.') ||
-      /^oscillators\.(0|1)\.(enabled|level|wavetablePosition|transposeSemitones|fineTuneCents)$/.test(
+      /^oscillators\.(0|1|2)\.(enabled|level|wavetablePosition|transposeSemitones|fineTuneCents)$/.test(
         path,
       )
     ) {
@@ -254,6 +255,7 @@ function patchReflection(patch: PatchState): AudioPatchReflection {
     oscillators: [
       oscillatorReflection(patch.oscillators[0]),
       oscillatorReflection(patch.oscillators[1]),
+      oscillatorReflection(patch.oscillators[2]),
     ],
     ampEnvelope: structuredClone(patch.ampEnvelope),
     modEnvelope: structuredClone(patch.modEnvelope),
@@ -267,8 +269,8 @@ function patchReflection(patch: PatchState): AudioPatchReflection {
 
 class BrowserVoice implements ModulationTarget {
   private patch: PatchState
-  private readonly oscillators: [WavetableVoiceOscillator, WavetableVoiceOscillator]
-  private readonly oscillatorLevels: [GainNode, GainNode]
+  private readonly oscillators: [WavetableVoiceOscillator, WavetableVoiceOscillator, WavetableVoiceOscillator]
+  private readonly oscillatorLevels: [GainNode, GainNode, GainNode]
   private readonly filter: BiquadFilterNode
   private readonly amplitude: GainNode
   private readonly velocityGain: number
@@ -302,15 +304,23 @@ class BrowserVoice implements ModulationTarget {
       resolveWavetable(patch.wavetableData, patch.oscillators[1].wavetableId),
       unisonConfiguration(patch.oscillators[1]),
     )
+    const oscillatorC = new WavetableVoiceOscillator(
+      context,
+      resolveWavetable(patch.wavetableData, patch.oscillators[2].wavetableId),
+      unisonConfiguration(patch.oscillators[2]),
+    )
     const levelA = context.createGain()
     const levelB = context.createGain()
+    const levelC = context.createGain()
     oscillatorA.connect(levelA)
     oscillatorB.connect(levelB)
+    oscillatorC.connect(levelC)
     levelA.connect(this.filter)
     levelB.connect(this.filter)
+    levelC.connect(this.filter)
     this.filter.connect(this.amplitude).connect(output)
-    this.oscillators = [oscillatorA, oscillatorB]
-    this.oscillatorLevels = [levelA, levelB]
+    this.oscillators = [oscillatorA, oscillatorB, oscillatorC]
+    this.oscillatorLevels = [levelA, levelB, levelC]
 
     const now = context.currentTime
     this.scheduledStartTimeSeconds = now
@@ -505,10 +515,11 @@ export class BrowserSynth {
       stolenVoiceCount: 0,
       cutoffHz: this.patch.filter.cutoffHz,
       wavetablePosition: this.patch.oscillators[0].wavetablePosition,
-      previewWavetablePositions: [null, null],
+      previewWavetablePositions: [null, null, null],
       oscillators: [
         oscillatorReflection(this.patch.oscillators[0]),
         oscillatorReflection(this.patch.oscillators[1]),
+        oscillatorReflection(this.patch.oscillators[2]),
       ],
       draft: patchReflection(this.draftPatch),
       effective: patchReflection(this.effectivePatch),
@@ -666,11 +677,11 @@ export class BrowserSynth {
     this.applyPreviewValues({})
   }
 
-  previewWavetablePosition(index: 0 | 1, position: number): void {
+  previewWavetablePosition(index: 0 | 1 | 2, position: number): void {
     this.previewPatchChange(`oscillators.${index}.wavetablePosition`, position)
   }
 
-  cancelWavetablePositionPreview(index: 0 | 1): void {
+  cancelWavetablePositionPreview(index: 0 | 1 | 2): void {
     this.cancelPatchPreview(`oscillators.${index}.wavetablePosition`)
   }
 
@@ -695,10 +706,11 @@ export class BrowserSynth {
       held: false,
       activeVoiceCount: 0,
       activeNotes: [],
-      previewWavetablePositions: [null, null],
+      previewWavetablePositions: [null, null, null],
       oscillators: [
         oscillatorReflection(this.patch.oscillators[0]),
         oscillatorReflection(this.patch.oscillators[1]),
+        oscillatorReflection(this.patch.oscillators[2]),
       ],
       draft: patchReflection(this.draftPatch),
       effective: patchReflection(this.effectivePatch),
@@ -735,10 +747,11 @@ export class BrowserSynth {
       polyphony: this.patch.voice.polyphony,
       cutoffHz: this.patch.filter.cutoffHz,
       wavetablePosition: this.patch.oscillators[0].wavetablePosition,
-      previewWavetablePositions: [null, null],
+      previewWavetablePositions: [null, null, null],
       oscillators: [
         oscillatorReflection(this.effectivePatch.oscillators[0]),
         oscillatorReflection(this.effectivePatch.oscillators[1]),
+        oscillatorReflection(this.effectivePatch.oscillators[2]),
       ],
       draft: patchReflection(this.draftPatch),
       effective: patchReflection(this.effectivePatch),
@@ -802,6 +815,7 @@ export class BrowserSynth {
   private reflectPreviewState(plan: AudioUpdatePlan): void {
     const firstPosition = this.previewValues['oscillators.0.wavetablePosition']
     const secondPosition = this.previewValues['oscillators.1.wavetablePosition']
+    const thirdPosition = this.previewValues['oscillators.2.wavetablePosition']
     const reflection = patchReflection(this.effectivePatch)
     this.state = {
       ...this.state,
@@ -810,6 +824,7 @@ export class BrowserSynth {
       previewWavetablePositions: [
         typeof firstPosition === 'number' ? firstPosition : null,
         typeof secondPosition === 'number' ? secondPosition : null,
+        typeof thirdPosition === 'number' ? thirdPosition : null,
       ],
       oscillators: reflection.oscillators,
       draft: patchReflection(this.draftPatch),

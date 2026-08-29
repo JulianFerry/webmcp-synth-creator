@@ -26,7 +26,7 @@ function createNextStage(
 }
 
 export const CALIBRATION_A_PATCH = parsePatchState({
-  version: 1,
+  version: 2,
   metadata: {
     name: 'Calibration A — OSC1 Sine',
     category: 'other',
@@ -53,6 +53,18 @@ export const CALIBRATION_A_PATCH = parsePatchState({
       wavetablePosition: 0,
       level: 1,
       transposeSemitones: 12,
+      fineTuneCents: 0,
+      unisonVoices: 1,
+      unisonDetune: 0,
+      stereoSpread: 0,
+      randomPhase: 0,
+    },
+    {
+      enabled: false,
+      wavetableId: 'sine',
+      wavetablePosition: 0,
+      level: 0,
+      transposeSemitones: 0,
       fineTuneCents: 0,
       unisonVoices: 1,
       unisonDetune: 0,

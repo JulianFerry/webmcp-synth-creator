@@ -77,6 +77,7 @@ describe('VitalPresetAdapter import', () => {
     source.filter.cutoffHz = 7777
     source.oscillators[0].wavetableId = 'custom-spectrum'
     source.oscillators[1].wavetableId = 'custom-spectrum'
+    source.oscillators[2].wavetableId = 'custom-spectrum'
     source.wavetableData = {
       'custom-spectrum': {
         id: 'custom-spectrum',
@@ -93,6 +94,7 @@ describe('VitalPresetAdapter import', () => {
     expect(imported.oscillators.map(({ wavetableId }) => wavetableId)).toEqual([
       'vital-osc-1-custom-spectrum',
       'vital-osc-2-custom-spectrum',
+      'vital-osc-3-custom-spectrum',
     ])
     for (const wavetable of Object.values(imported.wavetableData)) {
       expect(wavetable.frames).toHaveLength(2)
@@ -164,6 +166,8 @@ describe('VitalPresetAdapter import', () => {
     legacy.synth_version = '0.9.0'
     legacy.preset_style = 'Percussion'
     legacy.settings.osc_1_transpose = -27
+    legacy.settings.osc_2_transpose = 7
+    legacy.settings.osc_3_transpose = 13
     legacy.settings.osc_1_level = 0
     legacy.settings.osc_3_on = 1
     legacy.settings.sample_on = 1
@@ -203,6 +207,11 @@ describe('VitalPresetAdapter import', () => {
       level: 1,
       transposeSemitones: -24,
     })
+    expect(imported.patch.oscillators.map(({ transposeSemitones }) => transposeSemitones)).toEqual([
+      -24,
+      7,
+      13,
+    ])
     expect(imported.patch.wavetableData['vital-osc-1-legacy-audio-table'].frames).toHaveLength(1)
     expect(imported.patch.modulations).toEqual([
       expect.objectContaining({ source: 'lfo1', destination: 'oscillator1.pitch' }),

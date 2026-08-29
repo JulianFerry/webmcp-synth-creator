@@ -17,6 +17,9 @@ export const VITAL_MODULATION_DESTINATIONS: Record<ModulationDestination, string
   'oscillator2.level': 'osc_2_level',
   'oscillator2.wavetablePosition': 'osc_2_wave_frame',
   'oscillator2.pitch': 'osc_2_tune',
+  'oscillator3.level': 'osc_3_level',
+  'oscillator3.wavetablePosition': 'osc_3_wave_frame',
+  'oscillator3.pitch': 'osc_3_tune',
   'filter.cutoff': 'filter_1_cutoff',
 }
 

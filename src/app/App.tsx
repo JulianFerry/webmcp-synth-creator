@@ -168,6 +168,16 @@ export function App({ store }: AppProps) {
           wavetables={wavetables}
         />
         <OscillatorPanel
+          index={2}
+          onCancelPreview={cancelPatchPreview}
+          onChange={applyPatchChange}
+          onPreview={previewPatchChange}
+          oscillator={patch.oscillators[2]}
+          previewPosition={audio.draft.oscillators[2].wavetablePosition}
+          resetKey={controlResetKey}
+          wavetables={wavetables}
+        />
+        <OscillatorPanel
           index={1}
           onCancelPreview={cancelPatchPreview}
           onChange={applyPatchChange}
@@ -234,7 +244,7 @@ export function App({ store }: AppProps) {
               <p className="eyebrow">Canonical PatchState</p>
               <h2>Committed voice</h2>
             </div>
-            <span className="version-chip">v1</span>
+            <span className="version-chip">v2</span>
           </div>
           <dl className="parameter-grid">
             <div>
@@ -244,6 +254,10 @@ export function App({ store }: AppProps) {
             <div>
               <dt>Osc 2</dt>
               <dd>{summary.oscillators[1].wavetableId}</dd>
+            </div>
+            <div>
+              <dt>Osc 3</dt>
+              <dd>{summary.oscillators[2].wavetableId}</dd>
             </div>
             <div>
               <dt>Filter</dt>

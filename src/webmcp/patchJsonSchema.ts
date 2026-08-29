@@ -98,7 +98,7 @@ const wavetableSchema = {
 export const PATCH_STATE_INPUT_SCHEMA: Record<string, unknown> = {
   type: 'object',
   properties: {
-    version: { const: 1 },
+    version: { enum: [1, 2] },
     metadata: {
       type: 'object',
       properties: {
@@ -120,7 +120,7 @@ export const PATCH_STATE_INPUT_SCHEMA: Record<string, unknown> = {
     oscillators: {
       type: 'array',
       minItems: 2,
-      maxItems: 2,
+      maxItems: 3,
       items: oscillatorSchema,
     },
     ampEnvelope: envelopeSchema,
@@ -186,6 +186,9 @@ export const PATCH_STATE_INPUT_SCHEMA: Record<string, unknown> = {
               'oscillator2.level',
               'oscillator2.wavetablePosition',
               'oscillator2.pitch',
+              'oscillator3.level',
+              'oscillator3.wavetablePosition',
+              'oscillator3.pitch',
               'filter.cutoff',
             ],
           },

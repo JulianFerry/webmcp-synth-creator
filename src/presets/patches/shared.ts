@@ -7,8 +7,8 @@ function fixtureWavetableIds(fixture: unknown): string[] {
     throw new TypeError('Curated patch fixture must be an object')
   }
   const oscillators = (fixture as { oscillators?: unknown }).oscillators
-  if (!Array.isArray(oscillators) || oscillators.length !== 2) {
-    throw new TypeError('Curated patch fixture must define two oscillators')
+  if (!Array.isArray(oscillators) || oscillators.length !== 3) {
+    throw new TypeError('Curated patch fixture must define three oscillators')
   }
 
   return oscillators.map((oscillator, index) => {

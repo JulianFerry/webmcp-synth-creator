@@ -27,6 +27,7 @@ function mapVitalEnvelope(prefix: 'env_1' | 'env_2', envelope: EnvelopeState) {
 export function mapPhaseOneVitalParameters(patch: PatchState): Record<string, number> {
   const first = patch.oscillators[0]
   const second = patch.oscillators[1]
+  const third = patch.oscillators[2]
 
   if (patch.filter.type !== 'lowpass') {
     throw new VitalExportError(
@@ -59,6 +60,16 @@ export function mapPhaseOneVitalParameters(patch: PatchState): Record<string, nu
     osc_2_unison_detune: encodeVitalUnisonDetune(second.unisonDetune),
     osc_2_stereo_spread: second.stereoSpread,
     osc_2_random_phase: second.randomPhase,
+    osc_3_on: Number(third.enabled),
+    osc_3_destination: 0,
+    osc_3_level: encodeVitalOscillatorLevel(third.level),
+    osc_3_wave_frame: third.wavetablePosition * 256,
+    osc_3_transpose: third.transposeSemitones,
+    osc_3_tune: third.fineTuneCents / 100,
+    osc_3_unison_voices: third.unisonVoices,
+    osc_3_unison_detune: encodeVitalUnisonDetune(third.unisonDetune),
+    osc_3_stereo_spread: third.stereoSpread,
+    osc_3_random_phase: third.randomPhase,
     ...mapVitalEnvelope('env_1', patch.ampEnvelope),
     filter_1_on: Number(patch.filter.enabled),
     filter_1_cutoff: frequencyToMidiNote(patch.filter.cutoffHz),
