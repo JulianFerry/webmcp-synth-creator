@@ -93,7 +93,7 @@ target_link_options(vital PRIVATE
   "$<$<CONFIG:Debug>:-gsource-map;-sASSERTIONS=2;-sSAFE_HEAP=1>"
   "-sDISABLE_EXCEPTION_CATCHING=0"
   "-sENVIRONMENT=web,worker,node"
-  "-sEXPORTED_FUNCTIONS=['_vital_create','_vital_destroy','_vital_load_state','_vital_set_bpm','_vital_note_on','_vital_note_off','_vital_all_notes_off','_vital_process']"
+  "-sEXPORTED_FUNCTIONS=['_malloc','_free','_vital_create','_vital_destroy','_vital_load_state','_vital_set_bpm','_vital_note_on','_vital_note_off','_vital_all_notes_off','_vital_process']"
   "-sEXPORT_ES6=1"
   "-sEXPORT_NAME=createVitalModule"
   "-sFILESYSTEM=0"

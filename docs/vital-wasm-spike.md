@@ -2,7 +2,7 @@
 
 ## Scope and source
 
-Phase 1 is an isolated build/instantiate gate. It uses `mtytel/vital@636ca0ef517a4db087a6a08a6a8a5e704e21f836` under GPL-3.0-or-later and does not change application audio behavior or put a derived binary in `dist/`.
+Phases 1 and 2 are an isolated build and offline-render gate. They use `mtytel/vital@636ca0ef517a4db087a6a08a6a8a5e704e21f836` under GPL-3.0-or-later and do not change application audio behavior or put a derived binary in `dist/`.
 
 ## Entry classes
 
@@ -56,13 +56,42 @@ void vital_all_notes_off(VitalSynth* synth);
 void vital_process(VitalSynth* synth, float* left, float* right, int frames);
 ```
 
-Only create/destroy is exercised in Phase 1. Preset loading and rendering are Phase 2 gates.
+Phase 1 exercises create/destroy. Phase 2 exercises every bridge call except `vital_all_notes_off`, which remains available for the real-time harness.
 
 ## Build result
 
-The clean release build succeeds with emsdk 3.1.64. The generated artifacts are:
+The clean release build succeeds with emsdk 3.1.64. After exporting allocator access for pinned render/state buffers, the generated artifacts are:
 
-- `vital.mjs`: 47,687 bytes raw; 13,278 bytes gzip
-- `vital.wasm`: 1,483,823 bytes raw; 374,344 bytes gzip
+- `vital.mjs`: 47,739 bytes raw; 13,299 bytes gzip
+- `vital.wasm`: 1,483,938 bytes raw; 374,399 bytes gzip
 
 The conditional Vitest smoke test imports the generated ES module, constructs the engine at 48 kHz, destroys it, and passes. The build still emits upstream numerical-conversion and fast-math warnings; no warning blocks linking or construction.
+
+## Phase 2 offline state and render result
+
+`VitalEngine` allocates fixed left/right buffers when the engine is created, copies state JSON through a temporary WASM allocation outside the render loop, and processes observed block lengths into those pinned buffers. The bridge advances Vital's host time before each DSP block, including when one JavaScript request is split at Vital's maximum internal block size.
+
+The offline harness uses 48 kHz, 120 BPM, MIDI note 60, velocity `100 / 127`, a two-second hold, and a three-second release/effect tail. It writes stereo PCM16 files under `test-results/vital-wasm/` and rejects non-finite output, silence, peaks above 1.0, or a full silent block after a held note becomes audible.
+
+The public source with 1.0.6 metadata successfully loads the existing unmodified 1.0.7 Init fixture. It also loads the exact `VitalPresetAdapter.exportPatch(patch).json` payload for the default patch and calibration stages A-H. No source-version fallback, fixture retargeting, or second PatchState mapper was required.
+
+| State | RMS | Peak | Five-second render |
+|---|---:|---:|---:|
+| Init fixture | 0.09131 | 0.35880 | 185.7 ms |
+| Default patch | 0.04162 | 0.29042 | 369.7 ms |
+| Calibration A | 0.15847 | 0.35447 | 89.7 ms |
+| Calibration B | 0.11300 | 0.42122 | 90.6 ms |
+| Calibration C | 0.04501 | 0.41448 | 111.5 ms |
+| Calibration D | 0.03685 | 0.43342 | 118.4 ms |
+| Calibration E | 0.02826 | 0.29513 | 158.1 ms |
+| Calibration F | 0.02351 | 0.29513 | 156.2 ms |
+| Calibration G | 0.05283 | 0.41903 | 209.0 ms |
+| Calibration H | 0.05549 | 0.38241 | 332.3 ms |
+
+These local Node/Vitest measurements render five seconds of audio in 1.8%-7.4% of real time for the calibration ladder. They are a rough feasibility signal, not an AudioWorklet deadline measurement; real-time block cost, initialization, state-load time, and polyphony remain later gates.
+
+## Go/no-go
+
+**Phase 2 gate: GO.** Vital constructs, renders a hard-coded C4, accepts the pinned 1.0.7 fixture and every Workbench calibration export, produces finite non-silent bounded output, and has plausible offline cost. No new JUCE/platform blocker appeared in Phase 2, and the source-version compatibility risk did not materialize.
+
+Manual listening confirmed calibration A, D, F, and H are recognizable synth tones without audible corruption. Playing the same exported states at C4 in desktop Vital 1.0.7 confirmed the same family of sound. This clears the offline-render gate for the real-time AudioWorklet harness; detailed fidelity remains a Phase 5 acceptance gate.

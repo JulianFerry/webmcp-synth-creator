@@ -10,10 +10,11 @@
 
 class VitalSynth final : public HeadlessSynth {
  public:
-  explicit VitalSynth(float sample_rate) {
+  explicit VitalSynth(float sample_rate) : sample_rate_(sample_rate), current_time_(0.0) {
     initEngine();
     getEngine()->setSampleRate(static_cast<int>(sample_rate));
     getEngine()->setBpm(120.0f);
+    getEngine()->checkOversampling();
     getEngine()->updateAllModulationSwitches();
   }
 
@@ -29,6 +30,29 @@ class VitalSynth final : public HeadlessSynth {
     }
     return loaded;
   }
+
+  void process(float* left, float* right, int frames) {
+    vital::SoundEngine* engine = getEngine();
+    int rendered = 0;
+    while (rendered < frames) {
+      const int block_size = std::min(frames - rendered, vital::kMaxBufferSize);
+      engine->correctToTime(current_time_);
+      engine->process(block_size);
+      const vital::poly_float* output = engine->output(0)->buffer;
+
+      for (int frame = 0; frame < block_size; ++frame) {
+        left[rendered + frame] = output[frame][0];
+        right[rendered + frame] = output[frame][1];
+      }
+
+      current_time_ += block_size / static_cast<double>(sample_rate_);
+      rendered += block_size;
+    }
+  }
+
+ private:
+  float sample_rate_;
+  double current_time_;
 };
 
 extern "C" {
@@ -85,19 +109,7 @@ EMSCRIPTEN_KEEPALIVE void vital_process(VitalSynth* synth, float* left, float* r
   if (synth == nullptr || left == nullptr || right == nullptr || frames <= 0)
     return;
 
-  vital::SoundEngine* engine = synth->getEngine();
-  int rendered = 0;
-  while (rendered < frames) {
-    const int block_size = std::min(frames - rendered, vital::kMaxBufferSize);
-    engine->process(block_size);
-    const vital::poly_float* output = engine->output(0)->buffer;
-
-    for (int frame = 0; frame < block_size; ++frame) {
-      left[rendered + frame] = output[frame][0];
-      right[rendered + frame] = output[frame][1];
-    }
-    rendered += block_size;
-  }
+  synth->process(left, right, frames);
 }
 
 }
