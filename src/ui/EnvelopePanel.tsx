@@ -1,7 +1,8 @@
 import type { SupportedPatchPath } from '../patch/paths'
 import type { EnvelopeState } from '../patch/types'
 import { ParameterSlider } from './controls/ParameterSlider'
-import { createEnvelopePlot } from './visualizations'
+import { EditableEnvelopeGraph } from './editors/EditableEnvelopeGraph'
+import { ENVELOPE_HANDLE_FIELDS, type EnvelopeHandle } from './editors/envelopeHandles'
 
 interface EnvelopePanelProps {
   envelope: EnvelopeState
@@ -28,7 +29,8 @@ export function EnvelopePanel({
   const commit = (field: keyof EnvelopeState, value: number, label: string) => {
     return onChange(path(field), value, `Set amp envelope ${label}`)
   }
-  const plot = createEnvelopePlot(previewEnvelope)
+  const commitHandle = (handle: EnvelopeHandle, value: number) =>
+    commit(ENVELOPE_HANDLE_FIELDS[handle], value, handle)
 
   return (
     <article className="panel envelope-panel">
@@ -40,21 +42,14 @@ export function EnvelopePanel({
         <span className="version-chip">ADSR</span>
       </div>
 
-      <svg
-        aria-label={`ADSR amplitude envelope: attack ${seconds(previewEnvelope.attackSeconds)}, decay ${seconds(previewEnvelope.decaySeconds)}, sustain ${Math.round(previewEnvelope.sustainLevel * 100)} percent, release ${seconds(previewEnvelope.releaseSeconds)}`}
-        className="envelope-plot"
-        role="img"
-        viewBox="0 0 100 72"
-      >
-        <path className="plot-grid" d="M0 18H100M0 36H100M0 54H100M25 0V72M50 0V72M75 0V72" />
-        <path className="plot-line" d={plot.path} data-testid="amp-envelope-path" />
-        <g className="envelope-phase-labels" aria-hidden="true">
-          <text x={(2 + plot.attackEndX) / 2} y="70">A</text>
-          <text x={(plot.attackEndX + plot.decayEndX) / 2} y="70">D</text>
-          <text x={(plot.decayEndX + plot.releaseStartX) / 2} y="70">S</text>
-          <text x={(plot.releaseStartX + 98) / 2} y="70">R</text>
-        </g>
-      </svg>
+      <EditableEnvelopeGraph
+        envelope={envelope}
+        onCancel={(handle) => onCancelPreview(path(ENVELOPE_HANDLE_FIELDS[handle]))}
+        onCommit={commitHandle}
+        onPreview={(handle, value) => onPreview(path(ENVELOPE_HANDLE_FIELDS[handle]), value)}
+        previewEnvelope={previewEnvelope}
+        resetKey={resetKey}
+      />
 
       <div className="control-grid envelope-controls">
         <ParameterSlider

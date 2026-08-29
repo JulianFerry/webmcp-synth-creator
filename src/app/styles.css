@@ -897,6 +897,11 @@ h2 {
   stroke-width: 0.55;
 }
 
+.editable-graph { touch-action: none; user-select: none; }
+.graph-handle { cursor: grab; fill: var(--active); stroke: var(--panel-low); stroke-width: .8; vector-effect: non-scaling-stroke; }
+.graph-handle:hover, .graph-handle:focus-visible { fill: var(--text); stroke: var(--active); outline: none; filter: drop-shadow(0 0 3px var(--active)); }
+.graph-handle:active { cursor: grabbing; }
+
 .lfo-plot figcaption {
   display: flex;
   justify-content: space-between;
