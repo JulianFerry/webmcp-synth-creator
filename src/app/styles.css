@@ -1336,6 +1336,16 @@ h2 {
   font: 10px/1.5 var(--mono);
 }
 
+@media (max-width: 1100px) {
+  .overview-analysis-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .oscillator-overview-deck {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 960px) {
   .workbench-shell {
     width: min(100% - 28px, 760px);
@@ -1360,8 +1370,6 @@ h2 {
   }
 
   .global-session-row { grid-template-columns: 1fr; }
-  .oscillator-overview-deck { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .overview-analysis-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .matrix-route { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .history-controls {
@@ -1392,6 +1400,9 @@ h2 {
 
 @media (max-width: 700px) {
   .oscillator-editor-deck { grid-template-columns: 1fr; }
+  .overview-analysis-row, .oscillator-overview-deck, .overview-tab-grid { grid-template-columns: 1fr; }
+  .note-keyboard { grid-template-columns: repeat(13, 44px); }
+  .note-key { min-width: 44px; }
 }
 
 @media (max-width: 640px) {
@@ -1404,8 +1415,6 @@ h2 {
   .workbench-tab { flex: none; padding: 0 14px; }
   .workbench-tabpanel { padding: var(--space-2); }
   .tab-grid { grid-template-columns: 1fr; }
-  .overview-analysis-row { grid-template-columns: 1fr; }
-  .oscillator-overview-deck { grid-template-columns: 1fr; }
   .signal-flow-stages, .modfx-modulators, .modfx-processors, .matrix-route { grid-template-columns: 1fr; }
   .signal-stage span { right: 50%; bottom: -12px; transform: rotate(90deg); }
   .global-patch-bar { padding: var(--space-2); }
@@ -1467,10 +1476,6 @@ h2 {
     grid-template-columns: 1fr;
   }
 
-  .note-keyboard {
-    grid-template-columns: repeat(13, 38px);
-  }
-
   .diff-list li {
     grid-template-columns: 1fr;
   }
@@ -1481,9 +1486,21 @@ h2 {
 }
 
 @media (max-width: 390px) {
+  .workbench-tablist {
+    scrollbar-width: thin;
+  }
+
   .parameter-grid,
-  .envelope-controls {
+  .envelope-controls,
+  .oscillator-control-group {
     grid-template-columns: 1fr;
+  }
+
+  .button,
+  .toggle-control,
+  .workbench-tab,
+  .select-control select {
+    min-height: 44px;
   }
 }
 
