@@ -15,6 +15,13 @@
   --muted: #8495a8;
   --display: 'Space Grotesk', sans-serif;
   --mono: 'JetBrains Mono', monospace;
+  --space-1: 6px;
+  --space-2: 10px;
+  --space-3: 14px;
+  --space-4: 20px;
+  --space-5: 28px;
+  --stage: #101923;
+  --stage-raised: #172330;
   color: var(--text);
   background: var(--bg);
   font-family: var(--display);
@@ -78,6 +85,73 @@ p {
   margin: 0 auto;
   padding: 36px 0 70px;
 }
+
+.global-patch-bar {
+  position: relative;
+  z-index: 2;
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgb(69 200 189 / 5%), transparent 42%), var(--panel-low);
+  box-shadow: 0 22px 60px rgb(0 0 0 / 24%);
+}
+
+.global-patch-bar .masthead { padding: 0 0 var(--space-3); }
+
+.global-session-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr) 130px;
+  gap: 1px;
+  margin-top: var(--space-3);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--line);
+}
+
+.global-audio-status {
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 10px 14px;
+  background: var(--panel-low);
+  font-family: var(--mono);
+}
+
+.global-audio-status span, .global-audio-status small { color: var(--muted); font-size: 8px; text-transform: uppercase; }
+.global-audio-status strong { color: var(--analysis); font-size: 10px; text-transform: uppercase; }
+
+.last-change {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+  margin: var(--space-3) 2px 0;
+  color: var(--muted);
+  font: 9px var(--mono);
+}
+
+.last-change strong { overflow: hidden; color: var(--text); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.last-change button { border: 0; color: var(--analysis); background: transparent; font: inherit; cursor: pointer; }
+.last-change-empty { display: block; }
+
+.workbench-stage { border: 1px solid var(--line); border-radius: 12px; background: var(--stage); box-shadow: 0 28px 70px rgb(0 0 0 / 22%); }
+.workbench-tablist { display: flex; gap: 2px; padding: var(--space-2) var(--space-2) 0; border-bottom: 1px solid var(--line); }
+.workbench-tab { display: flex; gap: 10px; align-items: center; min-height: 48px; padding: 0 20px; border: 0; border-bottom: 2px solid transparent; color: var(--muted); background: transparent; cursor: pointer; }
+.workbench-tab span { color: var(--line-hot); font: 8px var(--mono); }
+.workbench-tab[aria-selected='true'] { border-bottom-color: var(--active); color: var(--text); background: linear-gradient(180deg, transparent, var(--active-soft)); }
+.workbench-tab[aria-selected='true'] span { color: var(--active); }
+.workbench-tabpanel { padding: var(--space-3); }
+.tab-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.oscillator-tab-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.overview-tab-grid .audition-panel, .modfx-tab-grid .effects-panel { grid-column: 1 / -1; }
+
+.diagnostic-drawer { margin-top: var(--space-3); border: 1px solid var(--line); border-radius: 9px; background: var(--panel-low); }
+.diagnostic-drawer > summary { display: flex; justify-content: space-between; padding: 12px 15px; color: var(--muted); font: 9px var(--mono); text-transform: uppercase; cursor: pointer; }
+.diagnostic-drawer > summary strong { color: var(--analysis); font-weight: 500; }
+.diagnostic-content { padding: 0 var(--space-3) var(--space-3); border-top: 1px solid var(--line); }
 
 .ambient-orbit {
   position: absolute;
@@ -1232,6 +1306,8 @@ h2 {
     grid-template-columns: 1fr;
   }
 
+  .global-session-row, .oscillator-tab-grid { grid-template-columns: 1fr; }
+
   .history-controls {
     justify-content: flex-start;
   }
@@ -1263,6 +1339,12 @@ h2 {
     width: min(100% - 20px, 540px);
     padding-top: 16px;
   }
+
+  .workbench-tablist { overflow-x: auto; }
+  .workbench-tab { flex: none; padding: 0 14px; }
+  .workbench-tabpanel { padding: var(--space-2); }
+  .tab-grid { grid-template-columns: 1fr; }
+  .global-patch-bar { padding: var(--space-2); }
 
   .oscillator-controls,
   .filter-controls,

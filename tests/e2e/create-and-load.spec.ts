@@ -63,7 +63,7 @@ async function executeTool<T>(
 }
 
 const customSinePatch = {
-  version: 1,
+  version: 2,
   metadata: {
     name: 'Agent Sine Sketch',
     category: 'keys',
@@ -89,6 +89,18 @@ const customSinePatch = {
       wavetablePosition: 0,
       level: 0.18,
       transposeSemitones: 12,
+      fineTuneCents: 0,
+      unisonVoices: 1,
+      unisonDetune: 0,
+      stereoSpread: 0,
+      randomPhase: 0,
+    },
+    {
+      enabled: false,
+      wavetableId: 'sine',
+      wavetablePosition: 0,
+      level: 0,
+      transposeSemitones: 0,
       fineTuneCents: 0,
       unisonVoices: 1,
       unisonDetune: 0,

@@ -93,6 +93,7 @@ test('LFO edit updates one transaction, SVG, audio scheduling, and Vital structu
   expect(await shape.getAttribute('d')).not.toBe(initialShape)
   await expect(page.getByTestId('lfo-point-count')).toHaveText('10 points')
   await expect(page.getByTestId('lfo-rate-readout')).toHaveText('1/8')
+  await page.getByRole('tab', { name: /Modulation & FX/ }).click()
   await expect(page.getByTestId('modulation-route-count')).toHaveText('2 routes')
   await expect(page.getByTestId('transaction-count')).toHaveText('1')
   await expect(page.getByTestId('history-size')).toHaveText('1')
@@ -201,6 +202,7 @@ test('LFO edit heading toggle and shape mode remain independent and preserve con
 test('LFO edit delay exposes all mapped divisions', async ({ page }) => {
   await installWebMcpDouble(page)
   await page.goto('/')
+  await page.getByRole('tab', { name: /Modulation & FX/ }).click()
 
   const readDelayDivision = () =>
     page.evaluate(async () => {

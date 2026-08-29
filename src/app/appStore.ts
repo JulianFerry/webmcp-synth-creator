@@ -2,6 +2,7 @@ import { create, type StoreApi, type UseBoundStore } from 'zustand'
 
 import { BrowserSynth, type BrowserSynthState } from '../audio/BrowserSynth'
 import { CommandService } from '../commands/CommandService'
+import type { RequestSource } from '../dev/latencyTrace'
 import type { SupportedPatchPath } from '../patch/paths'
 import { summarizePatch } from '../patch/summary'
 import type { PatchState, PatchSummary } from '../patch/types'
@@ -22,6 +23,7 @@ export interface AppStoreState {
   summary: PatchSummary
   changed: Record<string, { before: unknown; after: unknown }>
   lastTransactionReason: string | null
+  lastTransactionSource: RequestSource | null
   presets: CuratedPresetSummary[]
   currentPresetId: string | null
   currentVariant: VariantId
@@ -87,6 +89,7 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
     summary: summarizePatch(initialPatch),
     changed: {},
     lastTransactionReason: null,
+    lastTransactionSource: null,
     presets: listPresets(),
     currentPresetId: findMatchingPresetId(initialPatch),
     currentVariant: initialSession.currentVariant,
@@ -329,6 +332,8 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
           : event.changed,
       lastTransactionReason:
         event.kind === 'variant_select' || event.kind === 'variant_discard' ? null : event.reason,
+      lastTransactionSource:
+        event.kind === 'variant_select' || event.kind === 'variant_discard' ? null : event.source,
       currentVariant: sessionSummary.currentVariant,
       hasVariantB: sessionSummary.hasVariantB,
       canUndo: sessionSummary.canUndo,

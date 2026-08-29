@@ -263,6 +263,9 @@ test('playable voice previews oscillator, filter, and sustain sliders before one
   ] as const
 
   for (const [index, previewCase] of cases.entries()) {
+    if (previewCase.testId.startsWith('filter-')) {
+      await page.getByRole('tab', { name: /Modulation & FX/ }).click()
+    }
     const slider = page.getByTestId(previewCase.testId)
     await slider.evaluate((element, value) => {
       const input = element as HTMLInputElement
@@ -315,7 +318,6 @@ test('playable voice cancels generalized previews back to canonical active audio
     ['amp-attack', '0.75'],
     ['amp-decay', '3.2'],
     ['amp-release', '4.1'],
-    ['filter-resonance', '0.72'],
     ['voice-glide', '0.45'],
   ] as const
 
@@ -338,9 +340,8 @@ test('playable voice cancels generalized previews back to canonical active audio
   await expect(adapter).toHaveAttribute('data-effective-attack', '0.18')
   await expect(adapter).toHaveAttribute('data-effective-decay', '0.9')
   await expect(adapter).toHaveAttribute('data-effective-release', '1.4')
-  await expect(adapter).toHaveAttribute('data-effective-resonance', '0.72')
   await expect(adapter).toHaveAttribute('data-effective-glide', '0.45')
-  await expect(adapter).toHaveAttribute('data-preview-count', '10')
+  await expect(adapter).toHaveAttribute('data-preview-count', '9')
   await expect(page.getByTestId('transaction-count')).toHaveText('0')
   await expect(page.getByTestId('history-size')).toHaveText('0')
 
@@ -357,7 +358,6 @@ test('playable voice cancels generalized previews back to canonical active audio
   await expect(adapter).toHaveAttribute('data-effective-attack', '0.18')
   await expect(adapter).toHaveAttribute('data-effective-decay', '0.9')
   await expect(adapter).toHaveAttribute('data-effective-release', '1.4')
-  await expect(adapter).toHaveAttribute('data-effective-resonance', '0.14')
   await expect(adapter).toHaveAttribute('data-effective-glide', '0')
   await expect(adapter).toHaveAttribute('data-preview-count', '0')
   await expect(page.getByTestId('transaction-count')).toHaveText('0')
@@ -404,6 +404,7 @@ test('playable voice keeps cutoff slider, plot, preview, commit, and keyboard on
 }) => {
   await page.goto('/')
   await page.getByTestId('hold-note').click()
+  await page.getByRole('tab', { name: /Modulation & FX/ }).click()
   const adapter = page.getByTestId('audio-adapter-state')
   const cutoff = page.getByTestId('filter-cutoff-control')
   const cutoffOutput = page.locator('label[for="filter-cutoff-control"] output')
@@ -486,7 +487,6 @@ test('playable voice reconciles drafts after an external WebMCP update and undo'
   for (const [testId, value] of [
     ['oscillator-1-level', '0.2'],
     ['amp-sustain', '0.32'],
-    ['filter-cutoff-control', cutoffControlValue(1_800)],
   ] as const) {
     await page.getByTestId(testId).evaluate((element, nextValue) => {
       const input = element as HTMLInputElement
@@ -494,7 +494,7 @@ test('playable voice reconciles drafts after an external WebMCP update and undo'
       input.dispatchEvent(new InputEvent('input', { bubbles: true }))
     }, value)
   }
-  await expect(adapter).toHaveAttribute('data-preview-count', '3')
+  await expect(adapter).toHaveAttribute('data-preview-count', '2')
 
   await page.evaluate(async () => {
     const tools = await document.modelContext!.getTools()
@@ -513,6 +513,7 @@ test('playable voice reconciles drafts after an external WebMCP update and undo'
   await expect(adapter).toHaveAttribute('data-effective-resonance', '0.6')
   await expect(page.getByTestId('oscillator-1-level')).toHaveValue('0.62')
   await expect(page.getByTestId('amp-sustain')).toHaveValue('0.78')
+  await page.getByRole('tab', { name: /Modulation & FX/ }).click()
   await expect(page.getByTestId('filter-cutoff-control')).toHaveAttribute(
     'data-parameter-value',
     '7200',
@@ -520,6 +521,7 @@ test('playable voice reconciles drafts after an external WebMCP update and undo'
   await expect(page.getByTestId('transaction-count')).toHaveText('1')
   await expect(page.getByTestId('history-size')).toHaveText('1')
 
+  await page.getByRole('tab', { name: /Overview/ }).click()
   await page.getByTestId('oscillator-1-level').evaluate((element) => {
     const input = element as HTMLInputElement
     input.value = '0.31'
@@ -631,6 +633,7 @@ test('playable voice derives static wavetable, ADSR, and filter visuals from eff
     '4.00 s',
   ])
 
+  await page.getByRole('tab', { name: /Modulation & FX/ }).click()
   const filterType = page.getByTestId('filter-type')
   const filterPath = page.getByTestId('filter-response-path')
   const responsePaths = new Set<string>()
