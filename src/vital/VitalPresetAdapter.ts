@@ -8,7 +8,11 @@ import {
 } from './parameterMap'
 import { buildVitalLfo } from './lfo'
 import { buildVitalModulations } from './modulations'
-import { importVitalPatch, type VitalImportResult } from './VitalPresetImporter'
+import {
+  importVitalPatch,
+  type VitalImportOptions,
+  type VitalImportResult,
+} from './VitalPresetImporter'
 import { buildVitalWavetable } from './wavetable'
 
 export interface VitalPresetDocument {
@@ -189,8 +193,8 @@ export class VitalPresetAdapter {
     }
   }
 
-  importPatch(value: unknown): VitalImportResult {
-    return importVitalPatch(value, this.template)
+  importPatch(value: unknown, options?: VitalImportOptions): VitalImportResult {
+    return importVitalPatch(value, this.template, options)
   }
 
   downloadPatch(patch: PatchState): string {

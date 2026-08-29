@@ -45,10 +45,10 @@ export interface AppStoreState {
   previewPatchChange: (path: SupportedPatchPath, value: unknown) => void
   cancelPatchPreview: (path: SupportedPatchPath) => void
   startAudio: () => Promise<void>
-  noteOn: (midi: number, velocity?: number) => Promise<void>
+  noteOn: (midi: number, velocity?: number, requestedAtMs?: number) => Promise<void>
   noteOff: (midi: number) => void
   releaseAllNotes: () => void
-  toggleHeldNote: () => Promise<void>
+  toggleHeldNote: (requestedAtMs?: number) => Promise<void>
   createVariant: () => void
   loadPreset: (presetId: string) => void
   importVitalFile: (file: File) => Promise<void>
@@ -174,9 +174,9 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
       }
     },
 
-    noteOn: async (midi, velocity = 0.85) => {
+    noteOn: async (midi, velocity = 0.85, requestedAtMs) => {
       try {
-        await synth.noteOn(midi, velocity)
+        await synth.noteOn(midi, velocity, requestedAtMs)
         set({ lastError: null })
       } catch (error) {
         set({ lastError: errorMessage(error) })
@@ -187,9 +187,9 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
 
     releaseAllNotes: () => synth.releaseAllNotes(),
 
-    toggleHeldNote: async () => {
+    toggleHeldNote: async (requestedAtMs) => {
       try {
-        await synth.toggleHeldNote()
+        await synth.toggleHeldNote(requestedAtMs)
         set({ lastError: null })
       } catch (error) {
         set({ lastError: errorMessage(error) })
@@ -241,7 +241,7 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
 
       try {
         const document = await readVitalImportFile(file)
-        const imported = vitalAdapter.importPatch(document)
+        const imported = vitalAdapter.importPatch(document, { sourceFilename: file.name })
         commands.createPatch(
           {
             type: 'create_patch',

@@ -48,6 +48,8 @@ import { transposeFrequency, velocityToGain } from './units'
 
 export type BrowserSynthLifecycle = 'suspended' | 'running' | 'unavailable' | 'error'
 
+export const AUDITION_HELD_MIDI_NOTE = 48
+
 export interface OscillatorReflection {
   enabled: boolean
   wavetablePosition: number
@@ -95,6 +97,24 @@ export interface AudioUpdatePlan {
   reverb: boolean
 }
 
+export interface NoteOnTimingMeasurement {
+  midi: number
+  velocity: number
+  requestedAtMs: number
+  audioReadyMs: number
+  voiceGraphBuildMs: number
+  inputToVoiceReadyMs: number
+  scheduledContextTimeSeconds: number
+  baseLatencyMs: number | null
+  outputLatencyMs: number | null
+  renderQuantumMs: number
+  attackMs: number
+  estimateSource: 'output-timestamp' | 'latency-properties' | 'app-only'
+  estimatedFirstSampleMs: number
+  estimatedEnvelopeMinus40DbMs: number
+  estimatedEnvelopeMinus20DbMs: number
+}
+
 export interface BrowserSynthState {
   lifecycle: BrowserSynthLifecycle
   held: boolean
@@ -114,12 +134,23 @@ export interface BrowserSynthState {
   reflectedPatchName: string
   lastCorrelationId: string | null
   lastUpdatePlan: AudioUpdatePlan | null
+  lastNoteOnTiming: NoteOnTimingMeasurement | null
 }
 
 type AudioContextFactory = () => AudioContext
 type StateSubscriber = (state: BrowserSynthState) => void
 
 const OSCILLATOR_OUTPUT_GAIN = 0.24
+
+function latencyMilliseconds(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? value * 1_000
+    : null
+}
+
+function elapsedMilliseconds(start: number, end: number): number {
+  return Math.max(0, end - start)
+}
 
 function emptyOscillatorPlan(): AudioOscillatorUpdatePlan {
   return { wavetable: false, position: false, pitch: false, level: false, unison: false }
@@ -201,6 +232,7 @@ function unisonConfiguration(oscillator: OscillatorState): UnisonConfiguration {
     voices: oscillator.unisonVoices,
     detune: oscillator.unisonDetune,
     stereoSpread: oscillator.stereoSpread,
+    randomPhase: oscillator.randomPhase,
   }
 }
 
@@ -244,6 +276,7 @@ class BrowserVoice implements ModulationTarget {
   private released = false
   private releaseTimer: ReturnType<typeof setTimeout> | null = null
   private disposed = false
+  readonly scheduledStartTimeSeconds: number
 
   constructor(
     private readonly context: AudioContext,
@@ -280,6 +313,7 @@ class BrowserVoice implements ModulationTarget {
     this.oscillatorLevels = [levelA, levelB]
 
     const now = context.currentTime
+    this.scheduledStartTimeSeconds = now
     patch.oscillators.forEach((oscillator, index) => {
       this.oscillators[index].setPositionAtTime(oscillator.wavetablePosition, now)
       this.oscillators[index].setFrequencyAtTime(
@@ -294,7 +328,7 @@ class BrowserVoice implements ModulationTarget {
               oscillator.fineTuneCents,
             ),
       )
-      this.applyOscillatorLevel(index, oscillator, now)
+      this.applyOscillatorLevel(index, oscillator, now, false)
     })
     applyFilterState(this.filter, patch.filter, now)
     scheduleEnvelopeAttack(this.amplitude.gain, patch.ampEnvelope, now)
@@ -413,11 +447,17 @@ class BrowserVoice implements ModulationTarget {
     index: number,
     oscillator: OscillatorState,
     time: number,
+    smooth = true,
   ): void {
     const level = oscillator.enabled
       ? oscillator.level * this.velocityGain * OSCILLATOR_OUTPUT_GAIN
       : 0
     const parameter = this.oscillatorLevels[index].gain
+    if (!smooth) {
+      parameter.cancelScheduledValues(time)
+      parameter.setValueAtTime(level, time)
+      return
+    }
     cancelAndHoldAudioParam(parameter, time)
     parameter.linearRampToValueAtTime(level, time + 0.01)
   }
@@ -441,17 +481,20 @@ export class BrowserSynth {
   private readonly subscribers = new Set<StateSubscriber>()
   private readonly unsubscribeSession: () => void
   private readonly createAudioContext: AudioContextFactory
+  private readonly performanceNow: () => number
 
   constructor(
     session: SessionService,
     private readonly trace: LatencyTrace,
     createAudioContext?: AudioContextFactory,
+    performanceNow: () => number = () => performance.now(),
   ) {
     this.patch = session.getPatch()
     this.draftPatch = structuredClone(this.patch)
     this.effectivePatch = structuredClone(this.patch)
     this.allocator = new VoiceAllocator(this.patch.voice.polyphony)
     this.createAudioContext = createAudioContext ?? (() => new AudioContext())
+    this.performanceNow = performanceNow
     const audioAvailable = createAudioContext !== undefined || typeof AudioContext !== 'undefined'
     this.state = {
       lifecycle: audioAvailable ? 'suspended' : 'unavailable',
@@ -475,6 +518,7 @@ export class BrowserSynth {
       reflectedPatchName: this.patch.metadata.name,
       lastCorrelationId: null,
       lastUpdatePlan: null,
+      lastNoteOnTiming: null,
     }
     this.unsubscribeSession = session.subscribe((event) => this.applyCommittedPatch(event))
   }
@@ -519,10 +563,15 @@ export class BrowserSynth {
     }
   }
 
-  async noteOn(midi: number, velocity = 0.85): Promise<void> {
+  async noteOn(
+    midi: number,
+    velocity = 0.85,
+    requestedAtMs = this.performanceNow(),
+  ): Promise<void> {
     await this.startAudio()
     if (!this.context || !this.master) return
 
+    const audioReadyAtMs = this.performanceNow()
     const now = this.context.currentTime
     const replaced = this.allocator.releaseNote(midi)
     replaced.forEach((slot) => slot.voice.release(now, true))
@@ -531,6 +580,7 @@ export class BrowserSynth {
       this.effectivePatch.voice.glideSeconds > 0 && this.lastPlayedMidi !== null
         ? this.lastPlayedMidi
         : undefined
+    const voiceGraphStartedAtMs = this.performanceNow()
     const voice = new BrowserVoice(
       this.context,
       this.effectivePatch,
@@ -540,6 +590,7 @@ export class BrowserSynth {
       startMidi,
       () => this.voices.delete(voice),
     )
+    const voiceGraphReadyAtMs = this.performanceNow()
     this.voices.add(voice)
     const { stolen } = this.allocator.claim(midi, velocity, now, voice)
     if (stolen) {
@@ -547,6 +598,22 @@ export class BrowserSynth {
       this.state = { ...this.state, stolenVoiceCount: this.state.stolenVoiceCount + 1 }
     }
     this.lastPlayedMidi = midi
+    const noteOnReadyAtMs = this.performanceNow()
+    const timing = this.measureNoteOnTiming({
+      midi,
+      velocity,
+      requestedAtMs,
+      audioReadyAtMs,
+      voiceGraphStartedAtMs,
+      voiceGraphReadyAtMs,
+      noteOnReadyAtMs,
+      scheduledContextTimeSeconds: voice.scheduledStartTimeSeconds,
+    })
+    this.state = { ...this.state, lastNoteOnTiming: timing }
+    const timingGlobal = globalThis as typeof globalThis & {
+      __WAVETABLE_WORKBENCH_NOTE_TIMING__?: NoteOnTimingMeasurement
+    }
+    timingGlobal.__WAVETABLE_WORKBENCH_NOTE_TIMING__ = structuredClone(timing)
     this.reflectActiveVoices()
   }
 
@@ -556,18 +623,21 @@ export class BrowserSynth {
     this.reflectActiveVoices()
   }
 
-  async toggleHeldNote(): Promise<BrowserSynthState> {
-    if (this.allocator.activeNotes.includes(60)) this.noteOff(60)
-    else await this.noteOn(60)
+  async toggleHeldNote(requestedAtMs = this.performanceNow()): Promise<BrowserSynthState> {
+    if (this.allocator.activeNotes.includes(AUDITION_HELD_MIDI_NOTE)) {
+      this.noteOff(AUDITION_HELD_MIDI_NOTE)
+    } else {
+      await this.noteOn(AUDITION_HELD_MIDI_NOTE, 0.85, requestedAtMs)
+    }
     return this.getState()
   }
 
-  async holdNote(midi = 60): Promise<void> {
+  async holdNote(midi = AUDITION_HELD_MIDI_NOTE): Promise<void> {
     if (!this.allocator.activeNotes.includes(midi)) await this.noteOn(midi)
   }
 
   releaseHeldNote(): void {
-    this.noteOff(60)
+    this.noteOff(AUDITION_HELD_MIDI_NOTE)
   }
 
   releaseAllNotes(): void {
@@ -659,7 +729,7 @@ export class BrowserSynth {
 
     this.state = {
       ...this.state,
-      held: this.allocator.activeNotes.includes(60),
+      held: this.allocator.activeNotes.includes(AUDITION_HELD_MIDI_NOTE),
       activeVoiceCount: this.allocator.activeCount,
       activeNotes: this.allocator.activeNotes,
       polyphony: this.patch.voice.polyphony,
@@ -751,11 +821,94 @@ export class BrowserSynth {
     this.notify()
   }
 
+  private measureNoteOnTiming(input: {
+    midi: number
+    velocity: number
+    requestedAtMs: number
+    audioReadyAtMs: number
+    voiceGraphStartedAtMs: number
+    voiceGraphReadyAtMs: number
+    noteOnReadyAtMs: number
+    scheduledContextTimeSeconds: number
+  }): NoteOnTimingMeasurement {
+    const context = this.context!
+    const outputContext = context as AudioContext & {
+      outputLatency?: number
+      getOutputTimestamp?: () => { contextTime?: number; performanceTime?: number }
+    }
+    const baseLatencyMs = latencyMilliseconds(context.baseLatency)
+    const outputLatencyMs = latencyMilliseconds(outputContext.outputLatency)
+    const renderQuantumMs = (128 / context.sampleRate) * 1_000
+    const inputToVoiceReadyMs = elapsedMilliseconds(
+      input.requestedAtMs,
+      input.noteOnReadyAtMs,
+    )
+
+    let outputTimestamp: { contextTime?: number; performanceTime?: number } | null = null
+    try {
+      outputTimestamp = outputContext.getOutputTimestamp?.() ?? null
+    } catch {
+      // Some implementations expose the method before an output timestamp is available.
+    }
+
+    const outputContextTime = outputTimestamp?.contextTime
+    const outputPerformanceTime = outputTimestamp?.performanceTime
+    const hasUsableTimestamp =
+      typeof outputContextTime === 'number' &&
+      Number.isFinite(outputContextTime) &&
+      typeof outputPerformanceTime === 'number' &&
+      Number.isFinite(outputPerformanceTime) &&
+      outputPerformanceTime > 0
+    let estimateSource: NoteOnTimingMeasurement['estimateSource']
+    let estimatedFirstSampleMs: number
+    if (hasUsableTimestamp) {
+      const earliestRenderTimeSeconds =
+        Math.max(input.scheduledContextTimeSeconds, context.currentTime) + renderQuantumMs / 1_000
+      const estimatedOutputAtMs =
+        outputPerformanceTime + (earliestRenderTimeSeconds - outputContextTime) * 1_000
+      estimatedFirstSampleMs = elapsedMilliseconds(
+        input.requestedAtMs,
+        Math.max(input.noteOnReadyAtMs, estimatedOutputAtMs),
+      )
+      estimateSource = 'output-timestamp'
+    } else {
+      const transportLatencyMs = (baseLatencyMs ?? 0) + (outputLatencyMs ?? 0)
+      estimatedFirstSampleMs = inputToVoiceReadyMs + renderQuantumMs + transportLatencyMs
+      estimateSource =
+        baseLatencyMs !== null || outputLatencyMs !== null ? 'latency-properties' : 'app-only'
+    }
+
+    const attackMs = this.effectivePatch.ampEnvelope.attackSeconds * 1_000
+    const timing: NoteOnTimingMeasurement = {
+      midi: input.midi,
+      velocity: input.velocity,
+      requestedAtMs: input.requestedAtMs,
+      audioReadyMs: elapsedMilliseconds(input.requestedAtMs, input.audioReadyAtMs),
+      voiceGraphBuildMs: elapsedMilliseconds(
+        input.voiceGraphStartedAtMs,
+        input.voiceGraphReadyAtMs,
+      ),
+      inputToVoiceReadyMs,
+      scheduledContextTimeSeconds: input.scheduledContextTimeSeconds,
+      baseLatencyMs,
+      outputLatencyMs,
+      renderQuantumMs,
+      attackMs,
+      estimateSource,
+      estimatedFirstSampleMs,
+      estimatedEnvelopeMinus40DbMs: estimatedFirstSampleMs + attackMs * 0.01,
+      estimatedEnvelopeMinus20DbMs: estimatedFirstSampleMs + attackMs * 0.1,
+    }
+    return timing
+  }
+
   private reflectContextState(): void {
     if (!this.context) return
+    const lifecycle = this.context.state === 'running' ? 'running' : 'suspended'
+    if (this.state.lifecycle === lifecycle) return
     this.state = {
       ...this.state,
-      lifecycle: this.context.state === 'running' ? 'running' : 'suspended',
+      lifecycle,
     }
     this.notify()
   }
@@ -763,7 +916,7 @@ export class BrowserSynth {
   private reflectActiveVoices(): void {
     this.state = {
       ...this.state,
-      held: this.allocator.activeNotes.includes(60),
+      held: this.allocator.activeNotes.includes(AUDITION_HELD_MIDI_NOTE),
       activeVoiceCount: this.allocator.activeCount,
       activeNotes: this.allocator.activeNotes,
     }

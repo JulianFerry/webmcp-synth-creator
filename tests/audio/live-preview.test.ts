@@ -12,6 +12,7 @@ import {
   FakeAudioContext,
   type FakeAudioParam,
   type FakeGainNode,
+  type FakeOscillatorNode,
 } from './fakes'
 
 function createHarness() {
@@ -30,18 +31,30 @@ function createHarness() {
 
 function hasRamp(parameter: FakeAudioParam, value: number, time?: number): boolean {
   return parameter.calls.some(
-    (call) =>
-      (call.method === 'linearRamp' || call.method === 'exponentialRamp') &&
-      Math.abs((call.value ?? Number.NaN) - value) < 1e-8 &&
-      (time === undefined || Math.abs(call.time - time) < 1e-8),
+    (call) => {
+      const isRamp =
+        call.method === 'linearRamp' ||
+        call.method === 'exponentialRamp' ||
+        call.method === 'curve'
+      const targetTime = call.method === 'curve' ? call.time + (call.duration ?? 0) : call.time
+      return (
+        isRamp &&
+        Math.abs((call.value ?? Number.NaN) - value) < 1e-6 &&
+        (time === undefined || Math.abs(targetTime - time) < 1e-8)
+      )
+    },
   )
+}
+
+function voiceOscillators(context: FakeAudioContext): FakeOscillatorNode[] {
+  return context.oscillators.filter((oscillator) => oscillator.detune.calls.length > 0)
 }
 
 describe('held-note slider preview', () => {
   it('keeps a whole-Hz cutoff preview isolated and commits it exactly once', async () => {
     const { commands, context, session, store, synth, trace } = createHarness()
     await synth.holdNote()
-    const filter = context.filters[0]
+    const filter = context.filters.at(-1)!
 
     store.getState().previewPatchChange('filter.cutoffHz', 632)
 
@@ -74,10 +87,11 @@ describe('held-note slider preview', () => {
     const { commands, context, session, store, synth, trace } = createHarness()
     await synth.holdNote()
 
-    const filter = context.filters[0]
+    const filter = context.filters.at(-1)!
     const amplitude = (filter.connections[0] as FakeGainNode).gain
     const oscillatorOneLevel = context.gains.at(-2)!.gain
-    const oscillatorOneLanes = context.oscillators.slice(0, 10)
+    const oscillatorOneLanes = voiceOscillators(context).slice(0, 10)
+    const voicePanners = context.panners.slice(-6)
     const initialWaveAssignments = oscillatorOneLanes.map((oscillator) => oscillator.waves.length)
     const expectedVelocityGain = velocityToGain(0.85, 0.3)
 
@@ -85,7 +99,7 @@ describe('held-note slider preview', () => {
     expect(hasRamp(oscillatorOneLevel, 0.2 * expectedVelocityGain * 0.24)).toBe(true)
 
     store.getState().previewPatchChange('oscillators.0.fineTuneCents', 17)
-    const previewFrequency = transposeFrequency(60, 0, 17)
+    const previewFrequency = transposeFrequency(48, 0, 17)
     expect(
       oscillatorOneLanes.every((oscillator) => hasRamp(oscillator.frequency, previewFrequency)),
     ).toBe(true)
@@ -100,11 +114,11 @@ describe('held-note slider preview', () => {
     store.getState().previewPatchChange('oscillators.0.unisonDetune', 0.72)
     store.getState().previewPatchChange('oscillators.0.stereoSpread', 0.44)
     expect(oscillatorOneLanes.some((oscillator) => oscillator.detune.calls.some((call) => call.method === 'linearRamp'))).toBe(true)
-    expect(context.panners.slice(0, 5).some((panner) => hasRamp(panner.pan, 0.44))).toBe(true)
+    expect(voicePanners.slice(0, 5).some((panner) => hasRamp(panner.pan, 0.44))).toBe(true)
 
     const oscillatorCountBeforeUnisonPreview = context.oscillators.length
     const pannerCountBeforeUnisonPreview = context.panners.length
-    const previousGroupOutput = context.panners[0].connections[0] as FakeGainNode
+    const previousGroupOutput = voicePanners[0].connections[0] as FakeGainNode
     store.getState().previewPatchChange('oscillators.0.unisonVoices', 3)
     expect(context.oscillators.length - oscillatorCountBeforeUnisonPreview).toBe(6)
     expect(oscillatorOneLanes.every((oscillator) => oscillator.stops.includes(0.03))).toBe(true)
@@ -120,7 +134,7 @@ describe('held-note slider preview', () => {
 
     amplitude.calls.length = 0
     store.getState().previewPatchChange('ampEnvelope.sustainLevel', 0.4)
-    expect(hasRamp(amplitude, 0.4, 0.02)).toBe(true)
+    expect(hasRamp(amplitude, 0.16, 0.02)).toBe(true)
 
     expect(session.getPatch().oscillators[0].level).toBe(0.62)
     expect(session.getPatch().filter.cutoffHz).toBe(7_200)
@@ -151,14 +165,16 @@ describe('held-note slider preview', () => {
     const { commands, context, session, store, synth } = createHarness()
     await synth.holdNote()
     const oscillatorOneLevel = context.gains.at(-2)!.gain
-    const filter = context.filters[0]
+    const filter = context.filters.at(-1)!
 
     store.getState().previewPatchChange('oscillators.0.level', 0.18)
     store.getState().previewPatchChange('filter.cutoffHz', 1_800)
     store.getState().cancelPatchPreview('oscillators.0.level')
     store.getState().cancelPatchPreview('filter.cutoffHz')
 
-    expect(hasRamp(oscillatorOneLevel, 0.62 * velocityToGain(0.85, 0.3) * 0.24)).toBe(true)
+    expect(
+      hasRamp(oscillatorOneLevel, 0.62 * velocityToGain(0.85, 0.3) * 0.24),
+    ).toBe(true)
     expect(hasRamp(filter.frequency, 7_200)).toBe(true)
     expect(synth.getState().previewValues).toEqual({})
     expect(commands.historySize).toBe(0)
@@ -177,8 +193,8 @@ describe('held-note slider preview', () => {
     expect(synth.getState().previewValues).toEqual({})
     expect(synth.getState().effective.oscillators[0].fineTuneCents).toBe(0)
     expect(synth.getState().effective.filter.cutoffHz).toBe(7_200)
-    expect(filter.frequency.value).toBeGreaterThan(0)
-    expect(filter.frequency.value).toBeLessThanOrEqual(7_200)
+    expect(filter.frequency.value).toBeGreaterThanOrEqual(7_200)
+    expect(filter.frequency.value).toBeLessThanOrEqual(20_000)
     expect(filter.Q.value).toBe(resonanceToQ(0.6))
 
     store.getState().previewPatchChange('oscillators.0.level', 0.25)
@@ -195,7 +211,7 @@ describe('held-note slider preview', () => {
     const { context, store, synth } = createHarness()
     await synth.noteOn(60, 0.5)
     const heldLevel = context.gains.at(-2)!.gain
-    const heldOscillators = context.oscillators.slice(0, 10)
+    const heldOscillators = voiceOscillators(context).slice(0, 10)
     heldLevel.calls.length = 0
     heldOscillators.forEach((oscillator) => {
       oscillator.frequency.calls.length = 0
@@ -216,7 +232,7 @@ describe('held-note slider preview', () => {
       hasRamp(nextOscillatorOneLevel, 0.62 * velocityToGain(0.5, 0.9) * 0.24),
     ).toBe(true)
     expect(
-      context.oscillators
+      voiceOscillators(context)
         .slice(12, 22)
         .every((oscillator) =>
           oscillator.frequency.calls.some((call) => call.method === 'exponentialRamp'),
@@ -230,7 +246,7 @@ describe('envelope gesture semantics', () => {
   it('keeps attack and decay off active automation and uses committed values for the next note', async () => {
     const { context, store, synth } = createHarness()
     await synth.holdNote()
-    const heldAmplitude = (context.filters[0].connections[0] as FakeGainNode).gain
+    const heldAmplitude = (context.filters.at(-1)!.connections[0] as FakeGainNode).gain
     heldAmplitude.calls.length = 0
 
     store.getState().previewPatchChange('ampEnvelope.attackSeconds', 0.8)
@@ -259,14 +275,14 @@ describe('envelope gesture semantics', () => {
     await synth.noteOn(64)
     const nextAmplitude = context.gains[gainCountBeforeNextNote].gain
     expect(hasRamp(nextAmplitude, 1, 4.8)).toBe(true)
-    expect(hasRamp(nextAmplitude, 0.78, 7)).toBe(true)
+    expect(hasRamp(nextAmplitude, 0.78 ** 2, 7)).toBe(true)
     synth.dispose()
   })
 
   it('uses only a committed release value at a held voice subsequent note-off', async () => {
     const { context, store, synth } = createHarness()
     await synth.holdNote()
-    const amplitude = (context.filters[0].connections[0] as FakeGainNode).gain
+    const amplitude = (context.filters.at(-1)!.connections[0] as FakeGainNode).gain
     amplitude.calls.length = 0
 
     store.getState().previewPatchChange('ampEnvelope.releaseSeconds', 4.1)
@@ -280,7 +296,7 @@ describe('envelope gesture semantics', () => {
     expect(amplitude.calls).toEqual([])
 
     context.currentTime = 2
-    synth.noteOff(60)
+    synth.noteOff(48)
     expect(hasRamp(amplitude, 0, 6.1)).toBe(true)
     synth.dispose()
   })

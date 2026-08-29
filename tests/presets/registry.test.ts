@@ -14,7 +14,7 @@ import {
 import { renderWavetableFrame } from '../../src/wavetables/render'
 
 describe('curated preset and generated wavetable registries', () => {
-  it('exposes six unique validated starts backed only by known generated tables', () => {
+  it('exposes six musical starts and eight calibration stages backed by generated tables', () => {
     const presets = listPresets()
     expect(presets.map(({ id }) => id)).toEqual([
       'ethereal-gate',
@@ -23,8 +23,16 @@ describe('curated preset and generated wavetable registries', () => {
       'glass-pluck',
       'wide-lead',
       'rhythmic-pulse',
+      'calibration-a-osc1-sine',
+      'calibration-b-custom-wavetable',
+      'calibration-c-amp-envelope',
+      'calibration-d-unison',
+      'calibration-e-filter',
+      'calibration-f-lfo-gate',
+      'calibration-g-osc2',
+      'calibration-h-delay-reverb',
     ])
-    expect(new Set(presets.map(({ id }) => id)).size).toBe(6)
+    expect(new Set(presets.map(({ id }) => id)).size).toBe(14)
 
     for (const preset of presets) {
       const patch = parsePatchState(getPresetPatch(preset.id))

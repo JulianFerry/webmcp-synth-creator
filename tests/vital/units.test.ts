@@ -6,13 +6,33 @@ import { describe, expect, it } from 'vitest'
 import {
   decodeVitalDelaySeconds,
   decodeVitalEnvelopeSeconds,
+  decodeVitalOscillatorLevel,
   decodeVitalReverbDecaySeconds,
+  decodeVitalUnisonDetune,
   encodeVitalDelaySeconds,
   encodeVitalEnvelopeSeconds,
+  encodeVitalOscillatorLevel,
   encodeVitalReverbDecaySeconds,
+  encodeVitalUnisonDetune,
 } from '../../src/vital/units'
 
 describe('Vital 1.0.7 parameter conversions', () => {
+  it('round-trips linear oscillator level through Vital quadratic storage', () => {
+    expect(encodeVitalOscillatorLevel(0.71)).toBeCloseTo(Math.sqrt(0.71 * 0.5))
+    expect(encodeVitalOscillatorLevel(0.71) ** 2).toBeCloseTo(0.355)
+    expect(decodeVitalOscillatorLevel(encodeVitalOscillatorLevel(0.71))).toBeCloseTo(0.71)
+    expect(encodeVitalOscillatorLevel(1)).toBeCloseTo(Math.SQRT1_2)
+    expect(decodeVitalOscillatorLevel(Math.SQRT1_2)).toBeCloseTo(1)
+  })
+
+  it('round-trips the workbench detune range through Vital quadratic storage', () => {
+    expect(encodeVitalUnisonDetune(0.25)).toBeCloseTo(Math.sqrt(3))
+    expect(encodeVitalUnisonDetune(0.25) ** 2).toBeCloseTo(3)
+    expect(decodeVitalUnisonDetune(encodeVitalUnisonDetune(0.25))).toBeCloseTo(0.25)
+    expect(encodeVitalUnisonDetune(1)).toBeCloseTo(Math.sqrt(12))
+    expect(decodeVitalUnisonDetune(Math.sqrt(12))).toBeCloseTo(1)
+  })
+
   it.each([
     ['attack', 0],
     ['attack', 0.18],
@@ -60,5 +80,12 @@ describe('Vital 1.0.7 parameter conversions', () => {
     expect(() => encodeVitalDelaySeconds(0)).toThrow(RangeError)
     expect(() => encodeVitalDelaySeconds(4.01)).toThrow(RangeError)
     expect(() => encodeVitalReverbDecaySeconds(0)).toThrow(RangeError)
+    expect(() => encodeVitalOscillatorLevel(1.01)).toThrow(RangeError)
+    expect(() => decodeVitalOscillatorLevel(-0.01)).toThrow(RangeError)
+    expect(() => decodeVitalOscillatorLevel(1)).toThrow(/exceeds the workbench 100%/)
+    expect(() => encodeVitalUnisonDetune(1.01)).toThrow(RangeError)
+    expect(() => decodeVitalUnisonDetune(Math.sqrt(12.01))).toThrow(
+      /exceeds the workbench 100%/,
+    )
   })
 })

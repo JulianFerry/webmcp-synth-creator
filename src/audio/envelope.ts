@@ -1,10 +1,83 @@
 import type { EnvelopeState } from '../patch/types'
+import { vitalPowerScale } from './units'
+
+const VITAL_DECAY_POWER = -2
+const VITAL_RELEASE_POWER = -2
+const VITAL_ATTACK_POWER = 0
 
 export interface EnvelopeSchedule {
   attackEnd: number
   holdEnd: number
   decayEnd: number
   sustainGain: number
+}
+
+export function createVitalEnvelopeCurve(
+  start: number,
+  end: number,
+  power: number,
+  pointCount = 64,
+): Float32Array {
+  const count = Math.max(2, Math.floor(pointCount))
+  return Float32Array.from({ length: count }, (_, index) => {
+    const progress = index / (count - 1)
+    return start + (end - start) * vitalPowerScale(progress, power)
+  })
+}
+
+/**
+ * Vital squares envelope 1 before applying it to the complete voice output.
+ * This is separate from the oscillator-level quadratic parameter mapping.
+ */
+export function createVitalAmplitudeCurve(
+  startEnvelopeValue: number,
+  endEnvelopeValue: number,
+  power: number,
+  pointCount = 64,
+  peakGain = 1,
+): Float32Array {
+  const envelope = createVitalEnvelopeCurve(
+    startEnvelopeValue,
+    endEnvelopeValue,
+    power,
+    pointCount,
+  )
+  return Float32Array.from(envelope, (value) => peakGain * value * value)
+}
+
+function scheduleAmplitudeCurve(
+  parameter: AudioParam,
+  startEnvelopeValue: number,
+  endEnvelopeValue: number,
+  startTime: number,
+  duration: number,
+  power: number,
+  peakGain = 1,
+): void {
+  if (duration <= 0) {
+    parameter.setValueAtTime(peakGain * endEnvelopeValue ** 2, startTime)
+    return
+  }
+
+  const points = Math.max(32, Math.min(256, Math.ceil(duration * 120)))
+  const curve = createVitalAmplitudeCurve(
+    startEnvelopeValue,
+    endEnvelopeValue,
+    power,
+    points,
+    peakGain,
+  )
+  // Consecutive setValueCurveAtTime events are unsafe in Chromium: the curve
+  // start is render-quantum aligned internally, which can make an event at the
+  // mathematical end time overlap the curve and throw. Piecewise ramps retain
+  // the same shape without that overlap restriction.
+  parameter.setValueAtTime(curve[0], startTime)
+  for (let index = 1; index < curve.length; index += 1) {
+    parameter.linearRampToValueAtTime(
+      curve[index],
+      startTime + duration * (index / (curve.length - 1)),
+    )
+  }
 }
 
 export function getEnvelopeSchedule(
@@ -18,7 +91,7 @@ export function getEnvelopeSchedule(
     attackEnd,
     holdEnd,
     decayEnd: holdEnd + envelope.decaySeconds,
-    sustainGain: peakGain * envelope.sustainLevel,
+    sustainGain: peakGain * envelope.sustainLevel ** 2,
   }
 }
 
@@ -44,13 +117,30 @@ export function scheduleEnvelopeAttack(
   parameter.setValueAtTime(0, startTime)
 
   if (envelope.attackSeconds === 0) parameter.setValueAtTime(peakGain, startTime)
-  else parameter.linearRampToValueAtTime(peakGain, schedule.attackEnd)
+  else {
+    scheduleAmplitudeCurve(
+      parameter,
+      0,
+      1,
+      startTime,
+      envelope.attackSeconds,
+      VITAL_ATTACK_POWER,
+      peakGain,
+    )
+  }
 
-  parameter.setValueAtTime(peakGain, schedule.holdEnd)
   if (envelope.decaySeconds === 0) {
     parameter.setValueAtTime(schedule.sustainGain, schedule.holdEnd)
   } else {
-    parameter.linearRampToValueAtTime(schedule.sustainGain, schedule.decayEnd)
+    scheduleAmplitudeCurve(
+      parameter,
+      1,
+      envelope.sustainLevel,
+      schedule.holdEnd,
+      envelope.decaySeconds,
+      VITAL_DECAY_POWER,
+      peakGain,
+    )
   }
   return schedule
 }
@@ -62,7 +152,14 @@ export function scheduleEnvelopeRelease(
 ): number {
   const releaseEnd = releaseTime + Math.max(0.005, releaseSeconds)
   cancelAndHoldAudioParam(parameter, releaseTime)
-  parameter.linearRampToValueAtTime(0, releaseEnd)
+  scheduleAmplitudeCurve(
+    parameter,
+    Math.sqrt(Math.max(0, parameter.value)),
+    0,
+    releaseTime,
+    releaseEnd - releaseTime,
+    VITAL_RELEASE_POWER,
+  )
   return releaseEnd
 }
 
@@ -72,7 +169,8 @@ export function updateEnvelopeSustain(
   time: number,
 ): void {
   cancelAndHoldAudioParam(parameter, time)
-  parameter.linearRampToValueAtTime(Math.max(0, Math.min(1, sustainLevel)), time + 0.02)
+  const clampedSustain = Math.max(0, Math.min(1, sustainLevel))
+  parameter.linearRampToValueAtTime(clampedSustain ** 2, time + 0.02)
 }
 
 export function updateEnvelopeAttack(
@@ -84,12 +182,30 @@ export function updateEnvelopeAttack(
   const schedule = getEnvelopeSchedule(envelope, time, peakGain)
   cancelAndHoldAudioParam(parameter, time)
   if (envelope.attackSeconds === 0) parameter.setValueAtTime(peakGain, time)
-  else parameter.linearRampToValueAtTime(peakGain, schedule.attackEnd)
-  parameter.setValueAtTime(peakGain, schedule.holdEnd)
+  else {
+    const heldEnvelopeValue = Math.sqrt(Math.max(0, parameter.value) / peakGain)
+    scheduleAmplitudeCurve(
+      parameter,
+      heldEnvelopeValue,
+      1,
+      time,
+      envelope.attackSeconds,
+      VITAL_ATTACK_POWER,
+      peakGain,
+    )
+  }
   if (envelope.decaySeconds === 0) {
     parameter.setValueAtTime(schedule.sustainGain, schedule.holdEnd)
   } else {
-    parameter.linearRampToValueAtTime(schedule.sustainGain, schedule.decayEnd)
+    scheduleAmplitudeCurve(
+      parameter,
+      1,
+      envelope.sustainLevel,
+      schedule.holdEnd,
+      envelope.decaySeconds,
+      VITAL_DECAY_POWER,
+      peakGain,
+    )
   }
   return schedule
 }
@@ -100,8 +216,12 @@ export function updateEnvelopeDecay(
   time: number,
 ): void {
   cancelAndHoldAudioParam(parameter, time)
-  parameter.linearRampToValueAtTime(
+  scheduleAmplitudeCurve(
+    parameter,
+    Math.sqrt(Math.max(0, parameter.value)),
     Math.max(0, Math.min(1, envelope.sustainLevel)),
-    time + Math.max(0.02, envelope.decaySeconds),
+    time,
+    Math.max(0.02, envelope.decaySeconds),
+    VITAL_DECAY_POWER,
   )
 }

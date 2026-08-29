@@ -11,16 +11,16 @@ const presetCategorySchema = z
 export function createListPresetsTool(): WebMcpToolDefinition {
   return {
     name: 'list_presets',
-    title: 'List curated patch starts',
+    title: 'List patch starts',
     description:
-      'List six validated generated starts. Optionally filter by category, then use load_preset before conservative refinement.',
+      'List validated musical starts and the A–H browser/Vital calibration ladder. Optionally filter by category, then use load_preset before conservative refinement.',
     inputSchema: {
       type: 'object',
       properties: {
         category: {
           type: 'string',
           enum: ['pad', 'bass', 'lead', 'pluck', 'keys', 'atmosphere', 'rhythmic', 'other'],
-          description: 'Optional curated patch category.',
+          description: 'Optional patch category.',
         },
       },
       additionalProperties: false,

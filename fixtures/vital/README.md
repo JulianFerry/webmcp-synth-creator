@@ -26,9 +26,14 @@ version; then run `npm run test:unit -- tests/vital` and update this note.
 ## Browser preview limitation
 
 The browser preview and Vital use different synthesis and rendering engines.
-The preview indicates the musical direction of edits, but it is not timbrally
-or sample-level identical to Vital; the confirmed export sounded substantially
-richer and different in Vital.
+The browser adapter mirrors the pinned Vital subset's modulation polarity and
+destination ranges, quadratic oscillator levels, unison detune/energy/phase
+behavior, LFO and envelope curves, and equal-power delay/reverb mixes. The
+preview should therefore retain the exported patch's level movement, brightness,
+pitch depth, width, and broad envelope/effect balance. Web Audio's oscillator,
+biquad filter, static convolution reverb, and output stage are still different
+algorithms, so timbral or sample-level identity is not expected. A fresh human
+comparison against the pinned Vital version remains required.
 
 ## Pinned export mappings
 
@@ -38,18 +43,23 @@ richer and different in Vital.
 - Vital `1.0.7` has no fixture-backed LFO enable key. Disabled logical LFOs keep their exported routes and amounts but set those route slots' `modulation_N_bypass` to `1`.
 - The one logical amp envelope maps to ENV 1, the modulation envelope maps to ENV 2, and both oscillators use destination `0` (Filter 1). Filter 2 is forced off; extra envelopes and unsupported Filter 2 settings remain at Init values.
 - Logical glide maps to `portamento_time` as `log2(seconds)`; zero uses Vital's `-10` minimum and imports back as zero.
+- Unison detune is a quadratic Vital control. The workbench's linear `0–100%`
+  range represents `0–24` outer-voice cents and maps to Vital's effective
+  `0–12%` range, stored as `sqrt(workbenchDetune × 12)`.
 
 ## Import compatibility boundary
 
-Import is intentionally strict rather than a general Vital-to-workbench converter. It
-accepts Vital `1.0.7` JSON with the same top-level keys, setting inventory, and slot
-counts as `init.vital`. Every field not listed below must remain equal to the pinned
-Init value, so unsupported material is rejected instead of being silently dropped.
+Import first attempts an exact, round-trip-safe conversion against the pinned Vital
+`1.0.7` Init structure. If a structurally valid preset uses another Vital version or
+changes material outside that subset, the same importer falls back to a lossy
+conversion. The lossy path keeps supported controls, bakes current macro values into
+supported destinations, reduces Wave Source and Audio File Source material to harmonic
+frames, and reports every class of omitted or approximated feature in the UI.
 
 The supported subset is:
 
 - preset name, comments/description, and the exporter style/category names; Vital author is informational, while PatchState tags, modulation route IDs, and non-registry custom wavetable IDs are regenerated with a visible warning;
-- oscillator 1 and 2 enablement, level, frame position, transpose, fine tune, unison voices/detune, stereo spread, random phase, and destination `0` through Filter 1;
+- oscillator 1 and 2 enablement, workbench `0–100%` level mapped to Vital's effective `0–0.5` range only at the import/export boundary, frame position, transpose, fine tune, unison voices/detune, stereo spread, random phase, and destination `0` through Filter 1;
 - one canonical `Wave Source` component per oscillator with 1-64 uniformly positioned keyframes, exactly 2,048 finite little-endian float32 samples per frame, interpolation/style `1`, DC removal, and normalization enabled;
 - ENV 1 as the amp envelope, ENV 2 as the modulation envelope, the pinned lowpass Filter 1 model, integer-Hz cutoff, resonance, and Filter 2 off;
 - LFO 1's 2-32 sorted points, powers, shape polarity, canonical smoothing, phase, supported sync/triplet divisions or free rate, plus enabled state inferred from consistently bypassed/enabled LFO routes;
@@ -70,4 +80,7 @@ floating-point tolerance, and filter cutoff is rounded to the nearest whole Hz.
 Overall per-frame wavetable gain is not preserved because both engines normalize it.
 An enabled LFO with no LFO route imports as disabled because Vital `1.0.7` has no
 fixture-backed standalone LFO enable field; this is sonically equivalent until a
-route is added.
+route is added. Lossy imports additionally omit oscillator 3, the sample layer,
+unsupported modulation routes, extra LFOs, wavetable transforms, Filter 2, alternate
+Filter 1 models, and unsupported effects. Imported patches receive a `vital-lossy`
+tag whenever that fallback is used.

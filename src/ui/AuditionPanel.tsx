@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import type { BrowserSynthState } from '../audio/BrowserSynth'
+import { AUDITION_HELD_MIDI_NOTE, type BrowserSynthState } from '../audio/BrowserSynth'
 import type { SupportedPatchPath } from '../patch/paths'
 import type { VoiceState } from '../patch/types'
 import { ParameterSlider } from './controls/ParameterSlider'
@@ -12,27 +12,27 @@ interface AuditionPanelProps {
   onPreview: (path: SupportedPatchPath, value: unknown) => void
   onCancelPreview: (path: SupportedPatchPath) => void
   onStartAudio: () => Promise<void>
-  onNoteOn: (midi: number, velocity?: number) => Promise<void>
+  onNoteOn: (midi: number, velocity?: number, requestedAtMs?: number) => Promise<void>
   onNoteOff: (midi: number) => void
   onReleaseAll: () => void
-  onToggleHeldNote: () => Promise<void>
+  onToggleHeldNote: (requestedAtMs?: number) => Promise<void>
   resetKey: number
 }
 
 const KEYBOARD_NOTES = [
-  { midi: 60, label: 'C', key: 'a', accidental: false },
-  { midi: 61, label: 'C#', key: 'w', accidental: true },
-  { midi: 62, label: 'D', key: 's', accidental: false },
-  { midi: 63, label: 'D#', key: 'e', accidental: true },
-  { midi: 64, label: 'E', key: 'd', accidental: false },
-  { midi: 65, label: 'F', key: 'f', accidental: false },
-  { midi: 66, label: 'F#', key: 't', accidental: true },
-  { midi: 67, label: 'G', key: 'g', accidental: false },
-  { midi: 68, label: 'G#', key: 'y', accidental: true },
-  { midi: 69, label: 'A', key: 'h', accidental: false },
-  { midi: 70, label: 'A#', key: 'u', accidental: true },
-  { midi: 71, label: 'B', key: 'j', accidental: false },
-  { midi: 72, label: 'C', key: 'k', accidental: false },
+  { midi: 48, label: 'C', key: 'a', accidental: false },
+  { midi: 49, label: 'C#', key: 'w', accidental: true },
+  { midi: 50, label: 'D', key: 's', accidental: false },
+  { midi: 51, label: 'D#', key: 'e', accidental: true },
+  { midi: 52, label: 'E', key: 'd', accidental: false },
+  { midi: 53, label: 'F', key: 'f', accidental: false },
+  { midi: 54, label: 'F#', key: 't', accidental: true },
+  { midi: 55, label: 'G', key: 'g', accidental: false },
+  { midi: 56, label: 'G#', key: 'y', accidental: true },
+  { midi: 57, label: 'A', key: 'h', accidental: false },
+  { midi: 58, label: 'A#', key: 'u', accidental: true },
+  { midi: 59, label: 'B', key: 'j', accidental: false },
+  { midi: 60, label: 'C', key: 'k', accidental: false },
 ] as const
 
 const MIDI_BY_KEY = new Map<string, number>(
@@ -58,6 +58,10 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
   const input = target.closest('input')
   return input instanceof HTMLInputElement && !NON_EDITABLE_INPUT_TYPES.has(input.type)
+}
+
+function formatTiming(value: number | null): string {
+  return value === null ? 'n/a' : `${value.toFixed(1)} ms`
 }
 
 export function AuditionPanel({
@@ -92,7 +96,7 @@ export function AuditionPanel({
       if (midi === undefined || event.repeat || isEditableTarget(event.target)) return
       event.preventDefault()
       activeComputerKeys.current.add(key)
-      void onNoteOn(midi, velocityRef.current).then(() => {
+      void onNoteOn(midi, velocityRef.current, performance.now()).then(() => {
         if (!activeComputerKeys.current.has(key)) onNoteOff(midi)
       })
     }
@@ -130,7 +134,7 @@ export function AuditionPanel({
   const startButtonNote = (midi: number, key: string) => {
     const token = `${midi}:${key}`
     activeButtonNotes.current.add(token)
-    void onNoteOn(midi, velocityRef.current).then(() => {
+    void onNoteOn(midi, velocityRef.current, performance.now()).then(() => {
       if (!activeButtonNotes.current.has(token)) onNoteOff(midi)
     })
   }
@@ -144,7 +148,7 @@ export function AuditionPanel({
     event.preventDefault()
     activePointerNotes.current.set(event.pointerId, midi)
     event.currentTarget.setPointerCapture(event.pointerId)
-    void onNoteOn(midi, velocityRef.current).then(() => {
+    void onNoteOn(midi, velocityRef.current, performance.now()).then(() => {
       if (activePointerNotes.current.get(event.pointerId) !== midi) onNoteOff(midi)
     })
   }
@@ -198,10 +202,10 @@ export function AuditionPanel({
             <button
               className={audio.held ? 'button hold-control active' : 'button hold-control'}
               data-testid="hold-note"
-              onClick={() => void onToggleHeldNote()}
+              onClick={() => void onToggleHeldNote(performance.now())}
               type="button"
             >
-              {audio.held ? 'Release C4' : 'Hold C4'}
+              {audio.held ? 'Release C2' : 'Hold C2'}
             </button>
             <button className="button button-quiet" onClick={onReleaseAll} type="button">
               Release all
@@ -218,7 +222,7 @@ export function AuditionPanel({
               const active = audio.activeNotes.includes(note.midi)
               return (
                 <button
-                  aria-label={`${note.label} ${note.midi === 72 ? '5' : '4'}, keyboard ${note.key.toUpperCase()}`}
+                  aria-label={`${note.label} ${note.midi === AUDITION_HELD_MIDI_NOTE + 12 ? '3' : '2'}, keyboard ${note.key.toUpperCase()}`}
                   className={`${note.accidental ? 'note-key accidental' : 'note-key'}${active ? ' active' : ''}`}
                   data-midi={note.midi}
                   data-testid={`note-${note.midi}`}
@@ -249,6 +253,28 @@ export function AuditionPanel({
           <p className="gesture-note">
             Audio stays suspended until a direct gesture. Play with A-W-S-E-D-F-T-G-Y-H-U-J-K.
           </p>
+          {audio.lastNoteOnTiming ? (
+            <div className="note-timing-readout" data-testid="note-on-timing">
+              <span>Last note-on · MIDI {audio.lastNoteOnTiming.midi}</span>
+              <strong>
+                {formatTiming(audio.lastNoteOnTiming.inputToVoiceReadyMs)} input → voice ready
+              </strong>
+              <small>
+                Audio ready {formatTiming(audio.lastNoteOnTiming.audioReadyMs)} · voice graph{' '}
+                {formatTiming(audio.lastNoteOnTiming.voiceGraphBuildMs)} · base{' '}
+                {formatTiming(audio.lastNoteOnTiming.baseLatencyMs)} · output{' '}
+                {formatTiming(audio.lastNoteOnTiming.outputLatencyMs)} · quantum{' '}
+                {formatTiming(audio.lastNoteOnTiming.renderQuantumMs)}
+              </small>
+              <small>
+                Attack {formatTiming(audio.lastNoteOnTiming.attackMs)} · estimated output: first sample{' '}
+                {formatTiming(audio.lastNoteOnTiming.estimatedFirstSampleMs)} · envelope −40 dB{' '}
+                {formatTiming(audio.lastNoteOnTiming.estimatedEnvelopeMinus40DbMs)} · −20 dB{' '}
+                {formatTiming(audio.lastNoteOnTiming.estimatedEnvelopeMinus20DbMs)} ·{' '}
+                {audio.lastNoteOnTiming.estimateSource}
+              </small>
+            </div>
+          ) : null}
         </div>
 
         <div className="voice-controls">

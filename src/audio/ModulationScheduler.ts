@@ -1,5 +1,6 @@
 import { FILTER_CUTOFF_MAX_HZ, FILTER_CUTOFF_MIN_HZ } from '../patch/limits'
 import type { ModulationDestination, PatchState } from '../patch/types'
+import { encodeVitalOscillatorLevel } from '../vital/units'
 import { transposeFrequency } from './units'
 import {
   DEFAULT_TEMPO_BPM,
@@ -32,6 +33,9 @@ interface DestinationAmounts {
   'filter.cutoff': number
 }
 
+const VITAL_TUNE_RANGE_SEMITONES = 2
+const VITAL_FILTER_CUTOFF_RANGE_SEMITONES = 128
+
 const EMPTY_AMOUNTS: DestinationAmounts = {
   'oscillator1.level': 0,
   'oscillator1.wavetablePosition': 0,
@@ -47,7 +51,10 @@ function clamp(value: number, minimum: number, maximum: number): number {
 }
 
 export function modulationSignal(value: number, bipolar: boolean): number {
-  return bipolar ? value * 2 - 1 : value - 1
+  // Vital's modulation processor uses 0..1 for unipolar routes. Bipolar mode
+  // shifts that to -0.5..0.5 so the serialized amount retains the same total
+  // travel around the base value.
+  return bipolar ? value - 0.5 : value
 }
 
 function destinationAmounts(
@@ -78,7 +85,7 @@ export function evaluateModulationFrame(
     const destination = `oscillator${index + 1}.pitch` as ModulationDestination
     return transposeFrequency(
       midi,
-      oscillator.transposeSemitones + amounts[destination] * 12,
+      oscillator.transposeSemitones + amounts[destination] * VITAL_TUNE_RANGE_SEMITONES,
       oscillator.fineTuneCents,
     )
   }) as [number, number]
@@ -86,7 +93,11 @@ export function evaluateModulationFrame(
   return {
     oscillatorLevels: patch.oscillators.map((oscillator, index) => {
       const destination = `oscillator${index + 1}.level` as ModulationDestination
-      return clamp(oscillator.level * (1 + amounts[destination]), 0, 1)
+      // Convert to Vital's raw domain for modulation, then scale its effective
+      // 0..0.5 nominal range back to the browser's unchanged 0..1 range.
+      return (
+        clamp(encodeVitalOscillatorLevel(oscillator.level) + amounts[destination], 0, 1) ** 2 * 2
+      )
     }) as [number, number],
     wavetablePositions: patch.oscillators.map((oscillator, index) => {
       const destination = `oscillator${index + 1}.wavetablePosition` as ModulationDestination
@@ -94,7 +105,8 @@ export function evaluateModulationFrame(
     }) as [number, number],
     oscillatorFrequencies,
     filterCutoffHz: clamp(
-      patch.filter.cutoffHz * 2 ** (amounts['filter.cutoff'] * 4),
+      patch.filter.cutoffHz *
+        2 ** ((amounts['filter.cutoff'] * VITAL_FILTER_CUTOFF_RANGE_SEMITONES) / 12),
       FILTER_CUTOFF_MIN_HZ,
       FILTER_CUTOFF_MAX_HZ,
     ),

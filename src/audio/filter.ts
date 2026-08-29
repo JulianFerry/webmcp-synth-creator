@@ -7,8 +7,15 @@ export interface FilterNodeValues {
   q: number
 }
 
-export function resonanceToQ(resonance: number): number {
+export function resonanceToQ(
+  resonance: number,
+  type: BiquadFilterType = 'lowpass',
+): number {
   const normalized = Math.max(0, Math.min(1, resonance))
+  // Web Audio interprets Q as decibels for low/high-pass filters. A linear
+  // control curve keeps low resonance settings audible; the old squared
+  // curve reduced the calibration patch's 12% resonance to just 0.35 dB.
+  if (type === 'lowpass' || type === 'highpass') return 0.0001 + normalized * 24
   return 0.0001 + normalized ** 2 * 24
 }
 
@@ -28,7 +35,7 @@ export function getFilterNodeValues(
   return {
     type: filter.type,
     frequencyHz: Math.max(FILTER_CUTOFF_MIN_HZ, Math.min(maximumFrequency, filter.cutoffHz)),
-    q: resonanceToQ(filter.resonance),
+    q: resonanceToQ(filter.resonance, filter.type),
   }
 }
 

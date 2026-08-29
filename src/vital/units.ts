@@ -22,6 +22,40 @@ function assertRange(value: number, minimum: number, maximum: number, label: str
   }
 }
 
+export function encodeVitalOscillatorLevel(level: number): number {
+  assertRange(level, 0, 1, 'Oscillator level')
+  return Math.sqrt(level * 0.5)
+}
+
+export function decodeVitalOscillatorLevel(value: number): number {
+  assertRange(value, 0, 1, 'Vital oscillator level')
+  const decoded = value ** 2 * 2
+  if (decoded > 1 + 1e-9) {
+    throw new RangeError('Vital oscillator level exceeds the workbench 100% range')
+  }
+  return Math.min(1, decoded)
+}
+
+// Vital stores this quadratic control in the 0..10 square-root domain. Its
+// effective/UI value is raw² percent, and the pinned detune range converts each
+// effective percent to two cents. The workbench's 0..100% range is deliberately
+// narrower: it represents 0..24 cents, or Vital's effective 0..12% range.
+const VITAL_UNISON_PERCENT_AT_WORKBENCH_MAX = 12
+
+export function encodeVitalUnisonDetune(detune: number): number {
+  assertRange(detune, 0, 1, 'Unison detune')
+  return Math.sqrt(detune * VITAL_UNISON_PERCENT_AT_WORKBENCH_MAX)
+}
+
+export function decodeVitalUnisonDetune(value: number): number {
+  assertRange(value, 0, 10, 'Vital unison detune')
+  const decoded = value ** 2 / VITAL_UNISON_PERCENT_AT_WORKBENCH_MAX
+  if (decoded > 1 + 1e-9) {
+    throw new RangeError('Vital unison detune exceeds the workbench 100% range')
+  }
+  return Math.min(1, decoded)
+}
+
 export function encodeVitalEnvelopeSeconds(
   seconds: number,
   field: VitalEnvelopeTimeField,

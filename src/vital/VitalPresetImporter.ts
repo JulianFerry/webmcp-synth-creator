@@ -1,5 +1,14 @@
 import { parsePatchState } from '../patch/schemas'
-import type { TempoSyncDivision } from '../patch/limits'
+import {
+  DELAY_TIME_MAX_SECONDS,
+  DELAY_TIME_MIN_SECONDS,
+  ENVELOPE_HOLD_MAX_SECONDS,
+  FILTER_CUTOFF_MAX_HZ,
+  FILTER_CUTOFF_MIN_HZ,
+  REVERB_DECAY_MAX_SECONDS,
+  REVERB_DECAY_MIN_SECONDS,
+  type TempoSyncDivision,
+} from '../patch/limits'
 import type {
   EnvelopeState,
   LfoRate,
@@ -25,7 +34,9 @@ import {
   decodeVitalDelaySeconds,
   decodeVitalEnvelopeSeconds,
   decodeVitalGlideSeconds,
+  decodeVitalOscillatorLevel,
   decodeVitalReverbDecaySeconds,
+  decodeVitalUnisonDetune,
 } from './units'
 import { buildVitalWavetable } from './wavetable'
 
@@ -39,7 +50,11 @@ export class VitalImportError extends Error {
 export interface VitalImportResult {
   patch: PatchState
   warnings: string[]
-  sourceVersion: '1.0.7'
+  sourceVersion: string
+}
+
+export interface VitalImportOptions {
+  sourceFilename?: string
 }
 
 const APP_AUTHOR = 'Wavetable Workbench'
@@ -516,14 +531,16 @@ function parseOscillator(
     enabled: numericBoolean(setting(settings, `${prefix}_on`), `${prefix}_on`),
     wavetableId,
     wavetablePosition: setting(settings, `${prefix}_wave_frame`) / 256,
-    level: setting(settings, `${prefix}_level`),
+    level: decodeVitalOscillatorLevel(setting(settings, `${prefix}_level`)),
     transposeSemitones: integer(setting(settings, `${prefix}_transpose`), `${prefix}_transpose`),
     fineTuneCents: setting(settings, `${prefix}_tune`) * 100,
     unisonVoices: integer(
       setting(settings, `${prefix}_unison_voices`),
       `${prefix}_unison_voices`,
     ),
-    unisonDetune: setting(settings, `${prefix}_unison_detune`) / 12,
+    unisonDetune: decodeVitalUnisonDetune(
+      setting(settings, `${prefix}_unison_detune`),
+    ),
     stereoSpread: setting(settings, `${prefix}_stereo_spread`),
     randomPhase: setting(settings, `${prefix}_random_phase`),
   }
@@ -801,17 +818,720 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
   }
 }
 
+interface LossyVitalRoute {
+  slot: number
+  source: string
+  destination: string
+  amount: number
+  bipolar: boolean
+  bypass: boolean
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.max(minimum, Math.min(maximum, value))
+}
+
+function warnOnce(warnings: Set<string>, message: string): void {
+  warnings.add(message)
+}
+
+function lossySetting(
+  settings: Record<string, unknown>,
+  templateSettings: Record<string, unknown>,
+  key: string,
+  warnings: Set<string>,
+): number {
+  const value = settings[key]
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  const fallback = templateSettings[key]
+  if (typeof fallback === 'number' && Number.isFinite(fallback)) {
+    warnOnce(warnings, `Missing or invalid ${key}; the Init value was substituted.`)
+    return fallback
+  }
+  throw new VitalImportError(`Vital settings is missing numeric ${key}`)
+}
+
+function lossyBoolean(value: number): boolean {
+  return value >= 0.5
+}
+
+function filenamePresetName(filename: string | undefined): string | undefined {
+  if (!filename) return undefined
+  const basename = filename.split(/[\\/]/).pop()?.replace(/\.vital$/i, '').trim()
+  return basename ? basename.slice(0, 80) : undefined
+}
+
+function readLossyRoutes(
+  settings: Record<string, unknown>,
+  templateSettings: Record<string, unknown>,
+  warnings: Set<string>,
+): LossyVitalRoute[] {
+  if (!Array.isArray(settings.modulations)) {
+    throw new VitalImportError('Vital settings has no modulation slots')
+  }
+
+  const routes: LossyVitalRoute[] = []
+  settings.modulations.forEach((value, index) => {
+    if (!isRecord(value)) {
+      warnOnce(warnings, 'Malformed modulation slots were ignored.')
+      return
+    }
+    const source = typeof value.source === 'string' ? value.source : ''
+    const destination = typeof value.destination === 'string' ? value.destination : ''
+    if (!source && !destination) return
+    if (!source || !destination) {
+      warnOnce(warnings, 'Incomplete modulation routes were ignored.')
+      return
+    }
+    const slot = index + 1
+    routes.push({
+      slot,
+      source,
+      destination,
+      amount: lossySetting(settings, templateSettings, `modulation_${slot}_amount`, warnings),
+      bipolar: lossyBoolean(
+        lossySetting(settings, templateSettings, `modulation_${slot}_bipolar`, warnings),
+      ),
+      bypass: lossyBoolean(
+        lossySetting(settings, templateSettings, `modulation_${slot}_bypass`, warnings),
+      ),
+    })
+  })
+  return routes
+}
+
+function macroContribution(
+  routes: readonly LossyVitalRoute[],
+  settings: Record<string, unknown>,
+  destination: string,
+): number {
+  return routes.reduce((total, route) => {
+    if (route.bypass || route.destination !== destination || !/^macro_control_[1-4]$/.test(route.source)) {
+      return total
+    }
+    const macro = settings[route.source]
+    return typeof macro === 'number' && Number.isFinite(macro)
+      ? total + route.amount * clamp(macro, 0, 1)
+      : total
+  }, 0)
+}
+
+function recoverMagnitudeHarmonics(samples: Float32Array): WavetableFrameState {
+  const magnitudes: number[] = []
+  for (let harmonic = 1; harmonic <= MAX_HARMONICS; harmonic += 1) {
+    let real = 0
+    let imaginary = 0
+    for (let index = 0; index < samples.length; index += 1) {
+      const angle = (-2 * Math.PI * harmonic * index) / samples.length
+      real += samples[index] * Math.cos(angle)
+      imaginary += samples[index] * Math.sin(angle)
+    }
+    magnitudes.push(Math.hypot(real, imaginary))
+  }
+
+  const maximum = Math.max(...magnitudes)
+  if (maximum < HARMONIC_NOISE_FLOOR) return { harmonics: [0] }
+  const normalized = magnitudes.map((magnitude) => {
+    const value = magnitude / maximum
+    return value < HARMONIC_NOISE_FLOOR ? 0 : Math.min(1, value)
+  })
+  let length = normalized.length
+  while (length > 1 && normalized[length - 1] === 0) length -= 1
+  return { harmonics: normalized.slice(0, length) }
+}
+
+function decodePcm16(value: unknown, label: string): Int16Array {
+  const bytes = decodeBase64(value, label)
+  if (bytes.length < 2 || bytes.length % 2 !== 0) {
+    throw new VitalImportError(`${label} must contain little-endian 16-bit PCM`)
+  }
+  const samples = new Int16Array(bytes.length / 2)
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  for (let index = 0; index < samples.length; index += 1) {
+    samples[index] = view.getInt16(index * 2, true)
+  }
+  return samples
+}
+
+function resampleAudioWindow(
+  samples: Int16Array,
+  startPosition: number,
+  windowSize: number,
+): Float32Array {
+  const output = new Float32Array(VITAL_FRAME_SAMPLE_COUNT)
+  const start = clamp(startPosition, 0, Math.max(0, samples.length - 1))
+  const size = clamp(windowSize, 1, samples.length)
+  for (let index = 0; index < output.length; index += 1) {
+    const position = start + (index * size) / output.length
+    const left = Math.min(samples.length - 1, Math.floor(position))
+    const right = Math.min(samples.length - 1, left + 1)
+    const fraction = position - left
+    output[index] = (samples[left] * (1 - fraction) + samples[right] * fraction) / 32768
+  }
+  return output
+}
+
+function fallbackWavetable(name: string, warnings: Set<string>): WavetableState {
+  const normalized = name.toLowerCase()
+  const id = normalized.includes('sine')
+    ? 'sine'
+    : normalized.includes('triangle')
+      ? 'triangle'
+      : normalized.includes('square')
+        ? 'soft-square'
+        : normalized.includes('saw')
+          ? 'saw'
+          : 'digital'
+  warnOnce(warnings, `Wavetable “${name}” could not be flattened; ${WAVETABLE_REGISTRY[id].name} was substituted.`)
+  return structuredClone(WAVETABLE_REGISTRY[id])
+}
+
+function parseLossyWavetable(
+  value: unknown,
+  slot: number,
+  warnings: Set<string>,
+): WavetableState {
+  if (!isRecord(value)) return fallbackWavetable(`Oscillator ${slot}`, warnings)
+  const name = typeof value.name === 'string' && value.name.trim()
+    ? value.name.trim().slice(0, 80)
+    : `Imported oscillator ${slot}`
+  if (!Array.isArray(value.groups) || value.groups.length < 1) {
+    return fallbackWavetable(name, warnings)
+  }
+
+  const components = value.groups.flatMap((group) =>
+    isRecord(group) && Array.isArray(group.components) ? group.components : [],
+  )
+  const component = components.find(
+    (candidate) =>
+      isRecord(candidate) &&
+      (candidate.type === 'Wave Source' || candidate.type === 'Audio File Source'),
+  )
+  if (!isRecord(component) || typeof component.type !== 'string') {
+    return fallbackWavetable(name, warnings)
+  }
+
+  let frames: WavetableFrameState[]
+  if (component.type === 'Wave Source') {
+    if (!Array.isArray(component.keyframes) || component.keyframes.length < 1) {
+      throw new VitalImportError(`Vital wavetable ${slot} Wave Source has no keyframes`)
+    }
+    frames = component.keyframes.slice(0, 64).map((keyframe, index) => {
+      if (!isRecord(keyframe)) {
+        throw new VitalImportError(`Vital wavetable ${slot} keyframe ${index + 1} must be an object`)
+      }
+      return recoverMagnitudeHarmonics(
+        decodeWaveSamples(
+          keyframe.wave_data,
+          `Vital wavetable ${slot} keyframe ${index + 1} wave_data`,
+        ),
+      )
+    })
+  } else {
+    if (!Array.isArray(component.keyframes) || component.keyframes.length < 1) {
+      throw new VitalImportError(`Vital wavetable ${slot} Audio File Source has no keyframes`)
+    }
+    const audio = decodePcm16(component.audio_file, `Vital wavetable ${slot} audio_file`)
+    frames = component.keyframes.slice(0, 64).map((keyframe, index) => {
+      if (!isRecord(keyframe)) {
+        throw new VitalImportError(`Vital wavetable ${slot} keyframe ${index + 1} must be an object`)
+      }
+      return recoverMagnitudeHarmonics(
+        resampleAudioWindow(
+          audio,
+          finiteNumber(keyframe.start_position, `Vital wavetable ${slot} start_position`),
+          finiteNumber(keyframe.window_size, `Vital wavetable ${slot} window_size`),
+        ),
+      )
+    })
+    warnOnce(warnings, `Audio File Source wavetable “${name}” was reduced to harmonic frames.`)
+  }
+
+  const omittedTransforms = components
+    .filter((candidate) => candidate !== component && isRecord(candidate) && typeof candidate.type === 'string')
+    .map((candidate) => (candidate as Record<string, unknown>).type as string)
+  if (omittedTransforms.length > 0) {
+    warnOnce(
+      warnings,
+      `Wavetable transforms were omitted: ${[...new Set(omittedTransforms)].join(', ')}.`,
+    )
+  }
+  if (value.groups.length > 1) {
+    warnOnce(warnings, 'Only the first usable source across each wavetable’s groups was imported.')
+  }
+  return { id: safeWavetableId(name, slot), name, frames }
+}
+
+function parseLossyEnvelope(
+  settings: Record<string, unknown>,
+  templateSettings: Record<string, unknown>,
+  prefix: 'env_1' | 'env_2',
+  warnings: Set<string>,
+): EnvelopeState {
+  const decode = (field: 'attack' | 'hold' | 'decay' | 'release', maximum: number) => {
+    const seconds = decodeVitalEnvelopeSeconds(
+      Math.max(0, lossySetting(settings, templateSettings, `${prefix}_${field}`, warnings)),
+    )
+    if (seconds > maximum) warnOnce(warnings, 'Envelope times outside workbench bounds were clamped.')
+    return clamp(seconds, 0, maximum)
+  }
+  return {
+    attackSeconds: decode('attack', 10),
+    holdSeconds: decode('hold', ENVELOPE_HOLD_MAX_SECONDS),
+    decaySeconds: decode('decay', 10),
+    sustainLevel: clamp(
+      lossySetting(settings, templateSettings, `${prefix}_sustain`, warnings),
+      0,
+      1,
+    ),
+    releaseSeconds: decode('release', 20),
+  }
+}
+
+function parseLossyOscillator(
+  settings: Record<string, unknown>,
+  templateSettings: Record<string, unknown>,
+  routes: readonly LossyVitalRoute[],
+  index: 1 | 2,
+  wavetableId: string,
+  warnings: Set<string>,
+): OscillatorState {
+  const prefix = `osc_${index}`
+  const enabled = lossyBoolean(lossySetting(settings, templateSettings, `${prefix}_on`, warnings))
+  const destination = lossySetting(settings, templateSettings, `${prefix}_destination`, warnings)
+  if (destination !== 0) {
+    warnOnce(warnings, 'Oscillator routing outside Filter 1 was collapsed into the workbench signal path.')
+  }
+
+  let rawLevel =
+    lossySetting(settings, templateSettings, `${prefix}_level`, warnings) +
+    macroContribution(routes, settings, `${prefix}_level`)
+  if (enabled && rawLevel <= 1e-6) {
+    const drivenLevel = routes
+      .filter(
+        (route) =>
+          !route.bypass &&
+          route.destination === `${prefix}_level` &&
+          !/^macro_control_[1-4]$/.test(route.source),
+      )
+      .reduce((maximum, route) => Math.max(maximum, Math.abs(route.amount)), 0)
+    if (drivenLevel > 0) {
+      rawLevel = Math.min(Math.SQRT1_2, drivenLevel)
+      warnOnce(warnings, 'Unsupported oscillator-level modulation was baked into a nominal audible level.')
+    }
+  }
+  const clampedLevel = clamp(rawLevel, 0, Math.SQRT1_2)
+  if (clampedLevel !== rawLevel) {
+    warnOnce(warnings, 'Oscillator levels above the workbench range were clamped.')
+  }
+
+  const transpose = Math.round(
+    lossySetting(settings, templateSettings, `${prefix}_transpose`, warnings),
+  )
+  if (transpose < -24 || transpose > 24) {
+    warnOnce(warnings, 'Oscillator transposition outside ±24 semitones was clamped.')
+  }
+  return {
+    enabled,
+    wavetableId,
+    wavetablePosition: clamp(
+      lossySetting(settings, templateSettings, `${prefix}_wave_frame`, warnings) / 256 +
+        macroContribution(routes, settings, `${prefix}_wave_frame`),
+      0,
+      1,
+    ),
+    level: clamp(clampedLevel ** 2 * 2, 0, 1),
+    transposeSemitones: clamp(transpose, -24, 24),
+    fineTuneCents: clamp(
+      lossySetting(settings, templateSettings, `${prefix}_tune`, warnings) * 100,
+      -100,
+      100,
+    ),
+    unisonVoices: clamp(
+      Math.round(lossySetting(settings, templateSettings, `${prefix}_unison_voices`, warnings)),
+      1,
+      8,
+    ),
+    unisonDetune: clamp(
+      lossySetting(settings, templateSettings, `${prefix}_unison_detune`, warnings) ** 2 / 12,
+      0,
+      1,
+    ),
+    stereoSpread: clamp(
+      lossySetting(settings, templateSettings, `${prefix}_stereo_spread`, warnings),
+      0,
+      1,
+    ),
+    randomPhase: clamp(
+      lossySetting(settings, templateSettings, `${prefix}_random_phase`, warnings),
+      0,
+      1,
+    ),
+  }
+}
+
+function parseLossyModulations(
+  routes: readonly LossyVitalRoute[],
+  warnings: Set<string>,
+): { routes: ModulationRoute[]; lfoEnabled: boolean } {
+  const sourceMap: Record<string, ModulationSource | undefined> = {
+    lfo_1: 'lfo1',
+    env_2: 'modEnvelope',
+  }
+  const destinationMap: Record<string, ModulationDestination | undefined> = {
+    osc_1_level: 'oscillator1.level',
+    osc_1_wave_frame: 'oscillator1.wavetablePosition',
+    osc_1_tune: 'oscillator1.pitch',
+    osc_1_transpose: 'oscillator1.pitch',
+    osc_2_level: 'oscillator2.level',
+    osc_2_wave_frame: 'oscillator2.wavetablePosition',
+    osc_2_tune: 'oscillator2.pitch',
+    osc_2_transpose: 'oscillator2.pitch',
+    filter_1_cutoff: 'filter.cutoff',
+  }
+  const imported: ModulationRoute[] = []
+  const pairs = new Set<string>()
+  let dropped = 0
+  let mappedTranspose = false
+
+  for (const route of routes) {
+    if (route.bypass || /^macro_control_[1-4]$/.test(route.source)) continue
+    const source = sourceMap[route.source]
+    const destination = destinationMap[route.destination]
+    if (!source || !destination) {
+      dropped += 1
+      continue
+    }
+    const pair = `${source}:${destination}`
+    if (pairs.has(pair)) {
+      dropped += 1
+      continue
+    }
+    pairs.add(pair)
+    mappedTranspose ||= route.destination.endsWith('_transpose')
+    imported.push({
+      id: `vital-route-${route.slot}`,
+      source,
+      destination,
+      amount: clamp(route.amount, -1, 1),
+      bipolar: route.bipolar,
+    })
+  }
+  if (dropped > 0) warnOnce(warnings, `${dropped} unsupported modulation route(s) were omitted.`)
+  if (mappedTranspose) {
+    warnOnce(warnings, 'Transpose modulation was mapped to the workbench’s narrower pitch range.')
+  }
+  return {
+    routes: imported,
+    lfoEnabled: imported.some(({ source }) => source === 'lfo1'),
+  }
+}
+
+function parseLossyLfo(
+  settings: Record<string, unknown>,
+  templateSettings: Record<string, unknown>,
+  enabled: boolean,
+  warnings: Set<string>,
+): LfoState {
+  const slots = settings.lfos
+  if (!Array.isArray(slots) || !isRecord(slots[0])) {
+    throw new VitalImportError('Vital settings has no usable LFO 1 slot')
+  }
+  const lfo = slots[0]
+  const rawPoints = Array.isArray(lfo.points) ? lfo.points : []
+  const rawPowers = Array.isArray(lfo.powers) ? lfo.powers : []
+  const declaredCount = typeof lfo.num_points === 'number' ? Math.round(lfo.num_points) : 0
+  const pointCount = clamp(Math.min(declaredCount, Math.floor(rawPoints.length / 2)), 2, 32)
+  if (rawPoints.length < pointCount * 2) {
+    throw new VitalImportError('Vital LFO 1 has insufficient point data')
+  }
+  const points = Array.from({ length: pointCount }, (_, index) => ({
+    x: clamp(finiteNumber(rawPoints[index * 2], `Vital LFO 1 point ${index + 1} x`), 0, 1),
+    y: clamp(
+      decodeVitalLfoPointValue(
+        finiteNumber(rawPoints[index * 2 + 1], `Vital LFO 1 point ${index + 1} y`),
+      ),
+      0,
+      1,
+    ),
+    power: clamp(
+      typeof rawPowers[index] === 'number' && Number.isFinite(rawPowers[index])
+        ? rawPowers[index]
+        : 0,
+      -1,
+      1,
+    ),
+  })).sort((left, right) => left.x - right.x)
+  if (rawPowers.some((power) => typeof power === 'number' && Math.abs(power) > 1)) {
+    warnOnce(warnings, 'LFO curve powers outside the workbench range were clamped.')
+  }
+
+  const sync = Math.round(lossySetting(settings, templateSettings, 'lfo_1_sync', warnings))
+  let rate: LfoRate
+  if (sync === 0) {
+    rate = {
+      mode: 'free',
+      hz: clamp(
+        2 ** lossySetting(settings, templateSettings, 'lfo_1_frequency', warnings),
+        0.01,
+        40,
+      ),
+    }
+  } else {
+    const tempo = Math.round(lossySetting(settings, templateSettings, 'lfo_1_tempo', warnings))
+    const division = sync === 3 ? VITAL_TRIPLET_DIVISIONS[tempo] : VITAL_TEMPO_DIVISIONS[tempo]
+    if (!division) warnOnce(warnings, 'An unsupported LFO division was mapped to 1/1.')
+    rate = { mode: 'sync', division: division ?? '1/1' }
+  }
+  const syncType = lossySetting(settings, templateSettings, 'lfo_1_sync_type', warnings)
+  if (syncType !== 0) warnOnce(warnings, 'LFO trigger/envelope mode was approximated by the looping workbench LFO.')
+  return {
+    enabled,
+    points,
+    rate,
+    phase: clamp(lossySetting(settings, templateSettings, 'lfo_1_phase', warnings), 0, 1),
+    smooth: lfo.smooth === true,
+  }
+}
+
+function lossyDelayDivision(sync: number, tempo: number, warnings: Set<string>): TempoSyncDivision {
+  const division = sync === 3 ? VITAL_TRIPLET_DIVISIONS[tempo] : VITAL_TEMPO_DIVISIONS[tempo]
+  if (!division) warnOnce(warnings, 'An unsupported delay division was mapped to 1/4.')
+  return division ?? '1/4'
+}
+
+function parseLossyPatch(
+  value: unknown,
+  template: VitalPresetDocument,
+  options: VitalImportOptions,
+  strictError: VitalImportError,
+): VitalImportResult {
+  const document = record(value, 'Vital preset')
+  const settings = record(document.settings, 'Vital settings')
+  const templateSettings = record(template.settings, 'Template Vital settings')
+  const sourceVersion = stringValue(document.synth_version, 'Vital synth_version')
+  if (!sourceVersion.trim()) throw new VitalImportError('Vital synth_version must not be empty')
+  const warnings = new Set<string>()
+  warnOnce(warnings, `Imported with losses after the exact compatibility path rejected the preset: ${strictError.message}`)
+  if (sourceVersion !== template.synth_version) {
+    warnOnce(warnings, `Vital ${sourceVersion} was interpreted using the ${template.synth_version} parameter model.`)
+  }
+
+  const routes = readLossyRoutes(settings, templateSettings, warnings)
+  if (routes.some(({ source, bypass }) => !bypass && /^macro_control_[1-4]$/.test(source))) {
+    warnOnce(warnings, 'Current macro values were baked into supported destinations; interactive macro routing was omitted.')
+  }
+  const modulation = parseLossyModulations(routes, warnings)
+
+  if (!Array.isArray(settings.wavetables) || settings.wavetables.length < 2) {
+    throw new VitalImportError('Vital preset must contain at least two wavetable slots')
+  }
+  const firstWavetable = parseLossyWavetable(settings.wavetables[0], 1, warnings)
+  const secondWavetable = parseLossyWavetable(settings.wavetables[1], 2, warnings)
+  const wavetableData = Object.fromEntries(
+    [firstWavetable, secondWavetable].map((wavetable) => [wavetable.id, wavetable]),
+  )
+  const oscillators: [OscillatorState, OscillatorState] = [
+    parseLossyOscillator(
+      settings,
+      templateSettings,
+      routes,
+      1,
+      firstWavetable.id,
+      warnings,
+    ),
+    parseLossyOscillator(
+      settings,
+      templateSettings,
+      routes,
+      2,
+      secondWavetable.id,
+      warnings,
+    ),
+  ]
+
+  const activeProcessors = ['distortion', 'compressor'].filter((name) =>
+    lossyBoolean(lossySetting(settings, templateSettings, `${name}_on`, warnings)),
+  )
+  const peakLevel = Math.max(...oscillators.filter(({ enabled }) => enabled).map(({ level }) => level), 0)
+  if (activeProcessors.length > 0 && peakLevel > 0 && peakLevel < 0.1) {
+    const scale = 0.7 / peakLevel
+    oscillators.forEach((oscillator) => {
+      if (oscillator.enabled) oscillator.level = Math.min(1, oscillator.level * scale)
+    })
+    warnOnce(warnings, 'Very low oscillator levels were normalized because nonlinear gain effects were omitted.')
+  }
+
+  const omittedSources: string[] = []
+  if (lossyBoolean(lossySetting(settings, templateSettings, 'osc_3_on', warnings))) omittedSources.push('oscillator 3')
+  if (lossyBoolean(lossySetting(settings, templateSettings, 'sample_on', warnings))) omittedSources.push('sample layer')
+  if (omittedSources.length > 0) warnOnce(warnings, `Unsupported sound sources were omitted: ${omittedSources.join(', ')}.`)
+
+  const omittedEffects = ['chorus', 'distortion', 'compressor', 'phaser', 'flanger', 'eq'].filter(
+    (name) => lossyBoolean(lossySetting(settings, templateSettings, `${name}_on`, warnings)),
+  )
+  if (omittedEffects.length > 0) {
+    warnOnce(warnings, `Unsupported enabled effects were omitted: ${omittedEffects.join(', ')}.`)
+  }
+
+  const filterModel = lossySetting(settings, templateSettings, 'filter_1_model', warnings)
+  const filterStyle = lossySetting(settings, templateSettings, 'filter_1_style', warnings)
+  if (filterModel !== templateSettings.filter_1_model || filterStyle !== templateSettings.filter_1_style) {
+    warnOnce(warnings, 'The original Filter 1 model was mapped to the workbench low-pass filter.')
+  }
+  if (lossyBoolean(lossySetting(settings, templateSettings, 'filter_2_on', warnings))) {
+    warnOnce(warnings, 'Filter 2 was omitted.')
+  }
+  const cutoffControl =
+    lossySetting(settings, templateSettings, 'filter_1_cutoff', warnings) +
+    macroContribution(routes, settings, 'filter_1_cutoff') * 128
+
+  const style = typeof document.preset_style === 'string' ? document.preset_style : ''
+  const category = VITAL_STYLE_CATEGORIES[style] ?? 'other'
+  if (!(style in VITAL_STYLE_CATEGORIES)) {
+    warnOnce(warnings, `Vital style “${style || '(empty)'}” was mapped to Other.`)
+  }
+  const documentName = typeof document.preset_name === 'string' ? document.preset_name.trim() : ''
+  const name = (documentName || filenamePresetName(options.sourceFilename) || 'Imported Vital preset').slice(0, 80)
+  if (!documentName) warnOnce(warnings, 'The preset name was recovered from the source filename.')
+  const comments = typeof document.comments === 'string' ? document.comments.trim().slice(0, 500) : ''
+
+  const delaySync = Math.round(lossySetting(settings, templateSettings, 'delay_sync', warnings))
+  const delayFrequency = clamp(
+    lossySetting(settings, templateSettings, 'delay_frequency', warnings),
+    -2,
+    9,
+  )
+  const delayTime = clamp(
+    decodeVitalDelaySeconds(delayFrequency),
+    DELAY_TIME_MIN_SECONDS,
+    DELAY_TIME_MAX_SECONDS,
+  )
+  const delayMode = delaySync === 0 ? 'free' : 'sync'
+  const reverbDecay = decodeVitalReverbDecaySeconds(
+    clamp(lossySetting(settings, templateSettings, 'reverb_decay_time', warnings), -6, 6),
+  )
+
+  const patchCandidate = {
+    version: 1,
+    metadata: {
+      name,
+      category,
+      ...(comments ? { description: comments } : {}),
+      tags: ['vital-import', 'vital-lossy'],
+    },
+    oscillators,
+    ampEnvelope: parseLossyEnvelope(settings, templateSettings, 'env_1', warnings),
+    modEnvelope: parseLossyEnvelope(settings, templateSettings, 'env_2', warnings),
+    filter: {
+      enabled: lossyBoolean(lossySetting(settings, templateSettings, 'filter_1_on', warnings)),
+      type: 'lowpass',
+      cutoffHz: clamp(
+        decodeFilterCutoff(cutoffControl),
+        FILTER_CUTOFF_MIN_HZ,
+        FILTER_CUTOFF_MAX_HZ,
+      ),
+      resonance: clamp(
+        lossySetting(settings, templateSettings, 'filter_1_resonance', warnings),
+        0,
+        1,
+      ),
+    },
+    lfo1: parseLossyLfo(settings, templateSettings, modulation.lfoEnabled, warnings),
+    modulations: modulation.routes,
+    voice: {
+      polyphony: clamp(
+        Math.round(lossySetting(settings, templateSettings, 'polyphony', warnings)),
+        1,
+        16,
+      ),
+      legato: lossyBoolean(lossySetting(settings, templateSettings, 'legato', warnings)),
+      glideSeconds: decodeVitalGlideSeconds(
+        clamp(
+          lossySetting(settings, templateSettings, 'portamento_time', warnings),
+          -10,
+          Math.log2(5),
+        ),
+      ),
+      velocitySensitivity: clamp(
+        lossySetting(settings, templateSettings, 'velocity_track', warnings),
+        0,
+        1,
+      ),
+    },
+    effects: {
+      delay: {
+        enabled: lossyBoolean(lossySetting(settings, templateSettings, 'delay_on', warnings)),
+        mode: delayMode,
+        ...(delayMode === 'sync'
+          ? {
+              division: lossyDelayDivision(
+                delaySync,
+                Math.round(lossySetting(settings, templateSettings, 'delay_tempo', warnings)),
+                warnings,
+              ),
+            }
+          : {}),
+        timeSeconds: delayTime,
+        feedback: clamp(
+          lossySetting(settings, templateSettings, 'delay_feedback', warnings),
+          0,
+          1,
+        ),
+        mix: clamp(lossySetting(settings, templateSettings, 'delay_dry_wet', warnings), 0, 1),
+      },
+      reverb: {
+        enabled: lossyBoolean(lossySetting(settings, templateSettings, 'reverb_on', warnings)),
+        mix: clamp(lossySetting(settings, templateSettings, 'reverb_dry_wet', warnings), 0, 1),
+        decaySeconds: clamp(
+          reverbDecay,
+          REVERB_DECAY_MIN_SECONDS,
+          REVERB_DECAY_MAX_SECONDS,
+        ),
+        size: clamp(lossySetting(settings, templateSettings, 'reverb_size', warnings), 0, 1),
+      },
+    },
+    wavetableData,
+  }
+
+  try {
+    const patch = parsePatchState(patchCandidate)
+    if (document.author !== APP_AUTHOR) {
+      warnOnce(warnings, 'Vital author metadata is informational and is not retained in PatchState.')
+    }
+    return { patch, warnings: [...warnings], sourceVersion }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'unknown schema error'
+    throw new VitalImportError(`Lossy Vital import is outside PatchState bounds: ${detail}`)
+  }
+}
+
+function isLossyCandidate(value: unknown): value is Record<string, unknown> {
+  return (
+    isRecord(value) &&
+    typeof value.synth_version === 'string' &&
+    value.synth_version.trim().length > 0 &&
+    isRecord(value.settings)
+  )
+}
+
 export function importVitalPatch(
   value: unknown,
   template: VitalPresetDocument,
+  options: VitalImportOptions = {},
 ): VitalImportResult {
-  assertDocumentEnvelope(value, template)
-  const patch = parsePatch(value, template)
-  const warnings = [
-    'Vital has no PatchState tags or modulation route IDs; import uses a vital-import tag and generated route IDs. Custom wavetable IDs are regenerated unless the table exactly matches the built-in registry.',
-  ]
-  if (value.author !== APP_AUTHOR) {
-    warnings.push('Vital author metadata is informational and is not retained in PatchState.')
+  try {
+    assertDocumentEnvelope(value, template)
+    const patch = parsePatch(value, template)
+    const warnings = [
+      'Vital has no PatchState tags or modulation route IDs; import uses a vital-import tag and generated route IDs. Custom wavetable IDs are regenerated unless the table exactly matches the built-in registry.',
+    ]
+    if (value.author !== APP_AUTHOR) {
+      warnings.push('Vital author metadata is informational and is not retained in PatchState.')
+    }
+    return { patch, warnings, sourceVersion: value.synth_version }
+  } catch (error) {
+    if (!(error instanceof VitalImportError) || !isLossyCandidate(value)) throw error
+    return parseLossyPatch(value, template, options, error)
   }
-  return { patch, warnings, sourceVersion: '1.0.7' }
 }

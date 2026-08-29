@@ -106,13 +106,16 @@ test('responsive top patch controls expose keyboard and screen-reader semantics'
   await page.goto('/')
   await expect(page.getByTestId('vital-status')).toContainText('ready')
 
-  const selector = page.getByRole('combobox', { name: 'Curated patch' })
+  const selector = page.getByRole('combobox', { name: 'Starting patch' })
   const importButton = page.getByRole('button', { name: 'Import Vital' })
   const exportButton = page.getByRole('button', { name: 'Export Vital' })
   await expect(selector).toBeVisible()
   await expect(importButton).toBeVisible()
   await expect(exportButton).toBeVisible()
-  await expect(selector.locator('option')).toHaveCount(7)
+  await expect(selector.locator('option')).toHaveCount(15)
+  await expect(page.getByTestId('hold-note')).toHaveText('Hold C2')
+  await expect(page.getByTestId('note-48')).toHaveAttribute('aria-label', 'C 2, keyboard A')
+  await expect(page.getByTestId('note-60')).toHaveAttribute('aria-label', 'C 3, keyboard K')
   await expect(page.getByTestId('import-vital-input')).toHaveAttribute(
     'accept',
     '.vital,application/json',

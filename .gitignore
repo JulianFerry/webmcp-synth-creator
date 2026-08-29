@@ -10,3 +10,6 @@ test-results/
 coverage/
 *.log
 .DS_Store
+
+# Local development files
+prototype/

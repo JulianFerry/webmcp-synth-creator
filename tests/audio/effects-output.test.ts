@@ -15,23 +15,29 @@ import { SessionService } from '../../src/session/SessionService'
 import { FakeAudioContext } from './fakes'
 
 describe('browser effect topology', () => {
-  it('keeps reverb dry at unity while mix controls only the wet send', () => {
+  it('uses equal-power dry/wet mixing for reverb', () => {
     const patch = createDefaultPatch()
     patch.effects.reverb.enabled = true
     patch.effects.reverb.mix = 0.5
 
-    expect(reverbSendGains(patch.effects.reverb)).toEqual({ dry: 1, wet: 0.5 })
+    expect(reverbSendGains(patch.effects.reverb)).toEqual({
+      dry: expect.closeTo(Math.SQRT1_2),
+      wet: expect.closeTo(Math.SQRT1_2),
+    })
 
     patch.effects.reverb.enabled = false
     expect(reverbSendGains(patch.effects.reverb)).toEqual({ dry: 1, wet: 0 })
   })
 
-  it('keeps delay as an explicit insert-style wet/dry crossfade', () => {
+  it('uses Vital-style equal-power dry/wet mixing for delay', () => {
     const patch = createDefaultPatch()
     patch.effects.delay.enabled = true
     patch.effects.delay.mix = 0.5
 
-    expect(delayInsertMixGains(patch.effects.delay)).toEqual({ dry: 0.5, wet: 0.5 })
+    expect(delayInsertMixGains(patch.effects.delay)).toEqual({
+      dry: expect.closeTo(Math.SQRT1_2),
+      wet: expect.closeTo(Math.SQRT1_2),
+    })
 
     patch.effects.delay.enabled = false
     expect(delayInsertMixGains(patch.effects.delay)).toEqual({ dry: 1, wet: 0 })

@@ -7,7 +7,6 @@ import { createDefaultPatch } from '../../src/patch/defaults'
 import type { PatchState } from '../../src/patch/types'
 import { getPresetPatch, listPresets } from '../../src/presets/registry'
 import { VitalPresetAdapter, type VitalPresetDocument } from '../../src/vital/VitalPresetAdapter'
-import { VitalImportError } from '../../src/vital/VitalPresetImporter'
 
 function realAdapter(): VitalPresetAdapter {
   return new VitalPresetAdapter(
@@ -109,38 +108,113 @@ describe('VitalPresetAdapter import', () => {
     }
   })
 
-  it('rejects unsupported versions, routing, modulation sources, and template material', () => {
+  it('imports unsupported versions and features through the same lossy path', () => {
     const adapter = realAdapter()
     const exported = adapter.exportPatch(createDefaultPatch()).document
 
     const wrongVersion = cloneDocument(exported)
     wrongVersion.synth_version = '1.5.5'
-    expect(() => adapter.importPatch(wrongVersion)).toThrow(/Unsupported Vital version/)
+    const versionImport = adapter.importPatch(wrongVersion)
+    expect(versionImport.sourceVersion).toBe('1.5.5')
+    expect(versionImport.patch.metadata.tags).toContain('vital-lossy')
+    expect(versionImport.warnings).toEqual([
+      expect.stringContaining('exact compatibility path rejected'),
+      expect.stringContaining('1.5.5'),
+    ])
 
     const wrongRouting = cloneDocument(exported)
     wrongRouting.settings.osc_1_destination = 1
-    expect(() => adapter.importPatch(wrongRouting)).toThrow(/route only through Filter 1/)
+    expect(adapter.importPatch(wrongRouting).warnings).toContain(
+      'Oscillator routing outside Filter 1 was collapsed into the workbench signal path.',
+    )
 
     const filterTwo = cloneDocument(exported)
     filterTwo.settings.filter_2_on = 1
-    expect(() => adapter.importPatch(filterTwo)).toThrow(/Filter 2 must be off/)
+    expect(adapter.importPatch(filterTwo).warnings).toContain('Filter 2 was omitted.')
 
     const unsupportedRoute = cloneDocument(exported)
     ;(unsupportedRoute.settings.modulations as Array<Record<string, unknown>>)[0].source = 'lfo_2'
-    expect(() => adapter.importPatch(unsupportedRoute)).toThrow(/Unsupported Vital modulation route/)
+    expect(adapter.importPatch(unsupportedRoute).warnings).toContain(
+      '1 unsupported modulation route(s) were omitted.',
+    )
 
     const unsupportedDestination = cloneDocument(exported)
     ;(
       unsupportedDestination.settings.modulations as Array<Record<string, unknown>>
     )[0].destination = 'filter_2_cutoff'
-    expect(() => adapter.importPatch(unsupportedDestination)).toThrow(
-      /Unsupported Vital modulation route/,
+    expect(adapter.importPatch(unsupportedDestination).warnings).toContain(
+      '1 unsupported modulation route(s) were omitted.',
     )
 
     const sampleMaterial = cloneDocument(exported)
     const sample = sampleMaterial.settings.sample as Record<string, unknown>
     sample.name = 'Unsupported sample'
-    expect(() => adapter.importPatch(sampleMaterial)).toThrow(/Unsupported Vital setting changed: sample/)
+    expect(adapter.importPatch(sampleMaterial).patch.metadata.tags).toContain('vital-lossy')
+  })
+
+  it('imports legacy metadata, audio-file wavetables, and out-of-range controls with warnings', () => {
+    const adapter = realAdapter()
+    const legacy = cloneDocument(adapter.exportPatch(createDefaultPatch()).document)
+    const pcm = Buffer.alloc(2048 * 2)
+    for (let index = 0; index < 2048; index += 1) {
+      pcm.writeInt16LE(Math.round(Math.sin((2 * Math.PI * index) / 2048) * 32767), index * 2)
+    }
+
+    delete legacy.preset_name
+    legacy.synth_version = '0.9.0'
+    legacy.preset_style = 'Percussion'
+    legacy.settings.osc_1_transpose = -27
+    legacy.settings.osc_1_level = 0
+    legacy.settings.osc_3_on = 1
+    legacy.settings.sample_on = 1
+    legacy.settings.distortion_on = 1
+    legacy.settings.compressor_on = 1
+    legacy.settings.lfo_1_sync_type = 2
+    ;(legacy.settings.lfos as Array<Record<string, unknown>>)[0].powers = [8, 0, 0]
+    ;(legacy.settings.wavetables as Array<Record<string, unknown>>)[0] = {
+      name: 'Legacy Audio Table',
+      groups: [
+        {
+          components: [
+            {
+              type: 'Audio File Source',
+              audio_file: pcm.toString('base64'),
+              keyframes: [{ position: 0, start_position: 0, window_size: 2048 }],
+            },
+            { type: 'Wave Folder', keyframes: [{ position: 0, fold_boost: 2 }] },
+          ],
+        },
+      ],
+    }
+    const modulations = legacy.settings.modulations as Array<Record<string, unknown>>
+    modulations[0] = { source: 'lfo_1', destination: 'osc_1_transpose' }
+    legacy.settings.modulation_1_amount = 0.63
+    modulations[1] = { source: 'lfo_2', destination: 'osc_1_level' }
+    legacy.settings.modulation_2_amount = 1
+
+    const imported = adapter.importPatch(legacy, { sourceFilename: 'Kick Drum 1.vital' })
+    expect(imported.sourceVersion).toBe('0.9.0')
+    expect(imported.patch.metadata).toMatchObject({
+      name: 'Kick Drum 1',
+      category: 'other',
+      tags: ['vital-import', 'vital-lossy'],
+    })
+    expect(imported.patch.oscillators[0]).toMatchObject({
+      level: 1,
+      transposeSemitones: -24,
+    })
+    expect(imported.patch.wavetableData['vital-osc-1-legacy-audio-table'].frames).toHaveLength(1)
+    expect(imported.patch.modulations).toEqual([
+      expect.objectContaining({ source: 'lfo1', destination: 'oscillator1.pitch' }),
+    ])
+    expect(imported.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('source filename'),
+        expect.stringContaining('Audio File Source'),
+        expect.stringContaining('sample layer'),
+        expect.stringContaining('distortion, compressor'),
+      ]),
+    )
   })
 
   it('rejects malformed required structure and invalid encoded frame data', () => {
@@ -165,7 +239,9 @@ describe('VitalPresetAdapter import', () => {
     const phaseKeyframe = (phaseComponent.keyframes as Array<Record<string, unknown>>)[0]
     const encoded = phaseKeyframe.wave_data as string
     phaseKeyframe.wave_data = `${encoded.slice(0, 12)}AAAA${encoded.slice(16)}`
-    expect(() => adapter.importPatch(unsupportedPhase)).toThrow(VitalImportError)
+    const phaseImport = adapter.importPatch(unsupportedPhase)
+    expect(phaseImport.patch.metadata.tags).toContain('vital-lossy')
+    expect(phaseImport.warnings[0]).toContain('exact compatibility path rejected')
   })
 
   it('refuses to export filter models that the pinned importer cannot represent truthfully', () => {

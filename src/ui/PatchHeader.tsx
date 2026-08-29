@@ -26,6 +26,8 @@ export function PatchHeader({
   onExport,
 }: PatchHeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const musicalPresets = presets.filter(({ tags }) => !tags.includes('calibration'))
+  const calibrationPresets = presets.filter(({ tags }) => tags.includes('calibration'))
 
   const handleFileSelection = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0]
@@ -42,7 +44,7 @@ export function PatchHeader({
       </div>
       <div className="masthead-actions">
         <label className="header-preset-control" htmlFor="curated-patch-select">
-          <span>Curated patch</span>
+          <span>Starting patch</span>
           <select
             aria-describedby="vital-compatibility-hint"
             data-testid="preset-selector"
@@ -55,11 +57,20 @@ export function PatchHeader({
             <option disabled value="">
               Custom / edited patch
             </option>
-            {presets.map((preset) => (
-              <option key={preset.id} value={preset.id}>
-                {preset.name}
-              </option>
-            ))}
+            <optgroup label="Curated patches">
+              {musicalPresets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Calibration ladder">
+              {calibrationPresets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.name}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </label>
         <input
@@ -94,8 +105,9 @@ export function PatchHeader({
           {exportFilename}
         </code>
         <span className="visually-hidden" id="vital-compatibility-hint">
-          Import accepts the supported Vital 1.0.7 subset. Loading a patch replaces only the
-          selected A or B variant and can be undone.
+          Import preserves the supported Vital 1.0.7 subset and warns when other versions or
+          features require a lossy conversion. Loading a patch replaces only the selected A or B
+          variant and can be undone.
         </span>
       </div>
     </header>

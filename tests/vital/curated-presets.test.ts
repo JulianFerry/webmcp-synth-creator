@@ -36,6 +36,10 @@ describe('curated preset Vital structure', () => {
       })
 
       expect(settings).toMatchObject({
+        osc_1_level: Math.sqrt(patch.oscillators[0].level * 0.5),
+        osc_2_level: Math.sqrt(patch.oscillators[1].level * 0.5),
+        osc_1_unison_detune: Math.sqrt(patch.oscillators[0].unisonDetune * 12),
+        osc_2_unison_detune: Math.sqrt(patch.oscillators[1].unisonDetune * 12),
         env_1_sustain: patch.ampEnvelope.sustainLevel,
         env_2_sustain: patch.modEnvelope.sustainLevel,
         delay_on: Number(patch.effects.delay.enabled),

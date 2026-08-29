@@ -1,7 +1,14 @@
 export interface AutomationCall {
-  method: 'cancelAndHold' | 'cancel' | 'set' | 'linearRamp' | 'exponentialRamp'
+  method:
+    | 'cancelAndHold'
+    | 'cancel'
+    | 'set'
+    | 'curve'
+    | 'linearRamp'
+    | 'exponentialRamp'
   value?: number
   time: number
+  duration?: number
 }
 
 export class FakeAudioParam {
@@ -26,6 +33,11 @@ export class FakeAudioParam {
     this.calls.push({ method: 'linearRamp', value, time })
   }
 
+  setValueCurveAtTime(values: Float32Array, time: number, duration: number): void {
+    this.value = values.at(-1) ?? this.value
+    this.calls.push({ method: 'curve', value: this.value, time, duration })
+  }
+
   exponentialRampToValueAtTime(value: number, time: number): void {
     this.value = value
     this.calls.push({ method: 'exponentialRamp', value, time })
@@ -34,6 +46,9 @@ export class FakeAudioParam {
 
 export class FakeAudioNode {
   readonly connections: unknown[] = []
+  channelCount = 2
+  channelCountMode: ChannelCountMode = 'max'
+  channelInterpretation: ChannelInterpretation = 'speakers'
 
   constructor(readonly context: FakeAudioContext) {}
 
@@ -51,6 +66,7 @@ export class FakeBiquadFilterNode extends FakeAudioNode {
   type: BiquadFilterType = 'lowpass'
   readonly frequency = new FakeAudioParam()
   readonly Q = new FakeAudioParam()
+  readonly gain = new FakeAudioParam()
 }
 
 export class FakeStereoPannerNode extends FakeAudioNode {

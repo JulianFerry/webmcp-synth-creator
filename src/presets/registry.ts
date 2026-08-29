@@ -1,5 +1,6 @@
 import { parsePatchState } from '../patch/schemas'
 import type { PatchCategory, PatchState } from '../patch/types'
+import { CALIBRATION_PRESET_ENTRIES } from './patches/calibration'
 import { ETHEREAL_GATE_PATCH } from './patches/ethereal-gate'
 import { GLASS_PLUCK_PATCH } from './patches/glass-pluck'
 import { MIDNIGHT_PAD_PATCH } from './patches/midnight-pad'
@@ -27,6 +28,7 @@ const entries: CuratedPresetEntry[] = [
   { id: 'glass-pluck', patch: GLASS_PLUCK_PATCH },
   { id: 'wide-lead', patch: WIDE_LEAD_PATCH },
   { id: 'rhythmic-pulse', patch: RHYTHMIC_PULSE_PATCH },
+  ...CALIBRATION_PRESET_ENTRIES,
 ]
 
 const ids = entries.map(({ id }) => id)

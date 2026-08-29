@@ -1,6 +1,7 @@
 import type { DelayState } from '../patch/types'
 import { cancelAndHoldAudioParam } from './envelope'
 import { DEFAULT_TEMPO_BPM, syncDivisionSeconds } from './lfo'
+import { equalPowerMix } from './units'
 
 type EffectsAudioContext = AudioContext | OfflineAudioContext
 
@@ -10,8 +11,7 @@ export interface EffectMixGains {
 }
 
 export function delayInsertMixGains(state: DelayState): EffectMixGains {
-  const wet = state.enabled ? state.mix : 0
-  return { dry: 1 - wet, wet }
+  return equalPowerMix(state.enabled ? state.mix : 0)
 }
 
 export function delayTimeSeconds(

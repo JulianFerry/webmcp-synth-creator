@@ -4,10 +4,41 @@ import { createUnisonPlacements } from './units'
 
 type WavetableAudioContext = AudioContext | OfflineAudioContext
 
+let nextPhaseSeed = 0
+
+function deterministicPhase(seed: number, lane: number): number {
+  let value = Math.imul(seed + 1, 0x9e3779b1) ^ Math.imul(lane + 1, 0x85ebca6b)
+  value ^= value >>> 16
+  value = Math.imul(value, 0x7feb352d)
+  value ^= value >>> 15
+  return (value >>> 0) / 0x1_0000_0000
+}
+
+export function rotatePeriodicWaveCoefficients(
+  real: Float32Array,
+  imag: Float32Array,
+  phaseCycles: number,
+): { real: Float32Array; imag: Float32Array } {
+  if (real.length !== imag.length) {
+    throw new RangeError('Periodic-wave coefficient arrays must have the same length')
+  }
+  const rotatedReal = new Float32Array(real.length)
+  const rotatedImag = new Float32Array(imag.length)
+  for (let harmonic = 0; harmonic < real.length; harmonic += 1) {
+    const phase = 2 * Math.PI * phaseCycles * harmonic
+    const cosine = Math.cos(phase)
+    const sine = Math.sin(phase)
+    rotatedReal[harmonic] = real[harmonic] * cosine + imag[harmonic] * sine
+    rotatedImag[harmonic] = imag[harmonic] * cosine - real[harmonic] * sine
+  }
+  return { real: rotatedReal, imag: rotatedImag }
+}
+
 export interface UnisonConfiguration {
   voices: number
   detune: number
   stereoSpread: number
+  randomPhase: number
 }
 
 interface UnisonLane {
@@ -17,6 +48,7 @@ interface UnisonLane {
   gainB: GainNode
   laneGain: GainNode
   panner: StereoPannerNode
+  waves: PeriodicWave[]
 }
 
 interface UnisonGroup {
@@ -25,8 +57,9 @@ interface UnisonGroup {
 }
 
 export class WavetableVoiceOscillator {
+  private readonly phaseSeed = nextPhaseSeed++
   private readonly output: GainNode
-  private waves: PeriodicWave[] = []
+  private wavetable: WavetableState
   private group: UnisonGroup
   private unison: UnisonConfiguration
   private frequencyHz = 440
@@ -36,11 +69,16 @@ export class WavetableVoiceOscillator {
   constructor(
     private readonly context: WavetableAudioContext,
     wavetable: WavetableState,
-    unison: UnisonConfiguration = { voices: 1, detune: 0, stereoSpread: 0 },
+    unison: UnisonConfiguration = {
+      voices: 1,
+      detune: 0,
+      stereoSpread: 0,
+      randomPhase: 0,
+    },
   ) {
     this.output = context.createGain()
+    this.wavetable = structuredClone(wavetable)
     this.unison = { ...unison }
-    this.waves = this.createWaves(wavetable)
     this.group = this.createGroup(this.unison, context.currentTime)
     this.group.output.connect(this.output)
     this.applyPosition(this.group, this.position, context.currentTime)
@@ -53,7 +91,7 @@ export class WavetableVoiceOscillator {
 
   setWavetable(wavetable: WavetableState): void {
     this.ensureActive()
-    this.waves = this.createWaves(wavetable)
+    this.wavetable = structuredClone(wavetable)
     this.replaceGroupAtTime(this.unison, this.context.currentTime)
   }
 
@@ -90,12 +128,16 @@ export class WavetableVoiceOscillator {
     if (
       this.unison.voices === unison.voices &&
       this.unison.detune === unison.detune &&
-      this.unison.stereoSpread === unison.stereoSpread
+      this.unison.stereoSpread === unison.stereoSpread &&
+      this.unison.randomPhase === unison.randomPhase
     ) {
       return
     }
 
-    if (this.unison.voices === unison.voices) {
+    if (
+      this.unison.voices === unison.voices &&
+      this.unison.randomPhase === unison.randomPhase
+    ) {
       this.applyUnisonPlacements(this.group, unison, time)
     } else {
       this.replaceGroupAtTime(unison, time)
@@ -112,10 +154,13 @@ export class WavetableVoiceOscillator {
     this.stopGroup(this.group, time + 0.03)
   }
 
-  private createWaves(wavetable: WavetableState): PeriodicWave[] {
-    return wavetable.frames.map((frame) => {
+  private createWaves(phaseCycles: number): PeriodicWave[] {
+    return this.wavetable.frames.map((frame) => {
       const { real, imag } = toPeriodicWaveCoefficients(frame)
-      return this.context.createPeriodicWave(real, imag, { disableNormalization: false })
+      const rotated = rotatePeriodicWaveCoefficients(real, imag, phaseCycles)
+      return this.context.createPeriodicWave(rotated.real, rotated.imag, {
+        disableNormalization: false,
+      })
     })
   }
 
@@ -127,13 +172,15 @@ export class WavetableVoiceOscillator {
     const output = this.context.createGain()
     output.gain.setValueAtTime(initialGain, startTime)
     const placements = createUnisonPlacements(unison.voices, unison.detune, unison.stereoSpread)
-    const lanes = placements.map((placement) => {
+    const lanes = placements.map((placement, laneIndex) => {
       const oscillatorA = this.context.createOscillator()
       const oscillatorB = this.context.createOscillator()
       const gainA = this.context.createGain()
       const gainB = this.context.createGain()
       const laneGain = this.context.createGain()
       const panner = this.context.createStereoPanner()
+      const phaseCycles = deterministicPhase(this.phaseSeed, laneIndex) * unison.randomPhase
+      const waves = this.createWaves(phaseCycles)
 
       laneGain.gain.setValueAtTime(placement.gain, startTime)
       panner.pan.setValueAtTime(placement.pan, startTime)
@@ -145,20 +192,22 @@ export class WavetableVoiceOscillator {
       oscillatorA.start(startTime)
       oscillatorB.start(startTime)
 
-      return { oscillatorA, oscillatorB, gainA, gainB, laneGain, panner }
+      return { oscillatorA, oscillatorB, gainA, gainB, laneGain, panner, waves }
     })
     return { lanes, output }
   }
 
   private applyPosition(group: UnisonGroup, position: number, time: number): void {
-    const framePosition = position * Math.max(0, this.waves.length - 1)
+    const waveCount = group.lanes[0]?.waves.length ?? 0
+    if (waveCount === 0) return
+    const framePosition = position * Math.max(0, waveCount - 1)
     const lowerIndex = Math.floor(framePosition)
-    const upperIndex = Math.min(this.waves.length - 1, lowerIndex + 1)
+    const upperIndex = Math.min(waveCount - 1, lowerIndex + 1)
     const mix = framePosition - lowerIndex
 
     group.lanes.forEach((lane) => {
-      lane.oscillatorA.setPeriodicWave(this.waves[lowerIndex])
-      lane.oscillatorB.setPeriodicWave(this.waves[upperIndex])
+      lane.oscillatorA.setPeriodicWave(lane.waves[lowerIndex])
+      lane.oscillatorB.setPeriodicWave(lane.waves[upperIndex])
       lane.gainA.gain.setValueAtTime(1 - mix, time)
       lane.gainB.gain.setValueAtTime(mix, time)
     })

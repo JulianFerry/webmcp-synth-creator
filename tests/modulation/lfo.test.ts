@@ -63,7 +63,7 @@ describe('point LFO evaluation', () => {
     expect(evaluateLfoPoints(linear, 0.5)).toBeCloseTo(0.5)
     expect(evaluateLfoPoints(positivePower, 0.5)).toBeLessThan(0.5)
     expect(evaluateLfoPoints(negativePower, 0.5)).toBeGreaterThan(0.5)
-    expect(evaluateLfoPoints(linear, 0.25, true)).toBeCloseTo(0.15625)
+    expect(evaluateLfoPoints(linear, 0.25, true)).toBeCloseTo(0.1464466)
   })
 
   it.each([
@@ -113,10 +113,10 @@ describe('modulation envelope evaluation', () => {
   it('evaluates attack, hold, decay, sustain, and release phases', () => {
     expect(evaluateEnvelope(envelope, 0.1)).toBeCloseTo(0.5)
     expect(evaluateEnvelope(envelope, 0.25)).toBe(1)
-    expect(evaluateEnvelope(envelope, 0.5)).toBeCloseTo(0.625)
+    expect(evaluateEnvelope(envelope, 0.5)).toBeCloseTo(0.451706)
     expect(evaluateEnvelope(envelope, 1)).toBe(0.25)
     expect(
       evaluateEnvelope(envelope, 1.25, { elapsedSeconds: 1, startValue: 0.25 }),
-    ).toBeCloseTo(0.125)
+    ).toBeCloseTo(0.067235)
   })
 })

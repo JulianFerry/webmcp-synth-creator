@@ -149,6 +149,19 @@ const curatedStarts = [
   ['ethereal-gate', 'Ethereal Gate'],
 ] as const
 
+const calibrationStarts = [
+  ['calibration-a-osc1-sine', 'Calibration A — OSC1 Sine'],
+  ['calibration-b-custom-wavetable', 'Calibration B — Custom Wavetable'],
+  ['calibration-c-amp-envelope', 'Calibration C — Amp Envelope'],
+  ['calibration-d-unison', 'Calibration D — Unison'],
+  ['calibration-e-filter', 'Calibration E — Filter'],
+  ['calibration-f-lfo-gate', 'Calibration F — LFO Gate'],
+  ['calibration-g-osc2', 'Calibration G — OSC2'],
+  ['calibration-h-delay-reverb', 'Calibration H — Delay + Reverb'],
+] as const
+
+const allStarts = [...calibrationStarts, ...curatedStarts] as const
+
 test('create and load complete patches through WebMCP and curated UI paths', async ({ page }) => {
   await installWebMcpDouble(page)
   await page.goto('/')
@@ -156,9 +169,9 @@ test('create and load complete patches through WebMCP and curated UI paths', asy
   await expect(page.getByTestId('vital-status')).toContainText('ready')
 
   const presets = await executeTool<Array<{ id: string; name: string }>>(page, 'list_presets', {})
-  expect(presets).toHaveLength(6)
+  expect(presets).toHaveLength(14)
   expect(presets.map(({ id }) => id).sort()).toEqual(
-    curatedStarts.map(([id]) => id).sort(),
+    allStarts.map(([id]) => id).sort(),
   )
 
   await page.getByTestId('hold-note').click()
@@ -182,14 +195,14 @@ test('create and load complete patches through WebMCP and curated UI paths', asy
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ethereal Gate')
   await expect(page.getByTestId('preset-selector')).toHaveValue('ethereal-gate')
 
-  for (const [presetId, name] of curatedStarts) {
+  for (const [presetId, name] of allStarts) {
     await page.getByTestId('preset-selector').selectOption(presetId)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(name)
     await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-held', 'true')
     await expect(page.getByTestId('export-filename')).toContainText(`${presetId}.vital`)
   }
 
-  for (const [presetId, name] of curatedStarts) {
+  for (const [presetId, name] of allStarts) {
     const loaded = await executeTool<{ summary: { name: string }; changed: Record<string, unknown> }>(
       page,
       'load_preset',

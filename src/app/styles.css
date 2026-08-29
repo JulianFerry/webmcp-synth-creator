@@ -1021,6 +1021,28 @@ h2 {
   background: var(--panel-low);
 }
 
+.note-timing-readout {
+  display: grid;
+  gap: 3px;
+  margin-top: 11px;
+  padding: 10px;
+  border-left: 3px solid var(--analysis);
+  background: var(--panel-low);
+}
+
+.note-timing-readout span,
+.note-timing-readout small {
+  color: var(--muted);
+  font: 8px/1.5 var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.note-timing-readout strong {
+  color: var(--analysis);
+  font: 500 12px var(--mono);
+}
+
 .steal-readout span,
 .steal-readout small {
   color: var(--muted);

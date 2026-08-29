@@ -1,5 +1,6 @@
 import type { EnvelopeState, LfoPoint, LfoRate, LfoState } from '../patch/types'
 import type { TempoSyncDivision } from '../patch/limits'
+import { vitalPowerScale } from './units'
 
 export const DEFAULT_TEMPO_BPM = 120
 
@@ -33,9 +34,10 @@ export function lfoRateHz(rate: LfoRate, bpm = DEFAULT_TEMPO_BPM): number {
 
 function curvePosition(position: number, power: number, smooth: boolean): number {
   const clamped = Math.max(0, Math.min(1, position))
-  const exponent = 2 ** (Math.abs(power) * 3)
-  const powered = power >= 0 ? clamped ** exponent : 1 - (1 - clamped) ** exponent
-  return smooth ? powered * powered * (3 - 2 * powered) : powered
+  // These are the two transforms used by Vital's LineGenerator for the same
+  // serialized `power` and `smooth` fields.
+  const smoothed = smooth ? 0.5 * Math.sin((clamped - 0.5) * Math.PI) + 0.5 : clamped
+  return vitalPowerScale(smoothed, power)
 }
 
 export function evaluateLfoPoints(
@@ -83,7 +85,10 @@ export function evaluateEnvelope(
   if (release && elapsed >= release.elapsedSeconds) {
     if (envelope.releaseSeconds <= 0) return 0
     const releaseProgress = (elapsed - release.elapsedSeconds) / envelope.releaseSeconds
-    return Math.max(0, release.startValue * (1 - releaseProgress))
+    return Math.max(
+      0,
+      release.startValue * (1 - vitalPowerScale(releaseProgress, -2)),
+    )
   }
 
   if (envelope.attackSeconds > 0 && elapsed < envelope.attackSeconds) {
@@ -94,7 +99,7 @@ export function evaluateEnvelope(
   const afterHold = afterAttack - envelope.holdSeconds
   if (envelope.decaySeconds > 0 && afterHold < envelope.decaySeconds) {
     const decayProgress = afterHold / envelope.decaySeconds
-    return 1 + (envelope.sustainLevel - 1) * decayProgress
+    return 1 + (envelope.sustainLevel - 1) * vitalPowerScale(decayProgress, -2)
   }
   return envelope.sustainLevel
 }

@@ -76,6 +76,21 @@ test('playable voice stays gesture gated and steals the oldest voice at configur
   await page.getByTestId('keyboard-surface').focus()
   await page.keyboard.down('a')
   await expect(page.getByTestId('active-voice-count')).toHaveText('1')
+  await expect(page.getByTestId('note-on-timing')).toContainText('MIDI 48')
+  const timing = await page.evaluate(() => {
+    return (
+      window as typeof window & {
+        __WAVETABLE_WORKBENCH_NOTE_TIMING__?: {
+          midi: number
+          inputToVoiceReadyMs: number
+          voiceGraphBuildMs: number
+        }
+      }
+    ).__WAVETABLE_WORKBENCH_NOTE_TIMING__
+  })
+  expect(timing?.midi).toBe(48)
+  expect(timing?.inputToVoiceReadyMs).toBeGreaterThanOrEqual(0)
+  expect(timing?.voiceGraphBuildMs).toBeGreaterThanOrEqual(0)
   await page.keyboard.down('s')
 
   await expect(page.getByTestId('active-voice-count')).toHaveText('1')

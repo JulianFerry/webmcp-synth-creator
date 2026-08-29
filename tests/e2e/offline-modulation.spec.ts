@@ -6,7 +6,12 @@ test('offline modulation direction covers LFO gate, mod envelope, delay tail, an
   await page.goto('/')
 
   const metrics = await page.evaluate(async () => {
-    type Metrics = { rms: number; tailRms: number; highFrequencyEnergy: number }
+    type Metrics = {
+      rms: number
+      tailRms: number
+      tailCrestFactor: number
+      highFrequencyEnergy: number
+    }
     type Patch = ReturnType<(typeof import('../../src/patch/defaults'))['createDefaultPatch']>
     const loadModules = new Function(
       'return Promise.all([import("/src/patch/defaults.ts"), import("/src/audio/offline.ts")])',
@@ -25,6 +30,7 @@ test('offline modulation direction covers LFO gate, mod envelope, delay tail, an
     const createBase = () => {
       const patch = createDefaultPatch()
       patch.oscillators[0].unisonVoices = 1
+      patch.oscillators[0].randomPhase = 0
       patch.oscillators[1].enabled = false
       patch.ampEnvelope = {
         attackSeconds: 0.005,
@@ -67,7 +73,7 @@ test('offline modulation direction covers LFO gate, mod envelope, delay tail, an
     ]
 
     const staticFilter = createBase()
-    staticFilter.filter.cutoffHz = 8_000
+    staticFilter.filter.cutoffHz = 800
     staticFilter.modulations = []
     const envelopeFilter = structuredClone(staticFilter)
     envelopeFilter.modEnvelope = {
@@ -166,10 +172,11 @@ test('offline modulation direction covers LFO gate, mod envelope, delay tail, an
     }
   })
 
-  expect(metrics.gated.rms).toBeLessThan(metrics.ungated.rms * 0.75)
-  expect(metrics.envelopeFilter.highFrequencyEnergy).toBeLessThan(
-    metrics.staticFilter.highFrequencyEnergy * 0.8,
+  expect(metrics.gated.rms).toBeGreaterThan(metrics.ungated.rms * 1.05)
+  expect(metrics.envelopeFilter.highFrequencyEnergy).toBeGreaterThan(
+    metrics.staticFilter.highFrequencyEnergy * 1.05,
   )
   expect(metrics.wetDelay.tailRms).toBeGreaterThan(metrics.dryDelay.tailRms + 0.00001)
   expect(metrics.wetReverb.tailRms).toBeGreaterThan(metrics.dryReverb.tailRms + 0.00001)
+  expect(metrics.wetReverb.tailCrestFactor).toBeLessThan(6)
 })

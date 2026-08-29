@@ -50,19 +50,23 @@ describe('closed modulation matrix', () => {
 })
 
 describe('modulation routing values', () => {
-  it('converts unipolar and bipolar signals and gates level in the expected direction', () => {
-    expect(modulationSignal(0, false)).toBe(-1)
-    expect(modulationSignal(1, false)).toBe(0)
-    expect(modulationSignal(0, true)).toBe(-1)
+  it('converts unipolar and bipolar signals and modulates quadratic level in Vital direction', () => {
+    expect(modulationSignal(0, false)).toBe(0)
+    expect(modulationSignal(1, false)).toBe(1)
+    expect(modulationSignal(0, true)).toBe(-0.5)
     expect(modulationSignal(0.5, true)).toBe(0)
-    expect(modulationSignal(1, true)).toBe(1)
+    expect(modulationSignal(1, true)).toBe(0.5)
 
     const patch = createDefaultPatch()
     const low = evaluateModulationFrame(patch, 60, 0)
     const high = evaluateModulationFrame(patch, 60, 0.005)
     expect(low.lfoValue).toBe(0)
     expect(high.lfoValue).toBeCloseTo(1)
-    expect(low.oscillatorLevels[0]).toBeLessThan(high.oscillatorLevels[0] * 0.5)
+    expect(low.oscillatorLevels[0]).toBeCloseTo(0.62)
+    expect(high.oscillatorLevels[0]).toBe(2)
+    expect(low.filterCutoffHz).toBe(7_200)
+    expect(high.filterCutoffHz).toBeCloseTo(7_200 * 2 ** ((0.12 * 128) / 12))
+    expect(low.oscillatorLevels[0]).toBeLessThan(high.oscillatorLevels[0])
   })
 
   it('stops LFO modulation when disabled without removing its shape, rate, or routes', () => {
@@ -76,7 +80,7 @@ describe('modulation routing values', () => {
 
     const frame = evaluateModulationFrame(patch, 60, 0)
 
-    expect(frame.oscillatorLevels[0]).toBe(patch.oscillators[0].level)
+    expect(frame.oscillatorLevels[0]).toBeCloseTo(patch.oscillators[0].level)
     expect(frame.filterCutoffHz).toBe(patch.filter.cutoffHz)
     expect(patch.lfo1.points).toEqual(retained.points)
     expect(patch.lfo1.rate).toEqual(retained.rate)
@@ -105,7 +109,7 @@ describe('modulation routing values', () => {
       },
     ]
     const frame = evaluateModulationFrame(patch, 60, 0.25)
-    expect(frame.oscillatorFrequencies[0]).toBeCloseTo(midiToHz(54), 5)
+    expect(frame.oscillatorFrequencies[0]).toBeCloseTo(midiToHz(59.5), 5)
 
     const frames: Array<{ frame: ModulationFrame; time: number }> = []
     const count = scheduleModulationRange(patch, 60, 0, 0, 0.1, {

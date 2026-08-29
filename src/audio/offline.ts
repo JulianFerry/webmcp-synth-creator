@@ -16,6 +16,7 @@ import { WavetableVoiceOscillator } from './WavetableVoiceOscillator'
 export interface OfflineVoiceMetrics {
   rms: number
   tailRms: number
+  tailCrestFactor: number
   activeDurationSeconds: number
   zeroCrossingHz: number
   highFrequencyEnergy: number
@@ -56,9 +57,12 @@ function analyzeBuffer(buffer: AudioBuffer): OfflineVoiceMetrics {
 
   const tailStart = Math.floor(samples.length * 0.75)
   let tailSquared = 0
+  let tailPeak = 0
   for (let index = tailStart; index < samples.length; index += 1) {
     tailSquared += samples[index] * samples[index]
+    tailPeak = Math.max(tailPeak, Math.abs(samples[index]))
   }
+  const tailRms = Math.sqrt(tailSquared / Math.max(1, samples.length - tailStart))
 
   let lastActiveSample = 0
   const activityThreshold = peak * 0.01
@@ -84,7 +88,8 @@ function analyzeBuffer(buffer: AudioBuffer): OfflineVoiceMetrics {
 
   return {
     rms: Math.sqrt(squared / samples.length),
-    tailRms: Math.sqrt(tailSquared / Math.max(1, samples.length - tailStart)),
+    tailRms,
+    tailCrestFactor: tailRms === 0 ? 0 : tailPeak / tailRms,
     activeDurationSeconds: peak === 0 ? 0 : lastActiveSample / sampleRate,
     zeroCrossingHz: crossings / (2 * crossingDuration),
     highFrequencyEnergy: squared === 0 ? 0 : differenceSquared / squared,
@@ -126,12 +131,15 @@ export async function renderOfflineVoice(
         voices: oscillator.unisonVoices,
         detune: oscillator.unisonDetune,
         stereoSpread: oscillator.stereoSpread,
+        randomPhase: oscillator.randomPhase,
       },
     )
     const level = context.createGain()
     level.gain.setValueAtTime(
       oscillator.enabled
-        ? oscillator.level * velocityToGain(velocity, patch.voice.velocitySensitivity) * 0.24
+        ? oscillator.level *
+          velocityToGain(velocity, patch.voice.velocitySensitivity) *
+          0.24
         : 0,
       0,
     )

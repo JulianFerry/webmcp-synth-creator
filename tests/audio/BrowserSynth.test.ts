@@ -8,6 +8,7 @@ describe('BrowserSynth diff planning', () => {
       'oscillators.0.wavetablePosition': { before: 0.2, after: 0.7 },
       'oscillators.1.transposeSemitones': { before: 0, after: 12 },
       'oscillators.1.unisonVoices': { before: 1, after: 4 },
+      'oscillators.1.randomPhase': { before: 0, after: 0.8 },
     })
 
     expect(plan.oscillators[0]).toEqual({
