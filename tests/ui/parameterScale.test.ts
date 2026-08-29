@@ -119,3 +119,11 @@ describe('logarithmic parameter scale', () => {
     expect([arrowDown, arrowUp, pageDown, pageUp].every(Number.isInteger)).toBe(true)
   })
 })
+
+describe('vertical parameter orientation', () => {
+  it('uses the same increasing ArrowUp mapping as a horizontal ArrowRight control', () => {
+    const scale = LOGARITHMIC_PARAMETER_SCALE
+    expect(navigateParameterScale(1_000, FILTER_CUTOFF_MIN_HZ, FILTER_CUTOFF_MAX_HZ, scale, 'ArrowUp', 0.01))
+      .toBe(navigateParameterScale(1_000, FILTER_CUTOFF_MIN_HZ, FILTER_CUTOFF_MAX_HZ, scale, 'ArrowRight', 0.01))
+  })
+})

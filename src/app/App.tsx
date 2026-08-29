@@ -55,7 +55,7 @@ export function App({ store, previewRenderer = undefined, session = undefined }:
 
   return <WorkbenchShell bar={bar} diagnostics={diagnostics} notices={notices}>
     <WorkbenchTabs active={activeTab} onChange={setActiveTab}>
-      {activeTab === 'overview' ? <OverviewTab audition={audition} envelope={envelope} lfo={lfo} oscillators={oscillators} preview={{ ...preview, activeVoiceCount: audio.activeVoiceCount }} /> : null}
+      {activeTab === 'overview' ? <OverviewTab audition={audition} effects={patch.effects} envelope={envelope} filter={patch.filter} lfo={lfo} oscillators={oscillators} preview={{ ...preview, activeVoiceCount: audio.activeVoiceCount }} /> : null}
       {activeTab === 'oscillators' ? <OscillatorsTab oscillators={oscillators} /> : null}
       {activeTab === 'modulation-effects' ? <ModulationEffectsTab effects={{ effects: patch.effects, onChange: state.applyPatchChange, resetKey: state.controlResetKey }} filter={filter} lfo={lfo} modulation={{ envelope: patch.modEnvelope, modulations: patch.modulations, onChange: state.applyPatchChange, resetKey: state.controlResetKey }} /> : null}
     </WorkbenchTabs>

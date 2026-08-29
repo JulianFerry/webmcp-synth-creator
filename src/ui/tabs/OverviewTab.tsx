@@ -3,6 +3,8 @@ import { AuditionPanel } from '../AuditionPanel'
 import { EnvelopePanel } from '../EnvelopePanel'
 import { LfoPanel } from '../LfoPanel'
 import { OscillatorPanel } from '../OscillatorPanel'
+import type { FilterState, PatchState } from '../../patch/types'
+import { OscillatorOverviewDeck } from '../overview/OscillatorOverviewDeck'
 import { ProcessedWaveformPreview } from '../analysis/ProcessedWaveformPreview'
 import { SpectrogramWaterfall } from '../analysis/SpectrogramWaterfall'
 
@@ -12,9 +14,11 @@ interface OverviewTabProps {
   lfo: ComponentProps<typeof LfoPanel>
   oscillators: Array<ComponentProps<typeof OscillatorPanel>>
   preview: ComponentProps<typeof ProcessedWaveformPreview>
+  effects: PatchState['effects']
+  filter: FilterState
 }
 
-export function OverviewTab({ audition, envelope, lfo, oscillators, preview }: OverviewTabProps) {
+export function OverviewTab({ audition, effects, envelope, filter, lfo, oscillators, preview }: OverviewTabProps) {
   return (
     <div className="tab-grid overview-tab-grid">
       <div className="overview-analysis-row">
@@ -23,7 +27,7 @@ export function OverviewTab({ audition, envelope, lfo, oscillators, preview }: O
       </div>
       <EnvelopePanel {...envelope} />
       <LfoPanel {...lfo} />
-      {oscillators.map((props) => <OscillatorPanel key={props.index} {...props} />)}
+      <OscillatorOverviewDeck oscillators={oscillators.map((props) => ({ ...props, effects, filter }))} />
       <AuditionPanel {...audition} />
     </div>
   )

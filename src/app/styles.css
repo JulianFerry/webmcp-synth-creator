@@ -149,6 +149,20 @@ p {
 .overview-tab-grid .audition-panel, .modfx-tab-grid .effects-panel { grid-column: 1 / -1; }
 
 .overview-analysis-row { display: grid; grid-column: 1 / -1; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--space-3); }
+.oscillator-overview-deck { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.oscillator-overview-card { display: grid; gap: var(--space-3); padding: 16px; }
+.oscillator-overview-card > header { display: flex; align-items: end; justify-content: space-between; }
+.oscillator-overview-card > header .eyebrow { margin-bottom: 3px; }
+.oscillator-overview-card > header h2 { font-size: 15px; }
+.oscillator-overview-body { display: grid; grid-template-columns: 58px minmax(0, 1fr) 72px; gap: 8px; min-height: 154px; }
+.oscillator-overview-body canvas { width: 100%; height: 154px; border: 1px solid rgb(69 200 189 / 24%); border-radius: 6px; background: linear-gradient(180deg, rgb(69 200 189 / 8%), transparent), var(--panel-low); }
+.parameter-control-vertical { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; justify-items: center; padding: 8px 5px; }
+.parameter-control-vertical input[type='range'] { grid-column: 1; width: 22px; height: 92px; writing-mode: vertical-lr; direction: rtl; cursor: ns-resize; }
+.effects-chain-strip { display: grid; grid-template-columns: 1fr; place-items: center; padding: 8px 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-low); }
+.effects-chain-strip span, .effects-chain-strip small { color: var(--muted); font: 7px var(--mono); letter-spacing: .04em; text-transform: uppercase; }
+.effects-chain-strip span.active { color: var(--analysis); }
+.effects-chain-strip i { color: var(--line-hot); font-style: normal; transform: rotate(90deg); }
+.effects-chain-strip small { color: var(--active); }
 .processed-waveform-figure { margin: 0; padding: 12px 14px 10px; overflow: hidden; border: 1px solid rgb(69 200 189 / 24%); border-radius: 7px; background: linear-gradient(180deg, rgb(69 200 189 / 8%), transparent 58%), var(--panel-low); }
 .processed-waveform-figure svg { display: block; width: 100%; height: 190px; }
 .processed-waveform-path { fill: none; stroke: var(--analysis); stroke-linecap: round; stroke-width: 0.42; filter: drop-shadow(0 0 2px rgb(69 200 189 / 55%)); }
@@ -1319,6 +1333,7 @@ h2 {
   }
 
   .global-session-row, .oscillator-tab-grid { grid-template-columns: 1fr; }
+  .oscillator-overview-deck { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .overview-analysis-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .history-controls {
@@ -1358,6 +1373,7 @@ h2 {
   .workbench-tabpanel { padding: var(--space-2); }
   .tab-grid { grid-template-columns: 1fr; }
   .overview-analysis-row { grid-template-columns: 1fr; }
+  .oscillator-overview-deck { grid-template-columns: 1fr; }
   .global-patch-bar { padding: var(--space-2); }
 
   .oscillator-controls,

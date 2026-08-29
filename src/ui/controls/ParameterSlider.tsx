@@ -24,6 +24,8 @@ interface ParameterSliderProps {
   disabled?: boolean
   testId?: string
   resetKey?: number
+  orientation?: 'horizontal' | 'vertical'
+  describedBy?: string
 }
 
 const COMMIT_KEYS = new Set([
@@ -53,6 +55,8 @@ export function ParameterSlider({
   disabled = false,
   testId,
   resetKey = 0,
+  orientation = 'horizontal',
+  describedBy,
 }: ParameterSliderProps) {
   const [draft, setDraft] = useState(value)
   const draftRef = useRef(value)
@@ -126,10 +130,12 @@ export function ParameterSlider({
   const formattedDraft = formatValue(draft)
 
   return (
-    <label className="parameter-control" htmlFor={id}>
+    <label className={`parameter-control parameter-control-${orientation}`} htmlFor={id}>
       <span>{label}</span>
       <output htmlFor={id}>{formattedDraft}</output>
       <input
+        aria-describedby={describedBy}
+        aria-orientation={orientation}
         aria-valuemax={max}
         aria-valuemin={min}
         aria-valuenow={draft}
