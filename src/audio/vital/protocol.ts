@@ -16,7 +16,13 @@ export type VitalWorkletEvent =
   | { type: 'ready'; sampleRate: number }
   | { type: 'state-applied'; revision: number; durationMs: number }
   | { type: 'controls-applied'; revision: number; durationMs: number }
-  | { type: 'render-stats'; blockMs: number; overruns: number }
+  | {
+      type: 'render-stats'
+      averageBlockMs: number
+      blockMs: number
+      blocks: number
+      overruns: number
+    }
   | { type: 'error'; phase: string; message: string }
 
 export function isVitalWorkletEvent(value: unknown): value is VitalWorkletEvent {
@@ -34,8 +40,12 @@ export function isVitalWorkletEvent(value: unknown): value is VitalWorkletEvent 
       )
     case 'render-stats':
       return (
+        isFiniteNumber(value.averageBlockMs) &&
+        value.averageBlockMs >= 0 &&
         isFiniteNumber(value.blockMs) &&
         value.blockMs >= 0 &&
+        isNonNegativeSafeInteger(value.blocks) &&
+        value.blocks > 0 &&
         isNonNegativeSafeInteger(value.overruns)
       )
     case 'error':

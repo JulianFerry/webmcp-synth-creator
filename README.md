@@ -1,8 +1,9 @@
 # Wavetable Workbench
 
 Wavetable Workbench is a React/Vite prototype for editing one synth patch from
-the UI or Chrome WebMCP, auditioning a functional browser preview, and exporting
-a `.vital` preset.
+the UI or Chrome WebMCP, auditioning a browser preview, and exporting a `.vital`
+preset. The default preview remains the legacy Web Audio renderer during the
+Vital migration; `?renderer=vital` selects the opt-in Vital WASM renderer.
 
 ## Prerequisites
 
@@ -63,11 +64,11 @@ For a quick discovery check in the workbench tab's DevTools Console:
 ## Export to Vital
 
 Wait for **Vital fixture ready**, make the desired edits, and click **Export
-.vital**. Load the downloaded file in your local Vital installation. Vital and
-the browser use different synthesis engines, but the preview mirrors the pinned
-Vital parameter direction, destination ranges, quadratic oscillator-level encoding,
-unison behavior, curve shapes, and equal-power effect mixes. It should preserve
-the exported patch's character and movement, though it is not sample-identical.
+.vital**. Load the downloaded file in your local Vital installation. On the
+default renderer, Vital and the browser still use different synthesis engines.
+With `?renderer=vital`, browser playback and export consume the same serialized
+Vital document and the browser runs the pinned Vital DSP through WebAssembly.
+That renderer remains opt-in until its manual fidelity and licensing gates close.
 
 Use the header's starting-patch dropdown for a starting point. **Import Vital** imports
 the documented Vital `1.0.7` subset exactly and falls back to a warning-rich lossy
@@ -80,7 +81,7 @@ files leave the patch and history unchanged.
 The **Calibration ladder** group in the starting-patch menu contains eight cumulative
 test patches. A is one retriggered sine oscillator with a neutral gate envelope; B adds
 the custom Air Spectrum wavetable; C adds ADSR; D adds deterministic unison; E enables
-the filter; F adds quarter-note LFO gating; G enables OSC2; and H enables delay and
+the filter; F adds eighth-note LFO gating; G enables OSC2; and H enables delay and
 reverb. Parameters for later stages are already configured while bypassed, so each step
 activates only the subsystem named in its title. Both oscillator controls are fixed at
 the workbench's `100%` reference level throughout the ladder.
@@ -107,6 +108,12 @@ wavetable rendering, C at envelope curves, D at unison, E at the filter, F at LF
 mapping/timing, G at oscillator summing, and H at the effects chain. D deliberately
 keeps random phase at zero, and every stage ignores note velocity, so repeated trials
 are stable.
+
+The automated Phase 5 reference uses MIDI 60, velocity `100 / 127`, 120 BPM, a
+2-second hold, and a 3-second release/tail at 48 kHz for both WASM and the native
+same-source renderer. See [`docs/vital-wasm-fidelity.md`](docs/vital-wasm-fidelity.md)
+for measured tolerances, browser costs, native build instructions, and the pending
+desktop Vital 1.0.7 listening matrix.
 
 The exporter clones `fixtures/vital/init.vital`; dependency installation does
 not create or replace it. See [`fixtures/vital/README.md`](fixtures/vital/README.md)

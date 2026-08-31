@@ -32,7 +32,9 @@ export interface VitalHarnessStats {
   contextState: AudioContextState | 'uninitialized'
   errors: Array<{ phase: string; message: string }>
   renderStats: Array<{
+    averageBlockMs: number
     blockMs: number
+    blocks: number
     overruns: number
   }>
   sampleRate: number | null
@@ -167,7 +169,9 @@ class BrowserVitalDevHarness implements VitalDevHarness {
         break
       case 'render-stats':
         this.renderStats.push({
+          averageBlockMs: event.averageBlockMs,
           blockMs: event.blockMs,
+          blocks: event.blocks,
           overruns: event.overruns,
         })
         break

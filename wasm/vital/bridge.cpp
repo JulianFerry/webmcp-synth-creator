@@ -2,7 +2,11 @@
 #include <cmath>
 #include <new>
 
+#if defined(__EMSCRIPTEN__)
 #include <emscripten/emscripten.h>
+#else
+#define EMSCRIPTEN_KEEPALIVE
+#endif
 
 #include "load_save.h"
 #include "sound_engine.h"

@@ -69,10 +69,13 @@ class VitalProcessor extends AudioWorkletProcessor {
   private pendingState: PendingState | null = null
   private renderBlockCount = 0
   private renderBlockMaxMs = 0
+  private renderBlockTotalMs = 0
   private renderOverruns = 0
   private readonly renderStatsEvent: Extract<VitalWorkletEvent, { type: 'render-stats' }> = {
     type: 'render-stats',
+    averageBlockMs: 0,
     blockMs: 0,
+    blocks: 0,
     overruns: 0,
   }
   private reportedOutputError = false
@@ -499,15 +502,19 @@ class VitalProcessor extends AudioWorkletProcessor {
     const quantumMs = (frames / sampleRate) * 1_000
     this.renderBlockCount += 1
     this.renderBlockMaxMs = Math.max(this.renderBlockMaxMs, blockMs)
+    this.renderBlockTotalMs += blockMs
     if (blockMs > quantumMs) this.renderOverruns += 1
 
     if (this.renderBlockCount < TELEMETRY_INTERVAL_BLOCKS) return
 
+    this.renderStatsEvent.averageBlockMs = this.renderBlockTotalMs / this.renderBlockCount
     this.renderStatsEvent.blockMs = this.renderBlockMaxMs
+    this.renderStatsEvent.blocks = this.renderBlockCount
     this.renderStatsEvent.overruns = this.renderOverruns
     this.postEvent(this.renderStatsEvent)
     this.renderBlockCount = 0
     this.renderBlockMaxMs = 0
+    this.renderBlockTotalMs = 0
   }
 
   private emitStateApplied(revision: number, startedAt: number): void {

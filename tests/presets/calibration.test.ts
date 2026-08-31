@@ -78,7 +78,7 @@ describe('browser/Vital calibration ladder', () => {
     expect(CALIBRATION_F_PATCH.lfo1).toMatchObject({
       enabled: true,
       phase: 0,
-      rate: { mode: 'sync', division: '1/4' },
+      rate: { mode: 'sync', division: '1/8' },
     })
     expect(CALIBRATION_F_PATCH.modulations).toEqual([
       {
