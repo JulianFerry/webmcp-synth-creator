@@ -4,6 +4,8 @@ import { App } from './app/App'
 import { createAppStore } from './app/appStore'
 import './app/styles.css'
 import { BrowserSynth } from './audio/BrowserSynth'
+import type { SynthRenderer } from './audio/SynthRenderer'
+import { VitalWasmRenderer } from './audio/vital/VitalWasmRenderer'
 import { CommandService } from './commands/CommandService'
 import { latencyTrace } from './dev/latencyTrace'
 import { createDefaultPatch } from './patch/defaults'
@@ -13,13 +15,19 @@ import { createModelContextGateway } from './webmcp/ModelContextGateway'
 import { registerTools, type ToolRegistration } from './webmcp/registerTools'
 
 const session = new SessionService(createDefaultPatch())
-const synth = new BrowserSynth(session, latencyTrace)
+const vitalAdapterPromise = Promise.resolve().then(() => VitalPresetAdapter.fromUrl())
+const renderer: SynthRenderer =
+  new URLSearchParams(window.location.search).get('renderer') === 'vital'
+    ? new VitalWasmRenderer(session, vitalAdapterPromise, latencyTrace)
+    : new BrowserSynth(session, latencyTrace)
 const commands = new CommandService(session, undefined, latencyTrace)
-const store = createAppStore({ session, commands, synth })
+const store = createAppStore({ session, commands, synth: renderer })
 
 const rootElement = document.getElementById('root')
 if (!rootElement) throw new Error('Application root was not found')
 createRoot(rootElement).render(<App store={store} />)
+
+void renderer.prepare().catch(() => undefined)
 
 if (import.meta.env.DEV) {
   void import('./audio/vital/devHarness').then(({ installVitalDevHarness }) => {
@@ -40,7 +48,7 @@ async function initializeAdapters(): Promise<void> {
       store.getState().setWebMcpCapability('unavailable', message)
     })
 
-  const vitalPromise = VitalPresetAdapter.fromUrl()
+  const vitalPromise = vitalAdapterPromise
     .then((adapter) => store.getState().setVitalAdapter(adapter))
     .catch((error: unknown) => {
       const message = error instanceof Error ? error.message : 'Vital Init fixture is unavailable'
@@ -56,7 +64,7 @@ window.addEventListener(
   'pagehide',
   () => {
     registration?.dispose()
-    synth.dispose()
+    renderer.dispose()
   },
   { once: true },
 )

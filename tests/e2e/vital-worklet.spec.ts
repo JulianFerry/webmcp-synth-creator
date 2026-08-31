@@ -26,20 +26,32 @@ test.describe('Vital AudioWorklet', () => {
         await loadModules()
       const adapter = await VitalPresetAdapter.fromUrl()
       const json = adapter.exportPatch(CALIBRATION_A_PATCH).json
+      const initialSettings = (JSON.parse(json) as { settings: Record<string, number> }).settings
 
       async function render(playNote: boolean) {
         const context = new OfflineAudioContext(2, 24_000, 48_000)
         const host = new VitalWorkletHost(context)
         const appliedRevisions: number[] = []
+        const controlRevisions: number[] = []
         const errors: Array<{ phase: string; message: string }> = []
         host.subscribe((event) => {
           if (event.type === 'state-applied') appliedRevisions.push(event.revision)
+          if (event.type === 'controls-applied') controlRevisions.push(event.revision)
           if (event.type === 'error') errors.push({ phase: event.phase, message: event.message })
         })
 
         host.loadState(1, json)
         host.loadState(3, json)
         host.loadState(2, json)
+        host.setControls(4, [
+          { name: 'filter_1_cutoff', value: initialSettings.filter_1_cutoff - 3 },
+        ])
+        host.setControls(6, [
+          { name: 'filter_1_cutoff', value: initialSettings.filter_1_cutoff - 6 },
+        ])
+        const staleControlsAccepted = host.setControls(5, [
+          { name: 'filter_1_cutoff', value: initialSettings.filter_1_cutoff },
+        ])
         host.setBpm(120)
         host.noteOn(60, 100 / 127)
         if (!playNote) host.allNotesOff()
@@ -67,10 +79,12 @@ test.describe('Vital AudioWorklet', () => {
 
         return {
           appliedRevisions,
+          controlRevisions,
           errors,
           nonFiniteSamples,
           peak,
           rms: Math.sqrt(sumSquares / (buffer.length * buffer.numberOfChannels)),
+          staleControlsAccepted,
         }
       }
 
@@ -86,12 +100,16 @@ test.describe('Vital AudioWorklet', () => {
     expect(result.audible.peak).toBeGreaterThan(0)
     expect(result.audible.peak).toBeLessThanOrEqual(1)
     expect(result.audible.appliedRevisions).toEqual([3])
+    expect(result.audible.controlRevisions).toEqual([6])
+    expect(result.audible.staleControlsAccepted).toBe(false)
 
     expect(result.silenced.errors).toEqual([])
     expect(result.silenced.nonFiniteSamples).toBe(0)
     expect(result.silenced.rms).toBeLessThan(1e-8)
     expect(result.silenced.peak).toBeLessThan(1e-7)
     expect(result.silenced.appliedRevisions).toEqual([3])
+    expect(result.silenced.controlRevisions).toEqual([6])
+    expect(result.silenced.staleControlsAccepted).toBe(false)
   })
 
   test('keeps a held note continuous while switching calibration state', async ({ page }) => {

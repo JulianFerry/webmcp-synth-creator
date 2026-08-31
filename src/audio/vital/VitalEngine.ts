@@ -14,6 +14,7 @@ export interface VitalWasmModule {
   _vital_note_on(handle: number, note: number, velocity: number): void
   _vital_process(handle: number, left: number, right: number, frames: number): void
   _vital_set_bpm(handle: number, bpm: number): void
+  _vital_set_control(handle: number, name: number, value: number): number
 }
 
 export interface VitalWasmModuleOptions {
@@ -157,6 +158,24 @@ export class VitalEngine {
       throw new RangeError('Vital BPM must be a positive finite number')
     }
     this.module._vital_set_bpm(this.handle, bpm)
+  }
+
+  setControl(name: string, value: number): boolean {
+    this.assertActive()
+    if (name.length === 0) throw new RangeError('Vital control name must not be empty')
+    if (!Number.isFinite(value)) throw new RangeError('Vital control value must be finite')
+
+    const bytes = encodeUtf8(name)
+    const pointer = this.module._malloc(bytes.byteLength + 1)
+    if (pointer === 0) throw new Error('Vital control name allocation failed')
+
+    try {
+      this.module.HEAPU8.set(bytes, pointer)
+      this.module.HEAPU8[pointer + bytes.byteLength] = 0
+      return this.module._vital_set_control(this.handle, pointer, value) !== 0
+    } finally {
+      this.module._free(pointer)
+    }
   }
 
   noteOn(note: number, velocity: number): void {

@@ -159,6 +159,19 @@ class VitalSynth final : public HeadlessSynth {
     }
   }
 
+  bool setControl(const char* name, float value) {
+    if (name == nullptr || name[0] == '\0' || !std::isfinite(value))
+      return false;
+
+    vital::control_map& controls = getControls();
+    auto control = controls.find(name);
+    if (control == controls.end() || control->second == nullptr)
+      return false;
+
+    control->second->set(value);
+    return true;
+  }
+
  private:
   static constexpr int kMaxWavetables = vital::kNumOscillators;
 
@@ -262,6 +275,18 @@ EMSCRIPTEN_KEEPALIVE bool vital_finish_load_state(VitalSynth* synth) {
 EMSCRIPTEN_KEEPALIVE void vital_set_bpm(VitalSynth* synth, float bpm) {
   if (synth != nullptr && std::isfinite(bpm) && bpm > 0.0f)
     synth->getEngine()->setBpm(bpm);
+}
+
+EMSCRIPTEN_KEEPALIVE bool vital_set_control(VitalSynth* synth, const char* name, float value) {
+  if (synth == nullptr)
+    return false;
+
+  try {
+    return synth->setControl(name, value);
+  }
+  catch (...) {
+    return false;
+  }
 }
 
 EMSCRIPTEN_KEEPALIVE void vital_note_on(VitalSynth* synth, int note, float velocity) {

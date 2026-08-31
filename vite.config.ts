@@ -80,6 +80,9 @@ function vitalWasmAssets(): Plugin {
 
 export default defineConfig({
   plugins: [react(), vitalWasmAssets(), copyLocalVitalFixture()],
+  worker: {
+    plugins: () => [vitalWasmAssets()],
+  },
   server: {
     host: '127.0.0.1',
     port: 4173,

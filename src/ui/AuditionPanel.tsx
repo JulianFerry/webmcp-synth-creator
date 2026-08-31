@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { AUDITION_HELD_MIDI_NOTE, type BrowserSynthState } from '../audio/BrowserSynth'
+import {
+  AUDITION_HELD_MIDI_NOTE,
+  type SynthRendererState,
+} from '../audio/SynthRenderer'
 import type { SupportedPatchPath } from '../patch/paths'
 import type { VoiceState } from '../patch/types'
 import { ParameterSlider } from './controls/ParameterSlider'
 
 interface AuditionPanelProps {
-  audio: BrowserSynthState
+  audio: SynthRendererState
   voice: VoiceState
   onChange: (path: SupportedPatchPath, value: unknown, reason: string) => boolean
   onPreview: (path: SupportedPatchPath, value: unknown) => void

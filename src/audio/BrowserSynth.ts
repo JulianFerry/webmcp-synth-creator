@@ -2,15 +2,8 @@ import { diffSupportedPaths, type PatchDiff } from '../commands/diff'
 import { LatencyTrace } from '../dev/latencyTrace'
 import type { SupportedPatchPath } from '../patch/paths'
 import type {
-  DelayState,
-  EnvelopeState,
-  FilterState,
-  LfoState,
-  ModulationRoute,
   OscillatorState,
   PatchState,
-  ReverbState,
-  VoiceState,
 } from '../patch/types'
 import { SessionService, type SessionCommitEvent } from '../session/SessionService'
 import { resolveWavetable } from '../wavetables/registry'
@@ -45,32 +38,13 @@ import {
   type UnisonConfiguration,
 } from './WavetableVoiceOscillator'
 import { transposeFrequency, velocityToGain } from './units'
-
-export type BrowserSynthLifecycle = 'suspended' | 'running' | 'unavailable' | 'error'
-
-export const AUDITION_HELD_MIDI_NOTE = 48
-
-export interface OscillatorReflection {
-  enabled: boolean
-  wavetablePosition: number
-  level: number
-  transposeSemitones: number
-  fineTuneCents: number
-  unisonVoices: number
-  unisonDetune: number
-  stereoSpread: number
-}
-
-export interface AudioPatchReflection {
-  oscillators: [OscillatorReflection, OscillatorReflection]
-  ampEnvelope: EnvelopeState
-  modEnvelope: EnvelopeState
-  filter: FilterState
-  lfo1: LfoState
-  modulations: ModulationRoute[]
-  voice: VoiceState
-  effects: { delay: DelayState; reverb: ReverbState }
-}
+import { oscillatorReflection, patchReflection } from './reflection'
+import {
+  AUDITION_HELD_MIDI_NOTE,
+  type NoteOnTimingMeasurement,
+  type SynthRenderer,
+  type SynthRendererState,
+} from './SynthRenderer'
 
 export interface AudioOscillatorUpdatePlan {
   wavetable: boolean
@@ -97,48 +71,8 @@ export interface AudioUpdatePlan {
   reverb: boolean
 }
 
-export interface NoteOnTimingMeasurement {
-  midi: number
-  velocity: number
-  requestedAtMs: number
-  audioReadyMs: number
-  voiceGraphBuildMs: number
-  inputToVoiceReadyMs: number
-  scheduledContextTimeSeconds: number
-  baseLatencyMs: number | null
-  outputLatencyMs: number | null
-  renderQuantumMs: number
-  attackMs: number
-  estimateSource: 'output-timestamp' | 'latency-properties' | 'app-only'
-  estimatedFirstSampleMs: number
-  estimatedEnvelopeMinus40DbMs: number
-  estimatedEnvelopeMinus20DbMs: number
-}
-
-export interface BrowserSynthState {
-  lifecycle: BrowserSynthLifecycle
-  held: boolean
-  activeVoiceCount: number
-  activeNotes: number[]
-  polyphony: number
-  stolenVoiceCount: number
-  cutoffHz: number
-  wavetablePosition: number
-  previewWavetablePositions: [number | null, number | null]
-  oscillators: [OscillatorReflection, OscillatorReflection]
-  draft: AudioPatchReflection
-  effective: AudioPatchReflection
-  previewValues: AudioPreviewValues
-  modulationScheduleVersion: number
-  effects: { delay: DelayState; reverb: ReverbState }
-  reflectedPatchName: string
-  lastCorrelationId: string | null
-  lastUpdatePlan: AudioUpdatePlan | null
-  lastNoteOnTiming: NoteOnTimingMeasurement | null
-}
-
 type AudioContextFactory = () => AudioContext
-type StateSubscriber = (state: BrowserSynthState) => void
+type StateSubscriber = (state: SynthRendererState) => void
 
 const OSCILLATOR_OUTPUT_GAIN = 0.24
 
@@ -233,35 +167,6 @@ function unisonConfiguration(oscillator: OscillatorState): UnisonConfiguration {
     detune: oscillator.unisonDetune,
     stereoSpread: oscillator.stereoSpread,
     randomPhase: oscillator.randomPhase,
-  }
-}
-
-function oscillatorReflection(oscillator: OscillatorState): OscillatorReflection {
-  return {
-    enabled: oscillator.enabled,
-    wavetablePosition: oscillator.wavetablePosition,
-    level: oscillator.level,
-    transposeSemitones: oscillator.transposeSemitones,
-    fineTuneCents: oscillator.fineTuneCents,
-    unisonVoices: oscillator.unisonVoices,
-    unisonDetune: oscillator.unisonDetune,
-    stereoSpread: oscillator.stereoSpread,
-  }
-}
-
-function patchReflection(patch: PatchState): AudioPatchReflection {
-  return {
-    oscillators: [
-      oscillatorReflection(patch.oscillators[0]),
-      oscillatorReflection(patch.oscillators[1]),
-    ],
-    ampEnvelope: structuredClone(patch.ampEnvelope),
-    modEnvelope: structuredClone(patch.modEnvelope),
-    filter: structuredClone(patch.filter),
-    lfo1: structuredClone(patch.lfo1),
-    modulations: structuredClone(patch.modulations),
-    voice: structuredClone(patch.voice),
-    effects: structuredClone(patch.effects),
   }
 }
 
@@ -463,12 +368,12 @@ class BrowserVoice implements ModulationTarget {
   }
 }
 
-export class BrowserSynth {
+export class BrowserSynth implements SynthRenderer {
   private patch: PatchState
   private draftPatch: PatchState
   private effectivePatch: PatchState
   private previewValues: AudioPreviewValues = {}
-  private state: BrowserSynthState
+  private state: SynthRendererState
   private context: AudioContext | null = null
   private master: GainNode | null = null
   private output: GainNode | null = null
@@ -516,14 +421,12 @@ export class BrowserSynth {
       modulationScheduleVersion: 0,
       effects: structuredClone(this.patch.effects),
       reflectedPatchName: this.patch.metadata.name,
-      lastCorrelationId: null,
-      lastUpdatePlan: null,
       lastNoteOnTiming: null,
     }
     this.unsubscribeSession = session.subscribe((event) => this.applyCommittedPatch(event))
   }
 
-  getState(): BrowserSynthState {
+  getState(): SynthRendererState {
     return structuredClone(this.state)
   }
 
@@ -531,6 +434,8 @@ export class BrowserSynth {
     this.subscribers.add(subscriber)
     return () => this.subscribers.delete(subscriber)
   }
+
+  async prepare(): Promise<void> {}
 
   async startAudio(): Promise<void> {
     if (this.state.lifecycle === 'unavailable') {
@@ -623,7 +528,7 @@ export class BrowserSynth {
     this.reflectActiveVoices()
   }
 
-  async toggleHeldNote(requestedAtMs = this.performanceNow()): Promise<BrowserSynthState> {
+  async toggleHeldNote(requestedAtMs = this.performanceNow()): Promise<SynthRendererState> {
     if (this.allocator.activeNotes.includes(AUDITION_HELD_MIDI_NOTE)) {
       this.noteOff(AUDITION_HELD_MIDI_NOTE)
     } else {
@@ -747,8 +652,6 @@ export class BrowserSynth {
         this.state.modulationScheduleVersion + (plan.modulation && this.voices.size > 0 ? 1 : 0),
       effects: structuredClone(this.patch.effects),
       reflectedPatchName: this.patch.metadata.name,
-      lastCorrelationId: event.correlationId,
-      lastUpdatePlan: plan,
     }
     this.notify()
     this.trace.record(event.correlationId, 'audio_diff_applied', event.source)
@@ -771,8 +674,8 @@ export class BrowserSynth {
     this.previewValues = nextPreviewValues
     this.draftPatch = nextDraftPatch
     this.effectivePatch = nextEffectivePatch
-    const plan = this.applyAudioPatch(nextEffectivePatch, changed, false)
-    this.reflectPreviewState(plan)
+    this.applyAudioPatch(nextEffectivePatch, changed, false)
+    this.reflectPreviewState()
   }
 
   private applyAudioPatch(
@@ -799,7 +702,7 @@ export class BrowserSynth {
     return plan
   }
 
-  private reflectPreviewState(plan: AudioUpdatePlan): void {
+  private reflectPreviewState(): void {
     const firstPosition = this.previewValues['oscillators.0.wavetablePosition']
     const secondPosition = this.previewValues['oscillators.1.wavetablePosition']
     const reflection = patchReflection(this.effectivePatch)
@@ -816,7 +719,6 @@ export class BrowserSynth {
       effective: reflection,
       previewValues: structuredClone(this.previewValues),
       effects: structuredClone(this.effectivePatch.effects),
-      lastUpdatePlan: plan,
     }
     this.notify()
   }

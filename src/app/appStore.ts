@@ -1,6 +1,6 @@
 import { create, type StoreApi, type UseBoundStore } from 'zustand'
 
-import { BrowserSynth, type BrowserSynthState } from '../audio/BrowserSynth'
+import type { SynthRenderer, SynthRendererState } from '../audio/SynthRenderer'
 import { CommandService } from '../commands/CommandService'
 import type { SupportedPatchPath } from '../patch/paths'
 import { summarizePatch } from '../patch/summary'
@@ -28,7 +28,7 @@ export interface AppStoreState {
   hasVariantB: boolean
   canUndo: boolean
   canRedo: boolean
-  audio: BrowserSynthState
+  audio: SynthRendererState
   webMcpStatus: CapabilityStatus
   webMcpReason: string | null
   vitalStatus: VitalFixtureStatus
@@ -65,7 +65,7 @@ export type AppStore = UseBoundStore<StoreApi<AppStoreState>>
 interface AppStoreDependencies {
   session: SessionService
   commands: CommandService
-  synth: BrowserSynth
+  synth: SynthRenderer
 }
 
 function errorMessage(error: unknown): string {

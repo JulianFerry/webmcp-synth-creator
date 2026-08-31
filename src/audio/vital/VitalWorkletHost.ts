@@ -7,6 +7,7 @@ import {
   type VitalWorkletCommand,
   type VitalWorkletEvent,
 } from './protocol'
+import type { VitalControlOperation } from '../../vital/VitalPresetAdapter'
 
 const DEFAULT_WASM_URL = '/wasm/vital/build/vital.wasm'
 const DEFAULT_MAX_BLOCK_FRAMES = 4_096
@@ -26,16 +27,26 @@ interface PendingStateCommand {
   revision: number
 }
 
-type PendingControlCommand = Exclude<VitalWorkletCommand, { type: 'load-state' | 'dispose' }>
+interface PendingControlValue extends VitalControlOperation {
+  revision: number
+}
+
+type PendingControlCommand = Exclude<
+  VitalWorkletCommand,
+  { type: 'load-state' | 'set-controls' | 'dispose' }
+>
+type InitialControlCommand = Exclude<VitalWorkletCommand, { type: 'load-state' | 'dispose' }>
 
 export class VitalWorkletHost {
   private disposed = false
   private highestRequestedRevision = -1
   private initializePromise: Promise<void> | null = null
   private listeners = new Set<VitalWorkletEventListener>()
+  private pendingControlRevision = -1
+  private pendingControlValues = new Map<string, PendingControlValue>()
   private pendingControls: PendingControlCommand[] = []
   private pendingState: PendingStateCommand | null = null
-  private pendingStateFlush = false
+  private pendingUpdateFlush = false
   private workletNode: AudioWorkletNode | null = null
 
   constructor(
@@ -73,10 +84,34 @@ export class VitalWorkletHost {
 
     this.highestRequestedRevision = revision
     this.pendingState = { revision, json }
-    if (this.workletNode !== null && !this.pendingStateFlush) {
-      this.pendingStateFlush = true
-      queueMicrotask(() => this.flushPendingState())
+    for (const [name, operation] of this.pendingControlValues) {
+      if (operation.revision <= revision) this.pendingControlValues.delete(name)
     }
+    this.schedulePendingUpdateFlush()
+    return true
+  }
+
+  setControls(revision: number, operations: VitalControlOperation[]): boolean {
+    this.assertActive()
+    if (!Number.isSafeInteger(revision) || revision < 0) {
+      throw new RangeError('Vital control revision must be a non-negative safe integer')
+    }
+    if (revision <= this.highestRequestedRevision) return false
+    if (operations.length === 0) return false
+
+    for (const operation of operations) {
+      if (operation.name.length === 0) throw new RangeError('Vital control name must not be empty')
+      if (!Number.isFinite(operation.value)) {
+        throw new RangeError(`Vital control ${operation.name} must have a finite value`)
+      }
+    }
+
+    this.highestRequestedRevision = revision
+    this.pendingControlRevision = revision
+    for (const operation of operations) {
+      this.pendingControlValues.set(operation.name, { ...operation, revision })
+    }
+    this.schedulePendingUpdateFlush()
     return true
   }
 
@@ -99,6 +134,7 @@ export class VitalWorkletHost {
   dispose(): void {
     if (this.disposed) return
     this.pendingState = null
+    this.pendingControlValues.clear()
     this.pendingControls.length = 0
     this.disposed = true
 
@@ -124,10 +160,12 @@ export class VitalWorkletHost {
       if (this.disposed) throw new Error('Vital worklet host was disposed during initialization')
 
       const initialState = this.pendingState
-      const initialControls = this.pendingControls
+      const initialControls: InitialControlCommand[] = [...this.pendingControls]
+      const initialControlUpdate = this.takePendingControlCommand(initialState?.revision ?? -1)
+      if (initialControlUpdate !== null) initialControls.push(initialControlUpdate)
       this.pendingState = null
       this.pendingControls = []
-      this.pendingStateFlush = false
+      this.pendingUpdateFlush = false
 
       const node = new AudioWorkletNode(this.context, VITAL_WORKLET_PROCESSOR_NAME, {
         channelCount: 2,
@@ -190,17 +228,22 @@ export class VitalWorkletHost {
     })
   }
 
-  private flushPendingState(): void {
-    this.pendingStateFlush = false
+  private flushPendingUpdates(): void {
+    this.pendingUpdateFlush = false
     const state = this.pendingState
     this.pendingState = null
-    if (state === null || this.disposed || this.workletNode === null) return
+    if (this.disposed || this.workletNode === null) return
 
-    this.workletNode.port.postMessage({
-      type: 'load-state',
-      revision: state.revision,
-      json: state.json,
-    } satisfies VitalWorkletCommand)
+    if (state !== null) {
+      this.workletNode.port.postMessage({
+        type: 'load-state',
+        revision: state.revision,
+        json: state.json,
+      } satisfies VitalWorkletCommand)
+    }
+
+    const controls = this.takePendingControlCommand(state?.revision ?? -1)
+    if (controls !== null) this.workletNode.port.postMessage(controls)
   }
 
   private postCommand(command: VitalWorkletCommand): void {
@@ -219,6 +262,36 @@ export class VitalWorkletHost {
   private emit(event: VitalWorkletEvent): void {
     for (const listener of this.listeners) listener(event)
   }
+
+  private schedulePendingUpdateFlush(): void {
+    if (this.workletNode === null || this.pendingUpdateFlush) return
+    this.pendingUpdateFlush = true
+    queueMicrotask(() => this.flushPendingUpdates())
+  }
+
+  private takePendingControlCommand(afterRevision: number): Extract<
+    VitalWorkletCommand,
+    { type: 'set-controls' }
+  > | null {
+    const operations: VitalControlOperation[] = []
+    for (const [name, operation] of this.pendingControlValues) {
+      if (operation.revision > afterRevision) {
+        operations.push({ name, value: operation.value })
+      }
+    }
+    this.pendingControlValues.clear()
+    if (operations.length === 0) return null
+
+    return {
+      type: 'set-controls',
+      revision: this.pendingControlRevision,
+      operations,
+    }
+  }
+}
+
+export function preloadVitalWasm(wasmUrl = DEFAULT_WASM_URL): Promise<WebAssembly.Module> {
+  return getCompiledWasmModule(wasmUrl)
 }
 
 function getCompiledWasmModule(url: string): Promise<WebAssembly.Module> {

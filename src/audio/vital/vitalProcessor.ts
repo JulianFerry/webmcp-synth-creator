@@ -7,6 +7,7 @@ import {
   type VitalWorkletEvent,
 } from './protocol'
 import { VitalEngine } from './VitalEngine'
+import type { VitalControlOperation } from '../../vital/VitalPresetAdapter'
 
 const DEFAULT_MAX_BLOCK_FRAMES = 4_096
 const HELD_NOTE_STATE_CROSSFADE_SECONDS = 0.04
@@ -58,7 +59,11 @@ class VitalProcessor extends AudioWorkletProcessor {
   private bpm = 120
   private disposed = false
   private engine: VitalEngine | null = null
-  private highestStateRevision = -1
+  private highestRequestedRevision = -1
+  private readonly latestControlValues = new Map<
+    string,
+    { revision: number; value: number }
+  >()
   private maxBlockFrames = DEFAULT_MAX_BLOCK_FRAMES
   private pendingControls: PendingControlCommand[] = []
   private pendingState: PendingState | null = null
@@ -77,6 +82,14 @@ class VitalProcessor extends AudioWorkletProcessor {
   private stateFadeOut: Float32Array | null = null
   private readonly stateAppliedEvent: Extract<VitalWorkletEvent, { type: 'state-applied' }> = {
     type: 'state-applied',
+    revision: 0,
+    durationMs: 0,
+  }
+  private readonly controlsAppliedEvent: Extract<
+    VitalWorkletEvent,
+    { type: 'controls-applied' }
+  > = {
+    type: 'controls-applied',
     revision: 0,
     durationMs: 0,
   }
@@ -169,8 +182,8 @@ class VitalProcessor extends AudioWorkletProcessor {
       this.standbyEngine = standbyEngine
       this.initializeRenderBuffers()
       if (options.initialState !== undefined && options.initialState !== null) {
-        this.highestStateRevision = Math.max(
-          this.highestStateRevision,
+        this.highestRequestedRevision = Math.max(
+          this.highestRequestedRevision,
           options.initialState.revision,
         )
         const startedAt = clockNowMs()
@@ -206,13 +219,27 @@ class VitalProcessor extends AudioWorkletProcessor {
         !isNonNegativeSafeInteger(value.revision) ||
         typeof value.json !== 'string' ||
         value.json.length === 0 ||
-        value.revision <= this.highestStateRevision
+        value.revision <= this.highestRequestedRevision
       ) {
         return
       }
 
-      this.highestStateRevision = value.revision
+      this.highestRequestedRevision = value.revision
       this.pendingState = { revision: value.revision, json: value.json }
+      return
+    }
+
+    if (value.type === 'set-controls') {
+      if (
+        !isNonNegativeSafeInteger(value.revision) ||
+        value.revision <= this.highestRequestedRevision ||
+        !isVitalControlOperations(value.operations)
+      ) {
+        return
+      }
+
+      this.highestRequestedRevision = value.revision
+      this.pendingControls.push(value as unknown as PendingControlCommand)
       return
     }
 
@@ -227,6 +254,26 @@ class VitalProcessor extends AudioWorkletProcessor {
       const command = this.pendingControls[index]
       try {
         switch (command.type) {
+          case 'set-controls': {
+            const startedAt = clockNowMs()
+            this.highestRequestedRevision = Math.max(
+              this.highestRequestedRevision,
+              command.revision,
+            )
+            this.applyControlOperations(engine, command.operations)
+            for (const operation of command.operations) {
+              this.latestControlValues.set(operation.name, {
+                revision: command.revision,
+                value: operation.value,
+              })
+            }
+            if (this.isStandbyStateLoaded()) {
+              const standby = this.standbyEngine
+              if (standby !== null) this.applyControlOperations(standby, command.operations)
+            }
+            this.emitControlsApplied(command.revision, startedAt)
+            break
+          }
           case 'set-bpm':
             engine.setBpm(command.bpm)
             if (this.isMirroringToStandby()) this.standbyEngine?.setBpm(command.bpm)
@@ -284,6 +331,14 @@ class VitalProcessor extends AudioWorkletProcessor {
     return this.statePhase === 'warming' || this.statePhase === 'crossfading'
   }
 
+  private isStandbyStateLoaded(): boolean {
+    return (
+      this.statePhase === 'stepping' ||
+      this.statePhase === 'warming' ||
+      this.statePhase === 'crossfading'
+    )
+  }
+
   private startStandbyLoad(): boolean {
     const target = this.standbyEngine
     const json = this.stateTransitionJson
@@ -297,6 +352,15 @@ class VitalProcessor extends AudioWorkletProcessor {
       })
       return false
     }
+    const replay: VitalControlOperation[] = []
+    for (const [name, control] of this.latestControlValues) {
+      if (control.revision > this.stateTransitionRevision) {
+        replay.push({ name, value: control.value })
+      } else {
+        this.latestControlValues.delete(name)
+      }
+    }
+    this.applyControlOperations(target, replay)
     return true
   }
 
@@ -452,12 +516,27 @@ class VitalProcessor extends AudioWorkletProcessor {
     this.postEvent(this.stateAppliedEvent)
   }
 
+  private emitControlsApplied(revision: number, startedAt: number): void {
+    this.controlsAppliedEvent.revision = revision
+    this.controlsAppliedEvent.durationMs = clockNowMs() - startedAt
+    this.postEvent(this.controlsAppliedEvent)
+  }
+
+  private applyControlOperations(engine: VitalEngine, operations: VitalControlOperation[]): void {
+    for (const operation of operations) {
+      if (!engine.setControl(operation.name, operation.value)) {
+        throw new Error(`Vital rejected control ${operation.name}`)
+      }
+    }
+  }
+
   private disposeEngine(): void {
     this.disposed = true
     this.activeNoteFlags.fill(0)
     this.activeNoteVelocities.fill(0)
     this.activeNoteCount = 0
     this.pendingState = null
+    this.latestControlValues.clear()
     this.pendingControls.length = 0
     this.engine?.dispose()
     this.standbyEngine?.dispose()
@@ -519,6 +598,22 @@ function isCommandRecord(value: unknown): value is Record<string, unknown> & { t
 
 function isNonNegativeSafeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+}
+
+function isVitalControlOperations(value: unknown): value is VitalControlOperation[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      (operation) =>
+        typeof operation === 'object' &&
+        operation !== null &&
+        typeof (operation as { name?: unknown }).name === 'string' &&
+        (operation as { name: string }).name.length > 0 &&
+        typeof (operation as { value?: unknown }).value === 'number' &&
+        Number.isFinite((operation as { value: number }).value),
+    )
+  )
 }
 
 function clearOutput(left: Float32Array, right: Float32Array): void {
