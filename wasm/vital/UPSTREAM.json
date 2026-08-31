@@ -24,6 +24,7 @@
     "patches/0001-juce-emscripten-platform-guards.patch",
     "patches/0002-juce-disable-backtraces.patch",
     "patches/0003-juce-wasm-linux-fallbacks.patch",
-    "patches/0004-vital-skip-installed-check.patch"
+    "patches/0004-vital-skip-installed-check.patch",
+    "patches/0005-vital-optional-wavetable-render.patch"
   ]
 }

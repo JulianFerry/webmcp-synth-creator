@@ -4,9 +4,12 @@ export interface VitalWasmModule {
   _free(pointer: number): void
   _malloc(bytes: number): number
   _vital_all_notes_off(handle: number): void
+  _vital_begin_load_state(handle: number, json: number, length: number): number
   _vital_create(sampleRate: number): number
   _vital_destroy(handle: number): void
+  _vital_finish_load_state(handle: number): number
   _vital_load_state(handle: number, json: number, length: number): number
+  _vital_step_load_state(handle: number, maxFrames: number): number
   _vital_note_off(handle: number, note: number): void
   _vital_note_on(handle: number, note: number, velocity: number): void
   _vital_process(handle: number, left: number, right: number, frames: number): void
@@ -14,12 +17,18 @@ export interface VitalWasmModule {
 }
 
 export interface VitalWasmModuleOptions {
+  instantiateWasm?: (
+    imports: WebAssembly.Imports,
+    receiveInstance: (instance: WebAssembly.Instance, module?: WebAssembly.Module) => void,
+  ) => WebAssembly.Exports
   locateFile?: (path: string, scriptDirectory: string) => string
 }
 
 export interface VitalEngineOptions extends VitalWasmModuleOptions {
   maxBlockFrames?: number
 }
+
+const MAX_WASM_SIGNED_INT = 0x7fff_ffff
 
 export type VitalWasmModuleFactory = (
   options?: VitalWasmModuleOptions,
@@ -94,7 +103,7 @@ export class VitalEngine {
     this.assertActive()
     if (json.length === 0) throw new RangeError('Vital state JSON must not be empty')
 
-    const bytes = new TextEncoder().encode(json)
+    const bytes = encodeUtf8(json)
     const pointer = this.module._malloc(bytes.byteLength)
     if (pointer === 0) throw new Error('Vital state buffer allocation failed')
 
@@ -104,6 +113,42 @@ export class VitalEngine {
     } finally {
       this.module._free(pointer)
     }
+  }
+
+  /**
+   * Applies everything in the state except wavetable frame rendering, which `stepLoadState` then
+   * advances in bounded chunks. The engine must not be processed until `finishLoadState` returns.
+   */
+  beginLoadState(json: string): boolean {
+    this.assertActive()
+    if (json.length === 0) throw new RangeError('Vital state JSON must not be empty')
+
+    const bytes = encodeUtf8(json)
+    const pointer = this.module._malloc(bytes.byteLength)
+    if (pointer === 0) throw new Error('Vital state buffer allocation failed')
+
+    try {
+      this.module.HEAPU8.set(bytes, pointer)
+      return this.module._vital_begin_load_state(this.handle, pointer, bytes.byteLength) !== 0
+    } finally {
+      this.module._free(pointer)
+    }
+  }
+
+  /** Renders up to `maxFrames` wavetable frames. Returns the number of frames still outstanding. */
+  stepLoadState(maxFrames: number): number {
+    this.assertActive()
+    if (!Number.isInteger(maxFrames) || maxFrames <= 0 || maxFrames > MAX_WASM_SIGNED_INT) {
+      throw new RangeError(
+        `Vital wavetable step size must be an integer between 1 and ${MAX_WASM_SIGNED_INT}`,
+      )
+    }
+    return this.module._vital_step_load_state(this.handle, maxFrames)
+  }
+
+  finishLoadState(): boolean {
+    this.assertActive()
+    return this.module._vital_finish_load_state(this.handle) !== 0
   }
 
   setBpm(bpm: number): void {
@@ -147,8 +192,11 @@ export class VitalEngine {
 
     const leftOffset = this.leftPointer / Float32Array.BYTES_PER_ELEMENT
     const rightOffset = this.rightPointer / Float32Array.BYTES_PER_ELEMENT
-    left.set(this.module.HEAPF32.subarray(leftOffset, leftOffset + frames), 0)
-    right.set(this.module.HEAPF32.subarray(rightOffset, rightOffset + frames), 0)
+    const heap = this.module.HEAPF32
+    for (let frame = 0; frame < frames; frame += 1) {
+      left[frame] = heap[leftOffset + frame]
+      right[frame] = heap[rightOffset + frame]
+    }
   }
 
   dispose(): void {
@@ -179,4 +227,46 @@ export class VitalEngine {
       throw new RangeError('Vital MIDI note must be an integer between 0 and 127')
     }
   }
+}
+
+function encodeUtf8(value: string): Uint8Array {
+  const Encoder = (globalThis as { TextEncoder?: typeof TextEncoder }).TextEncoder
+  if (Encoder !== undefined) return new Encoder().encode(value)
+
+  let byteLength = 0
+  for (let index = 0; index < value.length; index += 1) {
+    const codePoint = value.codePointAt(index)
+    if (codePoint === undefined) break
+    if (codePoint > 0xffff) index += 1
+    byteLength += codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2 : codePoint <= 0xffff ? 3 : 4
+  }
+
+  const bytes = new Uint8Array(byteLength)
+  let offset = 0
+  for (let index = 0; index < value.length; index += 1) {
+    const codePoint = value.codePointAt(index)
+    if (codePoint === undefined) break
+    if (codePoint > 0xffff) index += 1
+
+    if (codePoint <= 0x7f) {
+      bytes[offset] = codePoint
+      offset += 1
+    } else if (codePoint <= 0x7ff) {
+      bytes[offset] = 0xc0 | (codePoint >> 6)
+      bytes[offset + 1] = 0x80 | (codePoint & 0x3f)
+      offset += 2
+    } else if (codePoint <= 0xffff) {
+      bytes[offset] = 0xe0 | (codePoint >> 12)
+      bytes[offset + 1] = 0x80 | ((codePoint >> 6) & 0x3f)
+      bytes[offset + 2] = 0x80 | (codePoint & 0x3f)
+      offset += 3
+    } else {
+      bytes[offset] = 0xf0 | (codePoint >> 18)
+      bytes[offset + 1] = 0x80 | ((codePoint >> 12) & 0x3f)
+      bytes[offset + 2] = 0x80 | ((codePoint >> 6) & 0x3f)
+      bytes[offset + 3] = 0x80 | (codePoint & 0x3f)
+      offset += 4
+    }
+  }
+  return bytes
 }

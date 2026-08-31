@@ -49,6 +49,9 @@ The target excludes Vital's GUI, OpenGL interface, plugin, editor, standalone sh
 VitalSynth* vital_create(float sample_rate);
 void vital_destroy(VitalSynth* synth);
 bool vital_load_state(VitalSynth* synth, const char* json, int length);
+bool vital_begin_load_state(VitalSynth* synth, const char* json, int length);
+int vital_step_load_state(VitalSynth* synth, int max_frames);
+bool vital_finish_load_state(VitalSynth* synth);
 void vital_set_bpm(VitalSynth* synth, float bpm);
 void vital_note_on(VitalSynth* synth, int note, float velocity);
 void vital_note_off(VitalSynth* synth, int note);
@@ -56,7 +59,7 @@ void vital_all_notes_off(VitalSynth* synth);
 void vital_process(VitalSynth* synth, float* left, float* right, int frames);
 ```
 
-Phase 1 exercises create/destroy. Phase 2 exercises every bridge call except `vital_all_notes_off`, which remains available for the real-time harness.
+Phase 1 exercises create/destroy. Phase 2 exercises the monolithic state and render calls. Phase 3 exercises `vital_all_notes_off` and the incremental state-loading calls in the real-time harness.
 
 ## Build result
 
@@ -95,3 +98,18 @@ These local Node/Vitest measurements render five seconds of audio in 1.8%-7.4% o
 **Phase 2 gate: GO.** Vital constructs, renders a hard-coded C4, accepts the pinned 1.0.7 fixture and every Workbench calibration export, produces finite non-silent bounded output, and has plausible offline cost. No new JUCE/platform blocker appeared in Phase 2, and the source-version compatibility risk did not materialize.
 
 Manual listening confirmed calibration A, D, F, and H are recognizable synth tones without audible corruption. Playing the same exported states at C4 in desktop Vital 1.0.7 confirmed the same family of sound. This clears the offline-render gate for the real-time AudioWorklet harness; detailed fidelity remains a Phase 5 acceptance gate.
+
+## Phase 3 AudioWorklet result
+
+The real-time harness compiles the WASM module on the main thread, passes the compiled module into a conventional `AudioWorkletProcessor`, and constructs two isolated engines in the render scope. The host does not connect the node to the destination until the processor reports `ready`, keeping WASM construction and initial state loading out of the live graph. The development harness also resumes its `AudioContext` before host preparation so device startup does not coincide with the first note.
+
+State-load measurements showed that Vital renders every wavetable frame position through the final keyframe. Calibration H therefore renders 257 FFT-domain frames and takes about 58 ms in Node or 80 ms in a Chromium callback as a monolithic load. Patch `0005-vital-optional-wavetable-render.patch` adds an optional render argument to `WavetableCreator::jsonToState` while preserving the original one-argument behavior. The bridge uses that seam to apply non-wavetable state in `vital_begin_load_state`, render bounded frame batches through `vital_step_load_state`, and finish post-processing in `vital_finish_load_state`.
+
+The incremental path is sample-for-sample identical to monolithic loading across repeated A, B, D, F, and H transitions. In Chromium it reduces the worst state-switch callback from about 80 ms to 14-16 ms; the remaining unsplittable `begin` work is JSON parsing, controls, sample decoding, and LFO setup. The worklet deliberately does not mute around that callback, and it does not perform a silent warm render before readiness. Those artifact-hiding experiments were removed; connect-after-ready and bounded incremental loading are the retained fixes.
+
+After adding the incremental bridge exports, a clean emsdk 3.1.64 release build emits:
+
+- `vital.mjs`: 48,147 bytes raw; 13,365 bytes gzip
+- `vital.wasm`: 1,487,915 bytes raw; 375,802 bytes gzip
+
+Automated worklet, equivalence, unit, type, lint, and production-build checks pass. Phase 3 remains at manual verification: a listener must confirm the combined first-use note onset, the held A-to-H transition, and a log-free render-thread profile before the phase is marked complete.

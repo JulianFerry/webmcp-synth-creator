@@ -21,6 +21,12 @@ const rootElement = document.getElementById('root')
 if (!rootElement) throw new Error('Application root was not found')
 createRoot(rootElement).render(<App store={store} />)
 
+if (import.meta.env.DEV) {
+  void import('./audio/vital/devHarness').then(({ installVitalDevHarness }) => {
+    installVitalDevHarness()
+  })
+}
+
 let registration: ToolRegistration | null = null
 
 async function initializeAdapters(): Promise<void> {
