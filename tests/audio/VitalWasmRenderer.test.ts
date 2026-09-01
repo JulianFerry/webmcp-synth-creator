@@ -209,6 +209,103 @@ describe('VitalWasmRenderer', () => {
     renderer.dispose()
   })
 
+  it('reflects and cancels oscillator 3 previews without changing canonical state', async () => {
+    const { adapter, host, renderer, session } = createHarness()
+    await renderer.startAudio()
+
+    const committed = session.getPatch()
+    expect(renderer.getState().oscillators).toHaveLength(3)
+    expect(renderer.getState().effects.order).toHaveLength(6)
+    expect(renderer.previewPatchChange('oscillators.2.wavetablePosition', 0.73)).toBe(true)
+
+    const previewed = structuredClone(committed)
+    previewed.oscillators[2].wavetablePosition = 0.73
+    expect(host.controlUpdates.at(-1)?.operations).toEqual(
+      adapter.controlOperations(committed, previewed),
+    )
+    expect(renderer.getState()).toMatchObject({
+      previewWavetablePositions: [null, null, 0.73],
+      oscillators: [
+        expect.any(Object),
+        expect.any(Object),
+        expect.objectContaining({ wavetablePosition: 0.73 }),
+      ],
+      draft: {
+        oscillators: [
+          expect.any(Object),
+          expect.any(Object),
+          expect.objectContaining({ wavetablePosition: 0.73 }),
+        ],
+      },
+      effective: {
+        oscillators: [
+          expect.any(Object),
+          expect.any(Object),
+          expect.objectContaining({ wavetablePosition: 0.73 }),
+        ],
+      },
+    })
+    expect(session.getPatch().oscillators[2].wavetablePosition).toBe(
+      committed.oscillators[2].wavetablePosition,
+    )
+
+    renderer.cancelPatchPreview('oscillators.2.wavetablePosition')
+    expect(host.controlUpdates.at(-1)?.operations).toEqual(
+      adapter.controlOperations(previewed, committed),
+    )
+    expect(renderer.getState().previewWavetablePositions).toEqual([null, null, null])
+    expect(renderer.getState().effective.oscillators[2].wavetablePosition).toBe(
+      committed.oscillators[2].wavetablePosition,
+    )
+    renderer.dispose()
+  })
+
+  it('uses controls for oscillator 3 scalars and full state for its wavetable identity', async () => {
+    const { adapter, commands, host, renderer, session } = createHarness()
+    await renderer.startAudio()
+    await renderer.noteOn(60)
+
+    const beforeScalar = session.getPatch()
+    commands.applyPatch(
+      {
+        type: 'apply_patch',
+        reason: 'Raise oscillator 3 level',
+        changes: [{ path: 'oscillators.2.level', value: 0.41 }],
+      },
+      { source: 'ui' },
+    )
+    const afterScalar = session.getPatch()
+    const scalarUpdate = host.controlUpdates.at(-1)
+    expect(scalarUpdate?.operations).toEqual(adapter.controlOperations(beforeScalar, afterScalar))
+    expect(scalarUpdate?.operations).toContainEqual({
+      name: 'osc_3_level',
+      value: expect.any(Number),
+    })
+    expect(host.stateUpdates).toHaveLength(1)
+
+    host.emit({
+      type: 'controls-applied',
+      revision: scalarUpdate!.revision,
+      durationMs: 0.01,
+    })
+    expect(renderer.getState().modulationScheduleVersion).toBe(1)
+    expect(renderer.getState().effective.oscillators[2].level).toBe(0.41)
+
+    const controlUpdateCount = host.controlUpdates.length
+    commands.applyPatch(
+      {
+        type: 'apply_patch',
+        reason: 'Replace oscillator 3 wavetable resource',
+        changes: [{ path: 'oscillators.2.wavetableId', value: 'sine' }],
+      },
+      { source: 'ui' },
+    )
+    expect(host.controlUpdates).toHaveLength(controlUpdateCount)
+    expect(host.stateUpdates).toHaveLength(2)
+    expect(host.stateUpdates.at(-1)?.json).toBe(adapter.exportPatch(session.getPatch()).json)
+    renderer.dispose()
+  })
+
   it('keeps newest revisions, ignores stale acknowledgements, and coalesces modulation reflection', async () => {
     const { commands, host, renderer } = createHarness()
     await renderer.startAudio()

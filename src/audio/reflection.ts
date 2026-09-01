@@ -20,7 +20,7 @@ export interface OscillatorReflection {
 }
 
 export interface AudioPatchReflection {
-  oscillators: [OscillatorReflection, OscillatorReflection]
+  oscillators: [OscillatorReflection, OscillatorReflection, OscillatorReflection]
   ampEnvelope: EnvelopeState
   modEnvelope: EnvelopeState
   filter: FilterState
@@ -48,6 +48,7 @@ export function patchReflection(patch: PatchState): AudioPatchReflection {
     oscillators: [
       oscillatorReflection(patch.oscillators[0]),
       oscillatorReflection(patch.oscillators[1]),
+      oscillatorReflection(patch.oscillators[2]),
     ],
     ampEnvelope: structuredClone(patch.ampEnvelope),
     modEnvelope: structuredClone(patch.modEnvelope),

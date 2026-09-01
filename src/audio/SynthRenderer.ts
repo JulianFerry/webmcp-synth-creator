@@ -34,8 +34,8 @@ export interface SynthRendererState {
   stolenVoiceCount: number
   cutoffHz: number
   wavetablePosition: number
-  previewWavetablePositions: [number | null, number | null]
-  oscillators: [OscillatorReflection, OscillatorReflection]
+  previewWavetablePositions: [number | null, number | null, number | null]
+  oscillators: [OscillatorReflection, OscillatorReflection, OscillatorReflection]
   draft: AudioPatchReflection
   effective: AudioPatchReflection
   previewValues: AudioPreviewValues

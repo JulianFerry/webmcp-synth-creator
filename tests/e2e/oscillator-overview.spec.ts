@@ -66,6 +66,17 @@ test('oscillators default to 3D and toggle locally with full, matched stages', a
   await expect(position).toHaveAccessibleDescription(/one static frame/i)
 
   await expect(page.getByTestId('oscillator-3-editor')).toHaveClass(/is-disabled/)
+  const telemetry = page.getByTestId('audio-adapter-state')
+  await expect(telemetry).toHaveAttribute(
+    'data-effective-effects-order',
+    'distortion,filter,compressor,chorus,delay,reverb',
+  )
+  await page.getByTestId('oscillator-3-enabled').click()
+  const oscillator3Level = page.getByTestId('oscillator-3-level')
+  await oscillator3Level.focus()
+  await oscillator3Level.press('ArrowUp')
+  await expect(telemetry).toHaveAttribute('data-effective-oscillator-3-enabled', 'true')
+  await expect(telemetry).toHaveAttribute('data-effective-oscillator-3-level', '0.01')
 
   const headerItems = await Promise.all([
     editor.getByRole('heading', { name: 'Oscillator 1' }).boundingBox(),

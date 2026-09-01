@@ -63,6 +63,7 @@ const FULL_STATE_PATHS = new Set([
   'lfo1.points',
   'oscillators.0.wavetableId',
   'oscillators.1.wavetableId',
+  'oscillators.2.wavetableId',
   'wavetableData',
 ])
 
@@ -121,7 +122,7 @@ export class VitalWasmRenderer implements SynthRenderer {
       stolenVoiceCount: 0,
       cutoffHz: this.patch.filter.cutoffHz,
       wavetablePosition: this.patch.oscillators[0].wavetablePosition,
-      previewWavetablePositions: [null, null],
+      previewWavetablePositions: [null, null, null],
       oscillators: reflection.oscillators,
       draft: reflection,
       effective: reflection,
@@ -281,15 +282,18 @@ export class VitalWasmRenderer implements SynthRenderer {
     this.previewValues = {}
     this.draftPatch = structuredClone(this.patch)
     this.effectivePatch = structuredClone(this.patch)
+    const reflection = patchReflection(this.patch)
     this.state = {
       ...this.state,
       held: false,
       activeVoiceCount: 0,
       activeNotes: [],
-      previewWavetablePositions: [null, null],
-      draft: patchReflection(this.draftPatch),
-      effective: patchReflection(this.effectivePatch),
+      previewWavetablePositions: [null, null, null],
+      oscillators: reflection.oscillators,
+      draft: reflection,
+      effective: reflection,
       previewValues: {},
+      effects: structuredClone(this.patch.effects),
     }
   }
 
@@ -344,7 +348,7 @@ export class VitalWasmRenderer implements SynthRenderer {
       stolenVoiceCount: this.state.stolenVoiceCount + stolen,
       cutoffHz: this.patch.filter.cutoffHz,
       wavetablePosition: this.patch.oscillators[0].wavetablePosition,
-      previewWavetablePositions: [null, null],
+      previewWavetablePositions: [null, null, null],
       oscillators: reflection.oscillators,
       draft: patchReflection(this.draftPatch),
       effective: reflection,
@@ -375,12 +379,14 @@ export class VitalWasmRenderer implements SynthRenderer {
 
     const firstPosition = this.previewValues['oscillators.0.wavetablePosition']
     const secondPosition = this.previewValues['oscillators.1.wavetablePosition']
+    const thirdPosition = this.previewValues['oscillators.2.wavetablePosition']
     const reflection = patchReflection(this.effectivePatch)
     this.state = {
       ...this.state,
       previewWavetablePositions: [
         typeof firstPosition === 'number' ? firstPosition : null,
         typeof secondPosition === 'number' ? secondPosition : null,
+        typeof thirdPosition === 'number' ? thirdPosition : null,
       ],
       oscillators: reflection.oscillators,
       draft: patchReflection(this.draftPatch),
@@ -607,7 +613,7 @@ function isModulationPath(path: string): boolean {
     path.startsWith('modEnvelope.') ||
     path === 'modulations' ||
     path.startsWith('filter.') ||
-    /^oscillators\.(0|1)\.(enabled|level|wavetablePosition|transposeSemitones|fineTuneCents)$/.test(
+    /^oscillators\.(0|1|2)\.(enabled|level|wavetablePosition|transposeSemitones|fineTuneCents)$/.test(
       path,
     )
   )
