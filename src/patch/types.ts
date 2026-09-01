@@ -1,5 +1,6 @@
 import type { SupportedPatchPath } from './paths'
 import type { TempoSyncDivision } from './limits'
+import type { EffectId } from './effects'
 
 export type PatchCategory =
   | 'pad'
@@ -81,6 +82,9 @@ export type ModulationDestination =
   | 'oscillator2.level'
   | 'oscillator2.wavetablePosition'
   | 'oscillator2.pitch'
+  | 'oscillator3.level'
+  | 'oscillator3.wavetablePosition'
+  | 'oscillator3.pitch'
   | 'filter.cutoff'
 
 export interface ModulationRoute {
@@ -125,9 +129,9 @@ export interface WavetableState {
 }
 
 export interface PatchState {
-  version: 1
+  version: 2
   metadata: PatchMetadata
-  oscillators: [OscillatorState, OscillatorState]
+  oscillators: [OscillatorState, OscillatorState, OscillatorState]
   ampEnvelope: EnvelopeState
   modEnvelope: EnvelopeState
   filter: FilterState
@@ -135,6 +139,7 @@ export interface PatchState {
   modulations: ModulationRoute[]
   voice: VoiceState
   effects: {
+    order: EffectId[]
     delay: DelayState
     reverb: ReverbState
   }

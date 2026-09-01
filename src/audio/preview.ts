@@ -37,9 +37,20 @@ export const AUDIO_PREVIEW_BEHAVIORS: Partial<
   'oscillators.1.unisonVoices': ACTIVE,
   'oscillators.1.unisonDetune': ACTIVE,
   'oscillators.1.stereoSpread': ACTIVE,
+  'oscillators.2.wavetablePosition': ACTIVE,
+  'oscillators.2.level': ACTIVE,
+  'oscillators.2.transposeSemitones': ACTIVE,
+  'oscillators.2.fineTuneCents': ACTIVE,
+  'oscillators.2.unisonVoices': ACTIVE,
+  'oscillators.2.unisonDetune': ACTIVE,
+  'oscillators.2.stereoSpread': ACTIVE,
   'ampEnvelope.attackSeconds': {
     scope: 'draft-only',
     semantics: 'Updates the draft envelope graph during the gesture; the committed value starts with the next note.',
+  },
+  'ampEnvelope.holdSeconds': {
+    scope: 'draft-only',
+    semantics: 'Updates the draft envelope graph during the gesture; the committed hold starts with the next note.',
   },
   'ampEnvelope.decaySeconds': {
     scope: 'draft-only',

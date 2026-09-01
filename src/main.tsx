@@ -20,7 +20,7 @@ const store = createAppStore({ session, commands, synth: renderer })
 
 const rootElement = document.getElementById('root')
 if (!rootElement) throw new Error('Application root was not found')
-createRoot(rootElement).render(<App store={store} />)
+createRoot(rootElement).render(<App session={session} store={store} />)
 
 void renderer.prepare().catch(() => undefined)
 

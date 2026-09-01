@@ -1,3 +1,5 @@
+import { useId } from 'react'
+
 import type { SupportedPatchPath } from '../patch/paths'
 import { FILTER_CUTOFF_MAX_HZ, FILTER_CUTOFF_MIN_HZ } from '../patch/limits'
 import type { FilterState, FilterType } from '../patch/types'
@@ -31,6 +33,7 @@ export function FilterPanel({
   onPreview,
   onCancelPreview,
 }: FilterPanelProps) {
+  const fillGradientId = `filter-fill-${useId().replaceAll(':', '')}`
   const path = (field: keyof FilterState) => `filter.${field}` as SupportedPatchPath
   const commit = (field: keyof FilterState, value: unknown, label: string) => {
     return onChange(path(field), value, `Set filter ${label}`)
@@ -39,7 +42,7 @@ export function FilterPanel({
   const modeLabel = FILTER_TYPES.find((option) => option.value === previewFilter.type)?.label ?? 'Filter'
 
   return (
-    <article className="panel filter-panel">
+    <article className={`panel filter-panel effect-editor${filter.enabled ? '' : ' is-disabled'}`}>
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Biquad tone stage</p>
@@ -63,7 +66,9 @@ export function FilterPanel({
           role="img"
           viewBox="0 0 100 72"
         >
+          <defs><linearGradient id={fillGradientId} x1="0" x2="0" y1="0" y2="1"><stop className="plot-area-stop-top" offset="0" /><stop className="plot-area-stop-bottom" offset="1" /></linearGradient></defs>
           <path className="plot-grid" d="M0 18H100M0 36H100M0 54H100M25 0V72M50 0V72M75 0V72" />
+          <path aria-hidden="true" className="plot-area" d={`${response.path} L98 72 L2 72 Z`} fill={`url(#${fillGradientId})`} />
           <path
             className="plot-line filter-response-line"
             d={response.path}

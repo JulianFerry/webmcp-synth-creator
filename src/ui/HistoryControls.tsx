@@ -1,8 +1,6 @@
 interface HistoryControlsProps {
   canUndo: boolean
   canRedo: boolean
-  historySize: number
-  futureSize: number
   onUndo: () => void
   onRedo: () => void
 }
@@ -10,24 +8,22 @@ interface HistoryControlsProps {
 export function HistoryControls({
   canUndo,
   canRedo,
-  historySize,
-  futureSize,
   onUndo,
   onRedo,
 }: HistoryControlsProps) {
   return (
-    <div className="history-controls">
-      <div className="history-readout" aria-live="polite">
-        <span>Selected history</span>
-        <strong data-testid="history-readout">
-          {historySize} past / {futureSize} future
-        </strong>
-      </div>
-      <button className="button button-quiet" disabled={!canUndo} onClick={onUndo} type="button">
-        Undo transaction
+    <div aria-label="Patch history" className="history-controls" role="group">
+      <button aria-label="Undo transaction" className="toolbar-icon-button" disabled={!canUndo} onClick={onUndo} title="Undo" type="button">
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M9 7 5 11l4 4" />
+          <path d="M5 11h7a6 6 0 0 1 6 6" />
+        </svg>
       </button>
-      <button className="button button-quiet" disabled={!canRedo} onClick={onRedo} type="button">
-        Redo transaction
+      <button aria-label="Redo transaction" className="toolbar-icon-button" disabled={!canRedo} onClick={onRedo} title="Redo" type="button">
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="m15 7 4 4-4 4" />
+          <path d="M19 11h-7a6 6 0 0 0-6 6" />
+        </svg>
       </button>
     </div>
   )

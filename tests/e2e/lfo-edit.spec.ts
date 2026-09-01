@@ -52,7 +52,8 @@ test('LFO edit updates one transaction, SVG, audio scheduling, and Vital structu
   await installWebMcpDouble(page)
   await page.goto('/')
   await expect(page.getByTestId('webmcp-status')).toContainText('available')
-  await page.getByTestId('hold-note').click()
+  await page.getByTestId('preview-note').click()
+  await expect(page.getByTestId('active-voice-count')).toHaveText('1')
 
   const shape = page.getByTestId('lfo-shape-path')
   const initialShape = await shape.getAttribute('d')
@@ -93,6 +94,7 @@ test('LFO edit updates one transaction, SVG, audio scheduling, and Vital structu
   expect(await shape.getAttribute('d')).not.toBe(initialShape)
   await expect(page.getByTestId('lfo-point-count')).toHaveText('10 points')
   await expect(page.getByTestId('lfo-rate-readout')).toHaveText('1/8')
+  await page.getByRole('tab', { name: 'Effects' }).click()
   await expect(page.getByTestId('modulation-route-count')).toHaveText('2 routes')
   await expect(page.getByTestId('transaction-count')).toHaveText('1')
   await expect(page.getByTestId('history-size')).toHaveText('1')
@@ -130,7 +132,7 @@ test('LFO edit heading toggle and shape mode remain independent and preserve con
 }) => {
   await installWebMcpDouble(page)
   await page.goto('/')
-  await page.getByTestId('hold-note').click()
+  await page.getByTestId('preview-note').click()
   const adapter = page.getByTestId('audio-adapter-state')
   const initialScheduleVersion = Number(
     await adapter.getAttribute('data-modulation-version'),
@@ -151,7 +153,7 @@ test('LFO edit heading toggle and shape mode remain independent and preserve con
   const before = await readPatch()
   const panel = page.locator('.lfo-panel')
   const heading = panel.locator('.panel-heading')
-  const enableToggle = heading.getByRole('switch', { name: 'LFO 1' })
+  const enableToggle = heading.getByRole('switch', { name: 'LFO' })
   const shapeMode = panel.getByRole('combobox', { name: 'Shape mode' })
 
   await expect(enableToggle).toHaveAttribute('aria-checked', 'true')
@@ -159,6 +161,8 @@ test('LFO edit heading toggle and shape mode remain independent and preserve con
   await enableToggle.press('Space')
 
   await expect(enableToggle).toHaveAttribute('aria-checked', 'false')
+  await expect(panel).toHaveClass(/is-disabled/)
+  await expect(panel.locator('.lfo-plot')).toHaveCSS('opacity', '0.34')
   await expect(shapeMode).toHaveValue(before.lfo1.smooth ? 'smooth' : 'precise')
   await expect(adapter).toHaveAttribute('data-lfo-enabled', 'false')
   await expect(adapter).toHaveAttribute(
@@ -193,6 +197,7 @@ test('LFO edit heading toggle and shape mode remain independent and preserve con
   })
 
   await enableToggle.press('Enter')
+  await expect(panel).not.toHaveClass(/is-disabled/)
   const reenabled = await readPatch()
   expect(reenabled.lfo1).toEqual({ ...before.lfo1, smooth: true })
   expect(reenabled.modulations).toEqual(before.modulations)
@@ -201,6 +206,7 @@ test('LFO edit heading toggle and shape mode remain independent and preserve con
 test('LFO edit delay exposes all mapped divisions', async ({ page }) => {
   await installWebMcpDouble(page)
   await page.goto('/')
+  await page.getByRole('tab', { name: 'Effects' }).click()
 
   const readDelayDivision = () =>
     page.evaluate(async () => {

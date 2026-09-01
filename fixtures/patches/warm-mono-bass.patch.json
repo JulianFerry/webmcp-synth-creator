@@ -1,10 +1,14 @@
 {
-  "version": 1,
+  "version": 2,
   "metadata": {
     "name": "Warm Mono Bass",
     "category": "bass",
     "description": "A focused mono bass with a warm saw fundamental and restrained square sub layer.",
-    "tags": ["mono", "warm", "sub"]
+    "tags": [
+      "mono",
+      "warm",
+      "sub"
+    ]
   },
   "oscillators": [
     {
@@ -30,6 +34,18 @@
       "unisonDetune": 0,
       "stereoSpread": 0,
       "randomPhase": 0
+    },
+    {
+      "enabled": false,
+      "wavetableId": "saw",
+      "wavetablePosition": 0,
+      "level": 0,
+      "transposeSemitones": 0,
+      "fineTuneCents": 0,
+      "unisonVoices": 1,
+      "unisonDetune": 0,
+      "stereoSpread": 0,
+      "randomPhase": 0
     }
   ],
   "ampEnvelope": {
@@ -46,11 +62,32 @@
     "sustainLevel": 0.08,
     "releaseSeconds": 0.18
   },
-  "filter": { "enabled": true, "type": "lowpass", "cutoffHz": 620, "resonance": 0.34 },
+  "filter": {
+    "enabled": true,
+    "type": "lowpass",
+    "cutoffHz": 620,
+    "resonance": 0.34
+  },
   "lfo1": {
     "enabled": false,
-    "points": [{ "x": 0, "y": 0 }, { "x": 0.5, "y": 1 }, { "x": 1, "y": 0 }],
-    "rate": { "mode": "sync", "division": "1/4" },
+    "points": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0.5,
+        "y": 1
+      },
+      {
+        "x": 1,
+        "y": 0
+      }
+    ],
+    "rate": {
+      "mode": "sync",
+      "division": "1/4"
+    },
     "phase": 0,
     "smooth": true
   },
@@ -63,7 +100,12 @@
       "bipolar": false
     }
   ],
-  "voice": { "polyphony": 1, "legato": true, "glideSeconds": 0.08, "velocitySensitivity": 0.24 },
+  "voice": {
+    "polyphony": 1,
+    "legato": true,
+    "glideSeconds": 0.08,
+    "velocitySensitivity": 0.24
+  },
   "effects": {
     "delay": {
       "enabled": false,
@@ -73,6 +115,11 @@
       "feedback": 0.12,
       "mix": 0
     },
-    "reverb": { "enabled": false, "mix": 0, "decaySeconds": 1.2, "size": 0.28 }
+    "reverb": {
+      "enabled": false,
+      "mix": 0,
+      "decaySeconds": 1.2,
+      "size": 0.28
+    }
   }
 }

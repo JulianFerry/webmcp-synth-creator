@@ -1,0 +1,42 @@
+import { expect, test } from '@playwright/test'
+
+test('sidebar compares A and B with 3D spectral fingerprints', async ({ page }) => {
+  await page.goto('/')
+  const variantA = page.getByTestId('variant-a-spectrogram')
+  const variantB = page.getByTestId('variant-b-spectrogram')
+
+  await expect(variantA).toHaveAttribute('data-color', '#27b3c2')
+  await expect(variantB).toHaveAttribute('data-color', '#7e5ac7')
+  await expect(variantA).toHaveAttribute('data-frequency-direction', 'left-to-right')
+  await expect(variantA).toHaveAttribute('data-time-direction', 'back-to-front')
+  await expect(variantA).toHaveAttribute('data-bins', '88')
+  await expect(variantA).toHaveAttribute('data-depth-lines', '100')
+  await expect(variantA).toHaveAttribute('data-rotation-degrees', '34')
+  await expect(variantA).toHaveAttribute('data-tilt-degrees', '30')
+  await expect(variantB).toHaveAttribute('data-spectral-signature', 'unavailable')
+
+  const box = await variantA.boundingBox()
+  if (!box) throw new Error('Variant A spectrogram is not visible')
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 + 18, box.y + box.height / 2 - 12)
+  await page.mouse.up()
+  await expect(variantA).toHaveAttribute('data-rotation-degrees', '40')
+  await expect(variantA).toHaveAttribute('data-tilt-degrees', '34')
+  await expect(variantB).toHaveAttribute('data-rotation-degrees', '40')
+  await expect(variantB).toHaveAttribute('data-tilt-degrees', '34')
+  await variantA.dblclick()
+  await expect(variantA).toHaveAttribute('data-rotation-degrees', '34')
+  await expect(variantA).toHaveAttribute('data-tilt-degrees', '30')
+  await expect(variantB).toHaveAttribute('data-rotation-degrees', '34')
+  await expect(variantB).toHaveAttribute('data-tilt-degrees', '30')
+
+  await page.locator('.variant-spectrum-b .attribute-bars').click()
+  await expect(variantB).not.toHaveAttribute('data-spectral-signature', 'unavailable')
+  await expect(page.getByTestId('variant-b')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('.variant-spectrum-b .attribute-row')).toHaveCount(4)
+  await expect(page.locator('.variant-spectrum-a .attribute-row')).toHaveCount(4)
+
+  await page.getByTestId('variant-a-spectrogram').click()
+  await expect(page.getByTestId('variant-a')).toHaveAttribute('aria-pressed', 'true')
+})

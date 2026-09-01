@@ -1,10 +1,14 @@
 {
-  "version": 1,
+  "version": 2,
   "metadata": {
     "name": "Glass Pluck",
     "category": "pluck",
     "description": "A bright glass transient with a clean triangle support and short tempo echo.",
-    "tags": ["bright", "glass", "short"]
+    "tags": [
+      "bright",
+      "glass",
+      "short"
+    ]
   },
   "oscillators": [
     {
@@ -30,6 +34,18 @@
       "unisonDetune": 0,
       "stereoSpread": 0.18,
       "randomPhase": 0
+    },
+    {
+      "enabled": false,
+      "wavetableId": "glass",
+      "wavetablePosition": 0,
+      "level": 0,
+      "transposeSemitones": 0,
+      "fineTuneCents": 0,
+      "unisonVoices": 1,
+      "unisonDetune": 0,
+      "stereoSpread": 0,
+      "randomPhase": 0
     }
   ],
   "ampEnvelope": {
@@ -46,11 +62,32 @@
     "sustainLevel": 0,
     "releaseSeconds": 0.25
   },
-  "filter": { "enabled": true, "type": "lowpass", "cutoffHz": 9200, "resonance": 0.28 },
+  "filter": {
+    "enabled": true,
+    "type": "lowpass",
+    "cutoffHz": 9200,
+    "resonance": 0.28
+  },
   "lfo1": {
     "enabled": false,
-    "points": [{ "x": 0, "y": 0 }, { "x": 0.5, "y": 1 }, { "x": 1, "y": 0 }],
-    "rate": { "mode": "free", "hz": 0.8 },
+    "points": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0.5,
+        "y": 1
+      },
+      {
+        "x": 1,
+        "y": 0
+      }
+    ],
+    "rate": {
+      "mode": "free",
+      "hz": 0.8
+    },
     "phase": 0,
     "smooth": true
   },
@@ -70,7 +107,12 @@
       "bipolar": false
     }
   ],
-  "voice": { "polyphony": 8, "legato": false, "glideSeconds": 0, "velocitySensitivity": 0.62 },
+  "voice": {
+    "polyphony": 8,
+    "legato": false,
+    "glideSeconds": 0,
+    "velocitySensitivity": 0.62
+  },
   "effects": {
     "delay": {
       "enabled": true,
@@ -80,6 +122,11 @@
       "feedback": 0.26,
       "mix": 0.24
     },
-    "reverb": { "enabled": true, "mix": 0.26, "decaySeconds": 2.4, "size": 0.58 }
+    "reverb": {
+      "enabled": true,
+      "mix": 0.26,
+      "decaySeconds": 2.4,
+      "size": 0.58
+    }
   }
 }

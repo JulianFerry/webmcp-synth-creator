@@ -8,6 +8,9 @@ export const MODULATION_DESTINATIONS_BY_SOURCE = {
     'oscillator2.level',
     'oscillator2.wavetablePosition',
     'oscillator2.pitch',
+    'oscillator3.level',
+    'oscillator3.wavetablePosition',
+    'oscillator3.pitch',
     'filter.cutoff',
   ],
   modEnvelope: [
@@ -17,6 +20,9 @@ export const MODULATION_DESTINATIONS_BY_SOURCE = {
     'oscillator2.level',
     'oscillator2.wavetablePosition',
     'oscillator2.pitch',
+    'oscillator3.level',
+    'oscillator3.wavetablePosition',
+    'oscillator3.pitch',
     'filter.cutoff',
   ],
 } as const satisfies Record<ModulationSource, readonly ModulationDestination[]>

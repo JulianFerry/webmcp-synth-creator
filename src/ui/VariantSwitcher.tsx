@@ -1,10 +1,22 @@
 import type { VariantId } from '../session/SessionService'
 
-interface VariantSwitcherProps {
+export interface VariantSwitcherProps {
   currentVariant: VariantId
   hasVariantB: boolean
   onCreateVariant: () => void
   onSelectVariant: (variantId: VariantId) => void
+}
+
+export function VariantButton({ variantId, currentVariant, hasVariantB, onCreateVariant, onSelectVariant }: VariantSwitcherProps & { variantId: VariantId }) {
+  return <button
+    aria-label={variantId === 'B' && !hasVariantB ? 'Create patch variant B' : `Select patch variant ${variantId}`}
+    aria-pressed={currentVariant === variantId}
+    className={currentVariant === variantId ? 'variant-button active' : 'variant-button'}
+    data-available={variantId === 'A' || hasVariantB}
+    data-testid={`variant-${variantId.toLowerCase()}`}
+    onClick={() => variantId === 'B' && !hasVariantB ? onCreateVariant() : onSelectVariant(variantId)}
+    type="button"
+  ><strong>{variantId}</strong></button>
 }
 
 export function VariantSwitcher({
@@ -14,36 +26,11 @@ export function VariantSwitcher({
   onSelectVariant,
 }: VariantSwitcherProps) {
   return (
-    <div className="variant-switcher">
-      <div>
-        <p className="eyebrow">Immediate comparison</p>
-        <strong>A/B variants</strong>
+    <div className="variant-switcher" role="group" aria-label="Patch variants">
+      <span className="toolbar-label">Variant</span>
+      <div className="variant-buttons">
+        {(['A', 'B'] as const).map((variantId) => <VariantButton {...{ currentVariant, hasVariantB, onCreateVariant, onSelectVariant, variantId }} key={variantId} />)}
       </div>
-      <div className="variant-buttons" role="group" aria-label="Select patch variant">
-        {(['A', 'B'] as const).map((variantId) => (
-          <button
-            aria-pressed={currentVariant === variantId}
-            className={currentVariant === variantId ? 'variant-button active' : 'variant-button'}
-            data-testid={`variant-${variantId.toLowerCase()}`}
-            disabled={variantId === 'B' && !hasVariantB}
-            key={variantId}
-            onClick={() => onSelectVariant(variantId)}
-            type="button"
-          >
-            <span>Variant</span>
-            <strong>{variantId}</strong>
-          </button>
-        ))}
-      </div>
-      <button
-        className="button button-create-variant"
-        data-testid="create-variant-b"
-        disabled={hasVariantB}
-        onClick={onCreateVariant}
-        type="button"
-      >
-        {hasVariantB ? 'B created' : 'Create wider B'}
-      </button>
     </div>
   )
 }

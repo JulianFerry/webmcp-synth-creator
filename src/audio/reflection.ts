@@ -1,12 +1,10 @@
 import type {
-  DelayState,
   EnvelopeState,
   FilterState,
   LfoState,
   ModulationRoute,
   OscillatorState,
   PatchState,
-  ReverbState,
   VoiceState,
 } from '../patch/types'
 
@@ -29,7 +27,7 @@ export interface AudioPatchReflection {
   lfo1: LfoState
   modulations: ModulationRoute[]
   voice: VoiceState
-  effects: { delay: DelayState; reverb: ReverbState }
+  effects: PatchState['effects']
 }
 
 export function oscillatorReflection(oscillator: OscillatorState): OscillatorReflection {

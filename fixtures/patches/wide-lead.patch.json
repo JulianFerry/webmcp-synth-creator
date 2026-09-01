@@ -1,10 +1,14 @@
 {
-  "version": 1,
+  "version": 2,
   "metadata": {
     "name": "Wide Lead",
     "category": "lead",
     "description": "A wide metallic lead softened by a moving vocal layer and controlled pitch drift.",
-    "tags": ["wide", "metallic", "vocal"]
+    "tags": [
+      "wide",
+      "metallic",
+      "vocal"
+    ]
   },
   "oscillators": [
     {
@@ -30,6 +34,18 @@
       "unisonDetune": 0.14,
       "stereoSpread": 0.72,
       "randomPhase": 0.34
+    },
+    {
+      "enabled": false,
+      "wavetableId": "metallic",
+      "wavetablePosition": 0,
+      "level": 0,
+      "transposeSemitones": 0,
+      "fineTuneCents": 0,
+      "unisonVoices": 1,
+      "unisonDetune": 0,
+      "stereoSpread": 0,
+      "randomPhase": 0
     }
   ],
   "ampEnvelope": {
@@ -46,11 +62,36 @@
     "sustainLevel": 0.24,
     "releaseSeconds": 0.5
   },
-  "filter": { "enabled": true, "type": "lowpass", "cutoffHz": 5400, "resonance": 0.24 },
+  "filter": {
+    "enabled": true,
+    "type": "lowpass",
+    "cutoffHz": 5400,
+    "resonance": 0.24
+  },
   "lfo1": {
     "enabled": true,
-    "points": [{ "x": 0, "y": 0.5 }, { "x": 0.25, "y": 1 }, { "x": 0.75, "y": 0 }, { "x": 1, "y": 0.5 }],
-    "rate": { "mode": "free", "hz": 5.2 },
+    "points": [
+      {
+        "x": 0,
+        "y": 0.5
+      },
+      {
+        "x": 0.25,
+        "y": 1
+      },
+      {
+        "x": 0.75,
+        "y": 0
+      },
+      {
+        "x": 1,
+        "y": 0.5
+      }
+    ],
+    "rate": {
+      "mode": "free",
+      "hz": 5.2
+    },
     "phase": 0.12,
     "smooth": true
   },
@@ -77,7 +118,12 @@
       "bipolar": false
     }
   ],
-  "voice": { "polyphony": 6, "legato": true, "glideSeconds": 0.045, "velocitySensitivity": 0.46 },
+  "voice": {
+    "polyphony": 6,
+    "legato": true,
+    "glideSeconds": 0.045,
+    "velocitySensitivity": 0.46
+  },
   "effects": {
     "delay": {
       "enabled": true,
@@ -87,6 +133,11 @@
       "feedback": 0.3,
       "mix": 0.2
     },
-    "reverb": { "enabled": true, "mix": 0.22, "decaySeconds": 2.8, "size": 0.64 }
+    "reverb": {
+      "enabled": true,
+      "mix": 0.22,
+      "decaySeconds": 2.8,
+      "size": 0.64
+    }
   }
 }

@@ -60,8 +60,8 @@ function assertVitalDocument(value: unknown): asserts value is VitalPresetDocume
   if (!document.synth_version || typeof document.synth_version !== 'string') {
     throw new VitalExportError('Vital fixture has no pinned synth_version')
   }
-  if (!Array.isArray(document.settings.wavetables) || document.settings.wavetables.length < 2) {
-    throw new VitalExportError('Vital fixture must contain at least two wavetable slots')
+  if (!Array.isArray(document.settings.wavetables) || document.settings.wavetables.length < 3) {
+    throw new VitalExportError('Vital fixture must contain at least three wavetable slots')
   }
   if (!Array.isArray(document.settings.lfos) || document.settings.lfos.length < 1) {
     throw new VitalExportError('Vital fixture must contain at least one LFO slot')

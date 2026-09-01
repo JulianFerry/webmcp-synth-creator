@@ -1,7 +1,8 @@
 import type { SupportedPatchPath } from '../patch/paths'
 import type { EnvelopeState } from '../patch/types'
 import { ParameterSlider } from './controls/ParameterSlider'
-import { createEnvelopePlot } from './visualizations'
+import { EditableEnvelopeGraph } from './editors/EditableEnvelopeGraph'
+import { ENVELOPE_HANDLE_FIELDS, type EnvelopeHandle } from './editors/envelopeHandles'
 
 interface EnvelopePanelProps {
   envelope: EnvelopeState
@@ -26,35 +27,28 @@ export function EnvelopePanel({
 }: EnvelopePanelProps) {
   const path = (field: keyof EnvelopeState) => `ampEnvelope.${field}` as SupportedPatchPath
   const commit = (field: keyof EnvelopeState, value: number, label: string) => {
-    return onChange(path(field), value, `Set amp envelope ${label}`)
+    return onChange(path(field), value, `Set amplitude envelope ${label}`)
   }
-  const plot = createEnvelopePlot(previewEnvelope)
+  const commitHandle = (handle: EnvelopeHandle, value: number) =>
+    commit(ENVELOPE_HANDLE_FIELDS[handle], value, handle)
 
   return (
     <article className="panel envelope-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Amplitude contour</p>
-          <h2>Amp envelope</h2>
+          <h2>Amplitude envelope</h2>
         </div>
-        <span className="version-chip">ADSR</span>
+        <span className="version-chip envelope-type-chip">AHDSR</span>
       </div>
 
-      <svg
-        aria-label={`ADSR amplitude envelope: attack ${seconds(previewEnvelope.attackSeconds)}, decay ${seconds(previewEnvelope.decaySeconds)}, sustain ${Math.round(previewEnvelope.sustainLevel * 100)} percent, release ${seconds(previewEnvelope.releaseSeconds)}`}
-        className="envelope-plot"
-        role="img"
-        viewBox="0 0 100 72"
-      >
-        <path className="plot-grid" d="M0 18H100M0 36H100M0 54H100M25 0V72M50 0V72M75 0V72" />
-        <path className="plot-line" d={plot.path} data-testid="amp-envelope-path" />
-        <g className="envelope-phase-labels" aria-hidden="true">
-          <text x={(2 + plot.attackEndX) / 2} y="70">A</text>
-          <text x={(plot.attackEndX + plot.decayEndX) / 2} y="70">D</text>
-          <text x={(plot.decayEndX + plot.releaseStartX) / 2} y="70">S</text>
-          <text x={(plot.releaseStartX + 98) / 2} y="70">R</text>
-        </g>
-      </svg>
+      <EditableEnvelopeGraph
+        envelope={envelope}
+        onCancel={(handle) => onCancelPreview(path(ENVELOPE_HANDLE_FIELDS[handle]))}
+        onCommit={commitHandle}
+        onPreview={(handle, value) => onPreview(path(ENVELOPE_HANDLE_FIELDS[handle]), value)}
+        previewEnvelope={previewEnvelope}
+        resetKey={resetKey}
+      />
 
       <div className="control-grid envelope-controls">
         <ParameterSlider
@@ -69,7 +63,21 @@ export function EnvelopePanel({
           resetKey={resetKey}
           step={0.01}
           testId="amp-attack"
-          value={envelope.attackSeconds}
+          value={previewEnvelope.attackSeconds}
+        />
+        <ParameterSlider
+          formatValue={seconds}
+          id="amp-hold"
+          label="Hold"
+          max={4}
+          min={0}
+          onCancel={() => onCancelPreview(path('holdSeconds'))}
+          onCommit={(value) => commit('holdSeconds', value, 'hold')}
+          onPreview={(value) => onPreview(path('holdSeconds'), value)}
+          resetKey={resetKey}
+          step={0.01}
+          testId="amp-hold"
+          value={previewEnvelope.holdSeconds}
         />
         <ParameterSlider
           formatValue={seconds}
@@ -83,7 +91,7 @@ export function EnvelopePanel({
           resetKey={resetKey}
           step={0.01}
           testId="amp-decay"
-          value={envelope.decaySeconds}
+          value={previewEnvelope.decaySeconds}
         />
         <ParameterSlider
           formatValue={(value) => `${Math.round(value * 100)}%`}
@@ -97,7 +105,7 @@ export function EnvelopePanel({
           resetKey={resetKey}
           step={0.01}
           testId="amp-sustain"
-          value={envelope.sustainLevel}
+          value={previewEnvelope.sustainLevel}
         />
         <ParameterSlider
           formatValue={seconds}
@@ -111,13 +119,9 @@ export function EnvelopePanel({
           resetKey={resetKey}
           step={0.01}
           testId="amp-release"
-          value={envelope.releaseSeconds}
+          value={previewEnvelope.releaseSeconds}
         />
       </div>
-      <p className="gesture-note envelope-preview-note">
-        Sustain previews held notes. Attack and decay start with the next note; release commits
-        for the held note&apos;s later note-off without reshaping it now.
-      </p>
     </article>
   )
 }

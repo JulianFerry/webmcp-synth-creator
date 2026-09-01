@@ -1,15 +1,17 @@
 import { defineConfig, devices } from '@playwright/test'
+import { createHash } from 'node:crypto'
 
-const port = Number(process.env.PLAYWRIGHT_PORT ?? 4181)
+const workspacePort = 4100 + Number.parseInt(createHash('sha256').update(process.cwd()).digest('hex').slice(0, 4), 16) % 1000
+const port = Number(process.env.PLAYWRIGHT_PORT ?? workspacePort)
 const baseURL = `http://127.0.0.1:${port}`
 
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
-  workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: 'line',
+  workers: 2,
   use: {
     baseURL,
     trace: 'retain-on-failure',

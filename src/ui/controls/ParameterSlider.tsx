@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 
 import {
   controlValueToParameterValue,
@@ -24,6 +24,10 @@ interface ParameterSliderProps {
   disabled?: boolean
   testId?: string
   resetKey?: number
+  orientation?: 'horizontal' | 'vertical'
+  appearance?: 'slider' | 'knob'
+  describedBy?: string
+  resetToMidpointOnDoubleClick?: boolean
 }
 
 const COMMIT_KEYS = new Set([
@@ -53,7 +57,12 @@ export function ParameterSlider({
   disabled = false,
   testId,
   resetKey = 0,
+  orientation = 'horizontal',
+  appearance = 'slider',
+  describedBy,
+  resetToMidpointOnDoubleClick = false,
 }: ParameterSliderProps) {
+  const renderedAppearance = id.startsWith('oscillator-') ? 'slider' : appearance
   const [draft, setDraft] = useState(value)
   const draftRef = useRef(value)
   const committedRef = useRef(value)
@@ -62,11 +71,18 @@ export function ParameterSlider({
   onCancelRef.current = onCancel
 
   useEffect(() => {
+    if (previewingRef.current) return
+    draftRef.current = value
+    committedRef.current = value
+    setDraft(value)
+  }, [value])
+
+  useEffect(() => {
     draftRef.current = value
     committedRef.current = value
     previewingRef.current = false
     setDraft(value)
-  }, [resetKey, value])
+  }, [resetKey])
 
   useEffect(() => {
     return () => {
@@ -116,6 +132,12 @@ export function ParameterSlider({
     clearPreview()
   }
 
+  const midpointValue = () => {
+    const midpoint = min + (max - min) / 2
+    const snapped = min + Math.round((midpoint - min) / step) * step
+    return Math.max(min, Math.min(max, Number(snapped.toFixed(12))))
+  }
+
   const controlValue = scale
     ? parameterValueToControlValue(draft, min, max, scale)
     : draft
@@ -126,10 +148,19 @@ export function ParameterSlider({
   const formattedDraft = formatValue(draft)
 
   return (
-    <label className="parameter-control" htmlFor={id}>
+    <label className={`parameter-control parameter-control-${orientation} parameter-control-${renderedAppearance}`} htmlFor={id}>
       <span>{label}</span>
       <output htmlFor={id}>{formattedDraft}</output>
+      {renderedAppearance === 'knob' ? <span aria-hidden="true" className="parameter-knob-dial"><i style={{ transform: `rotate(${-135 + scalePosition * 270}deg)` }} /></span> : null}
+      {orientation === 'vertical' && renderedAppearance === 'slider' ? <span
+        aria-hidden="true"
+        className="vertical-range-visual"
+        data-testid={testId ? `${testId}-visual` : undefined}
+        style={{ '--range-position': scalePosition } as CSSProperties}
+      ><i /></span> : null}
       <input
+        aria-describedby={describedBy}
+        aria-orientation={orientation}
         aria-valuemax={max}
         aria-valuemin={min}
         aria-valuenow={draft}
@@ -142,6 +173,12 @@ export function ParameterSlider({
         max={max}
         min={min}
         onBlur={commitDraft}
+        onDoubleClick={(event) => {
+          if (!resetToMidpointOnDoubleClick) return
+          event.preventDefault()
+          updateDraft(midpointValue())
+          commitDraft()
+        }}
         onInput={(event) => {
           const nextControlValue = Number(event.currentTarget.value)
           const nextValue = scale

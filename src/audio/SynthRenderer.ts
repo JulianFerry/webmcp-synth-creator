@@ -1,5 +1,5 @@
 import type { SupportedPatchPath } from '../patch/paths'
-import type { DelayState, ReverbState } from '../patch/types'
+import type { PatchState } from '../patch/types'
 import type { AudioPreviewValues } from './preview'
 import type { AudioPatchReflection, OscillatorReflection } from './reflection'
 
@@ -40,7 +40,7 @@ export interface SynthRendererState {
   effective: AudioPatchReflection
   previewValues: AudioPreviewValues
   modulationScheduleVersion: number
-  effects: { delay: DelayState; reverb: ReverbState }
+  effects: PatchState['effects']
   reflectedPatchName: string
   lastNoteOnTiming: NoteOnTimingMeasurement | null
 }
