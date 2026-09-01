@@ -31,6 +31,7 @@ export interface AppStoreState {
   canUndo: boolean
   canRedo: boolean
   audio: SynthRendererState
+  audioPreparationError: string | null
   webMcpStatus: CapabilityStatus
   webMcpReason: string | null
   vitalStatus: VitalFixtureStatus
@@ -58,6 +59,7 @@ export interface AppStoreState {
   undo: () => void
   redo: () => void
   exportVital: () => void
+  setAudioPreparationError: (message: string) => void
   setWebMcpCapability: (status: CapabilityStatus, reason?: string) => void
   setVitalAdapter: (adapter: VitalPresetAdapter | null, error?: string) => void
 }
@@ -97,6 +99,7 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
     canUndo: initialSession.canUndo,
     canRedo: initialSession.canRedo,
     audio: synth.getState(),
+    audioPreparationError: null,
     webMcpStatus: 'checking',
     webMcpReason: null,
     vitalStatus: 'loading',
@@ -297,6 +300,10 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
       } catch (error) {
         set({ lastError: errorMessage(error) })
       }
+    },
+
+    setAudioPreparationError: (message) => {
+      set({ audioPreparationError: message })
     },
 
     setWebMcpCapability: (status, reason) => {

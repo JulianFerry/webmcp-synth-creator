@@ -22,7 +22,12 @@ const rootElement = document.getElementById('root')
 if (!rootElement) throw new Error('Application root was not found')
 createRoot(rootElement).render(<App session={session} store={store} />)
 
-void renderer.prepare().catch(() => undefined)
+void renderer.prepare().catch((error: unknown) => {
+  const reason = error instanceof Error ? error.message : 'Unknown preparation error'
+  store.getState().setAudioPreparationError(
+    `Vital audio could not be prepared: ${reason}. Reload the page; if the problem continues, rebuild or redeploy the Vital WASM artifacts.`,
+  )
+})
 
 if (import.meta.env.DEV) {
   void import('./audio/vital/devHarness').then(({ installVitalDevHarness }) => {

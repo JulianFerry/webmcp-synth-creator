@@ -272,7 +272,13 @@ export class VitalWasmRenderer implements SynthRenderer {
     this.activeNotes.clear()
     this.unsubscribeHost?.()
     this.unsubscribeHost = null
-    this.host?.dispose()
+    if (this.host !== null) {
+      try {
+        this.host.allNotesOff()
+      } finally {
+        this.host.dispose()
+      }
+    }
     this.host = null
     this.unsubscribeSession()
     void this.context?.close()

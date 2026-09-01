@@ -121,6 +121,8 @@ function createAdapter(): VitalPresetAdapter {
 
 function createHarness(options: { preloadWasm?: () => Promise<unknown> } = {}) {
   let now = 0
+  let audioContextCreations = 0
+  let hostCreations = 0
   const trace = new LatencyTrace(false, () => {
     now += 1
     return now
@@ -131,18 +133,57 @@ function createHarness(options: { preloadWasm?: () => Promise<unknown> } = {}) {
   const context = new FakeRendererAudioContext()
   const host = new FakeVitalHost()
   const renderer = new VitalWasmRenderer(session, adapter, trace, {
-    createAudioContext: () => context.asAudioContext(),
-    createHost: () => host,
+    createAudioContext: () => {
+      audioContextCreations += 1
+      return context.asAudioContext()
+    },
+    createHost: () => {
+      hostCreations += 1
+      return host
+    },
     performanceNow: () => {
       now += 1
       return now
     },
     preloadWasm: options.preloadWasm ?? (() => Promise.resolve()),
   })
-  return { adapter, commands, context, host, renderer, session, trace }
+  return {
+    adapter,
+    commands,
+    context,
+    creationCounts: () => ({ audioContextCreations, hostCreations }),
+    host,
+    renderer,
+    session,
+    trace,
+  }
 }
 
 describe('VitalWasmRenderer', () => {
+  it('preloads without creating audio and starts the host only from note-on', async () => {
+    const { context, creationCounts, host, renderer } = createHarness()
+
+    await renderer.prepare()
+    expect(creationCounts()).toEqual({ audioContextCreations: 0, hostCreations: 0 })
+    expect(context.state).toBe('suspended')
+    expect(renderer.getState().lifecycle).toBe('suspended')
+    expect(host.calls).toEqual([])
+
+    await renderer.noteOn(60, 0.7)
+    expect(creationCounts()).toEqual({ audioContextCreations: 1, hostCreations: 1 })
+    expect(context.state).toBe('running')
+    expect(host.calls.slice(0, 4)).toEqual(['bpm:120', 'state:1', 'prepare', 'on:60:0.7'])
+    expect(renderer.getState()).toMatchObject({
+      activeNotes: [60],
+      activeVoiceCount: 1,
+      lifecycle: 'running',
+    })
+
+    renderer.noteOff(60)
+    expect(host.calls.at(-1)).toBe('off:60')
+    renderer.dispose()
+  })
+
   it('uses adapter-derived controls for scalar previews and reserves state loads for resources', async () => {
     const { adapter, commands, host, renderer, session } = createHarness()
     await renderer.prepare()
@@ -400,18 +441,21 @@ describe('VitalWasmRenderer', () => {
 
     renderer.releaseAllNotes()
     expect(host.calls.at(-1)).toBe('all-off')
+    expect(renderer.getState()).toMatchObject({ activeNotes: [], activeVoiceCount: 0 })
     renderer.dispose()
+    expect(host.calls.slice(-2)).toEqual(['all-off', 'dispose'])
     expect(host.disposed).toBe(true)
     expect(context.state).toBe('closed')
   })
 
   it('surfaces preparation failure without constructing a host', async () => {
-    const { host, renderer } = createHarness({
+    const { creationCounts, host, renderer } = createHarness({
       preloadWasm: () => Promise.reject(new Error('missing wasm')),
     })
 
     await expect(renderer.prepare()).rejects.toThrow('missing wasm')
     expect(renderer.getState().lifecycle).toBe('error')
+    expect(creationCounts()).toEqual({ audioContextCreations: 0, hostCreations: 0 })
     expect(host.calls).toEqual([])
     renderer.dispose()
   })
