@@ -8,6 +8,7 @@ import { VariantComparisonSidebar } from '../ui/shell/VariantComparisonSidebar'
 import { WorkbenchTabs } from '../ui/shell/WorkbenchTabs'
 import { ModulationEffectsTab } from '../ui/tabs/ModulationEffectsTab'
 import { OscillatorsTab } from '../ui/tabs/OscillatorsTab'
+import { HelpSystem, HelpToolbar, type HelpEntryPoint } from '../ui/help/HelpSystem'
 import type { AppStore } from './appStore'
 import type { WorkbenchTab } from './uiState'
 
@@ -18,6 +19,7 @@ interface AppProps {
 
 export function App({ store, session = undefined }: AppProps) {
   const [activeTab, setActiveTab] = useState<WorkbenchTab>('oscillators')
+  const [helpEntryPoint, setHelpEntryPoint] = useState<HelpEntryPoint>(null)
   const state = store()
   const { patch, audio } = state
   useEffect(() => {
@@ -49,9 +51,15 @@ export function App({ store, session = undefined }: AppProps) {
   const notices = <>{state.vitalImportNotice ? <div className="notice-banner" data-testid="vital-import-notice" role="status">{state.vitalImportNotice}</div> : null}{state.lastError ? <div className="error-banner" role="alert">{state.lastError}</div> : null}</>
 
   return <WorkbenchShell footer={<AuditionPanel {...audition} />} notices={notices} patchVariant={state.currentVariant} sidebar={sidebar} telemetry={telemetry}>
-    <WorkbenchTabs active={activeTab} history={history} onChange={setActiveTab}>
+    <WorkbenchTabs
+      active={activeTab}
+      assistance={<HelpToolbar entryPoint={helpEntryPoint} onChange={setHelpEntryPoint} />}
+      history={history}
+      onChange={setActiveTab}
+    >
       {activeTab === 'oscillators' ? <OscillatorsTab envelope={envelope} lfo={lfo} oscillators={oscillators} /> : null}
       {activeTab === 'modulation-effects' ? <ModulationEffectsTab audio={audio} patch={patch} resetKey={state.controlResetKey} onCancelPreview={state.cancelPatchPreview} onChange={state.applyPatchChange} onPreview={state.previewPatchChange} /> : null}
     </WorkbenchTabs>
+    <HelpSystem activeTab={activeTab} entryPoint={helpEntryPoint} onChangeTab={setActiveTab} onClose={() => setHelpEntryPoint(null)} />
   </WorkbenchShell>
 }
