@@ -8,13 +8,17 @@ const VIRTUAL_VITAL_MODULE_ID = 'virtual:vital-wasm-module'
 const RESOLVED_VIRTUAL_VITAL_MODULE_ID = `\0${VIRTUAL_VITAL_MODULE_ID}`
 const VITAL_BUILD_DIRECTORY = resolve('wasm/vital/build')
 const VITAL_ASSET_URL_PREFIX = '/wasm/vital/build/'
+const VITAL_ARTIFACTS = ['vital.mjs', 'vital.wasm'] as const
+const DISTRIBUTION_DOCUMENTS = ['LICENSE', 'NOTICE'] as const
 
 function copyLocalVitalFixture(): Plugin {
   return {
     name: 'copy-local-vital-fixture',
     closeBundle() {
       const source = resolve('fixtures/vital/init.vital')
-      if (!existsSync(source)) return
+      if (!existsSync(source)) {
+        throw new Error('Vital Init fixture is required for a production distribution')
+      }
 
       const destination = resolve('dist/fixtures/vital/init.vital')
       mkdirSync(dirname(destination), { recursive: true })
@@ -66,13 +70,25 @@ function vitalWasmAssets(): Plugin {
       })
     },
     closeBundle() {
-      for (const filename of ['vital.mjs', 'vital.wasm']) {
+      for (const filename of VITAL_ARTIFACTS) {
         const source = resolve(VITAL_BUILD_DIRECTORY, filename)
-        if (!existsSync(source)) continue
+        if (!existsSync(source)) {
+          throw new Error(
+            `Vital WASM artifact is required for a production distribution: ${source}`,
+          )
+        }
 
         const destination = resolve('dist/wasm/vital/build', filename)
         mkdirSync(dirname(destination), { recursive: true })
         copyFileSync(source, destination)
+      }
+
+      for (const filename of DISTRIBUTION_DOCUMENTS) {
+        const source = resolve(filename)
+        if (!existsSync(source)) {
+          throw new Error(`Distribution licensing document is missing: ${source}`)
+        }
+        copyFileSync(source, resolve('dist', filename))
       }
     },
   }
@@ -81,6 +97,7 @@ function vitalWasmAssets(): Plugin {
 export default defineConfig({
   plugins: [react(), vitalWasmAssets(), copyLocalVitalFixture()],
   worker: {
+    format: 'es',
     plugins: () => [vitalWasmAssets()],
   },
   server: {

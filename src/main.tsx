@@ -3,8 +3,6 @@ import { createRoot } from 'react-dom/client'
 import { App } from './app/App'
 import { createAppStore } from './app/appStore'
 import './app/styles.css'
-import { BrowserSynth } from './audio/BrowserSynth'
-import type { SynthRenderer } from './audio/SynthRenderer'
 import { VitalWasmRenderer } from './audio/vital/VitalWasmRenderer'
 import { CommandService } from './commands/CommandService'
 import { latencyTrace } from './dev/latencyTrace'
@@ -16,10 +14,7 @@ import { registerTools, type ToolRegistration } from './webmcp/registerTools'
 
 const session = new SessionService(createDefaultPatch())
 const vitalAdapterPromise = Promise.resolve().then(() => VitalPresetAdapter.fromUrl())
-const renderer: SynthRenderer =
-  new URLSearchParams(window.location.search).get('renderer') === 'vital'
-    ? new VitalWasmRenderer(session, vitalAdapterPromise, latencyTrace)
-    : new BrowserSynth(session, latencyTrace)
+const renderer = new VitalWasmRenderer(session, vitalAdapterPromise, latencyTrace)
 const commands = new CommandService(session, undefined, latencyTrace)
 const store = createAppStore({ session, commands, synth: renderer })
 

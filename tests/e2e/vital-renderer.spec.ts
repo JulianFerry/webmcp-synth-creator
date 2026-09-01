@@ -63,12 +63,12 @@ async function installWebMcpDouble(page: Page): Promise<void> {
   })
 }
 
-test.describe('opt-in VitalWasmRenderer', () => {
+test.describe('default VitalWasmRenderer', () => {
   test.skip(!artifactPresent, 'Vital WASM artifact is not built')
 
   test('preserves audition, previews, WebMCP, history, and A/B contracts', async ({ page }) => {
     await installWebMcpDouble(page)
-    await page.goto('/?renderer=vital')
+    await page.goto('/')
     await expect(page.getByTestId('webmcp-status')).toContainText('available')
     await expect(page.getByTestId('vital-status')).toContainText('ready')
     await expect(page.getByTestId('audio-lifecycle')).toHaveText('suspended')

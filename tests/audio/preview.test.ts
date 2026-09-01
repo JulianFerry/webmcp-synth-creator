@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
 import { createAppStore } from '../../src/app/appStore'
-import { BrowserSynth } from '../../src/audio/BrowserSynth'
 import {
   getAudioPreviewBehavior,
   supportsDraftPreview,
   supportsLiveAudioPreview,
 } from '../../src/audio/preview'
+import { VitalWasmRenderer } from '../../src/audio/vital/VitalWasmRenderer'
 import { CommandService } from '../../src/commands/CommandService'
 import { LatencyTrace } from '../../src/dev/latencyTrace'
 import { createDefaultPatch } from '../../src/patch/defaults'
 import { SessionService } from '../../src/session/SessionService'
+import type { VitalPresetAdapter } from '../../src/vital/VitalPresetAdapter'
 
 function createHarness() {
   let now = 0
@@ -19,7 +20,7 @@ function createHarness() {
     return now
   })
   const session = new SessionService(createDefaultPatch())
-  const synth = new BrowserSynth(session, trace)
+  const synth = new VitalWasmRenderer(session, {} as VitalPresetAdapter, trace)
   const commands = new CommandService(session, undefined, trace)
   const store = createAppStore({ session, commands, synth })
   return { trace, session, synth, commands, store }

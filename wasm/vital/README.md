@@ -1,6 +1,7 @@
 # Vital WASM build
 
-This isolated target builds the headless Vital engine at the commit recorded in `UPSTREAM.json`. It does not feed the Vite application or replace `BrowserSynth`.
+This target builds the headless Vital engine used by the application at the commit recorded in
+`UPSTREAM.json`. The generated module is the only browser synthesis backend.
 
 ## Prerequisites
 
@@ -28,7 +29,15 @@ bash wasm/vital/build.sh
 
 The fetch script leaves the detached upstream checkout in `vendor/vital/`. Never edit that checkout by hand. Emscripten-specific upstream changes, if any become necessary, belong in `wasm/vital/patches/` and must be listed in `UPSTREAM.json`.
 
-The build script performs a clean release build, emits `wasm/vital/build/vital.mjs` and `wasm/vital/build/vital.wasm`, then prints raw and gzip-compressed sizes. Both the fetched source and emitted artifacts are ignored by Git. No derived Vital binary is copied into `dist/` in this phase.
+The build script performs a clean release build, emits `wasm/vital/build/vital.mjs` and
+`wasm/vital/build/vital.wasm`, then prints raw and gzip-compressed sizes. Both the fetched source
+and emitted artifacts are ignored by Git. `npm run build` requires both artifacts and copies them
+to `dist/wasm/vital/build/` with the Init fixture plus the root `LICENSE` and `NOTICE`.
+
+The repository is distributed under `GPL-3.0-or-later`. `NOTICE` records the pinned Vital source,
+the incorporated source areas, and every local patch. A fresh clone reproduces the browser artifact
+by running the fetch and build commands above; no generated binary or edited vendor checkout is
+treated as source.
 
 ## Native fidelity reference
 
