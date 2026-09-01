@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 const workspacePort = 4100 + Number.parseInt(createHash('sha256').update(process.cwd()).digest('hex').slice(0, 4), 16) % 1000
 const port = Number(process.env.PLAYWRIGHT_PORT ?? workspacePort)
 const baseURL = `http://127.0.0.1:${port}`
+const previewBuild = process.env.PLAYWRIGHT_PREVIEW === '1'
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -29,7 +30,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run dev -- --port ${port} --strictPort`,
+    command: `npm run ${previewBuild ? 'preview' : 'dev'} -- --port ${port} --strictPort`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
   },

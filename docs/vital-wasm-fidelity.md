@@ -1,11 +1,13 @@
 # Vital WASM fidelity and performance
 
-Date: 2026-08-31
+Date: 2026-09-01
 
-Phase 5 status: complete. Automated same-source fidelity, directional, and isolated Chromium
-performance checks pass. Manual comparison confirmed the browser WASM exports sound the same in
-desktop Vital 1.0.7, including the custom wavetable and rhythmic point-LFO stages, and scalar UI
-and WebMCP edits remain immediate.
+Post-redesign integration status: the rebuilt WASM and native artifacts pass the automated
+same-source fidelity, directional, three-oscillator/effect-model, and isolated Chromium performance
+checks. A clean production preview also passes the gesture-gated playback, quick-preview, WebMCP,
+import/export, effects, and responsive-layout matrix. A fresh desktop Vital 1.0.7 listening pass is
+still required for the redesigned FX-filter, oscillator 3, and effect-order state; the pre-redesign
+desktop result is historical evidence, not acceptance of the integrated state.
 
 ## Fixed baseline
 
@@ -35,7 +37,7 @@ test artifact and is ignored by Git.
 
 ## Runtime invariants retained
 
-Phase 5 does not change the Phase 4 update policy:
+The redesign integration does not change the renderer update policy:
 
 - Scalar edits and previews remain adapter-derived `vital_set_control` operations.
 - Full state loads remain restricted to structural changes: filter topology, LFO points,
@@ -70,10 +72,14 @@ not a replacement for desktop listening.
 | B - custom wavetable | `0.112996627 / 0.112996621` | `0.421224535 / 0.421224475` | `2566.176 / 2566.176 Hz` | `0.999999999999935` | `2.14e-7` |
 | C - envelope | `0.045012308 / 0.045012306` | `0.414479256 / 0.414479315` | `2567.552 / 2567.552 Hz` | `0.999999999999944` | `2.20e-7` |
 | D - unison | `0.036851909 / 0.036851826` | `0.433421761 / 0.433421284` | `2582.979 / 2582.986 Hz` | `0.999999987325557` | `1.59e-4` |
-| E - filter | `0.028255898 / 0.028255842` | `0.295134366 / 0.295134127` | `1420.880 / 1420.881 Hz` | `0.999999994964456` | `1.00e-4` |
-| F - point LFO | `0.015990695 / 0.015990699` | `0.261353046 / 0.261352599` | `1047.340 / 1047.342 Hz` | `0.999999993388548` | `1.15e-4` |
-| G - oscillator 2 | `0.050022116 / 0.050022123` | `0.366675824 / 0.366675645` | `815.749 / 815.747 Hz` | `0.999999999543505` | `3.02e-5` |
-| H - delay and reverb | `0.052781289 / 0.052781319` | `0.332210213 / 0.332210034` | `627.229 / 627.228 Hz` | `0.999999999639281` | `2.69e-5` |
+| E - FX filter | `0.028861057 / 0.028860997` | `0.296064854 / 0.296064675` | `1421.940 / 1421.941 Hz` | `0.999999994786601` | `1.02e-4` |
+| F - point LFO | `0.016478987 / 0.016478992` | `0.270872563 / 0.270872027` | `1055.038 / 1055.039 Hz` | `0.999999993064387` | `1.18e-4` |
+| G - oscillator 2 | `0.053821798 / 0.053821813` | `0.397099972 / 0.397099853` | `808.249 / 808.247 Hz` | `0.999999999439216` | `3.35e-5` |
+| H - delay and reverb | `0.056781835 / 0.056781877` | `0.362499833 / 0.362499684` | `622.701 / 622.701 Hz` | `0.999999999561003` | `2.96e-5` |
+
+Stages E-H changed after the redesigned UI moved its logical filter from Vital Filter 1 into the
+reorderable Vital FX chain and retained the six-stage UI effect order in `effect_chain_order`.
+The measurements above are from the rebuilt post-redesign artifacts; A-D remain unchanged.
 
 ## Directional WASM checks
 
@@ -84,10 +90,10 @@ adds a progressive A-H diagnostic. Recorded directions include:
 - C lowers first-50-ms RMS from `0.17425` to `0.01360` and retains a measurable release where B is silent.
 - D raises stereo-difference RMS from zero to `0.01326`.
 - E lowers centroid from 2,583 Hz to 1,421 Hz.
-- F raises 10-ms block-RMS variation from `0.270` to `1.207`; adjacent 250-ms `1/8`
-  cycles correlate at `0.9981` at 120 BPM.
-- G raises RMS from `0.01599` to `0.05002` when oscillator 2 is enabled.
-- H raises final-quarter tail RMS from numerical silence to `0.0002765`.
+- F raises 10-ms block-RMS variation from `0.279` to `1.213`; adjacent 250-ms `1/8`
+  cycles correlate at `0.9978` at 120 BPM.
+- G raises RMS from `0.01648` to `0.05382` when oscillator 2 is enabled.
+- H raises final-quarter tail RMS from numerical silence to `0.0003048`.
 - The ported checks retain silence, level, octave, release, dark-filter, LFO, modulation-envelope,
   delay-tail, and reverb-tail directions against WASM output.
 
@@ -116,37 +122,45 @@ ordering while retaining the raw measurements in `test-results/vital-performance
 
 ## Browser performance gate
 
-Passing isolated Chromium run on port 4181:
+Passing isolated Chromium development-server run:
 
 | Measurement | Result | Gate |
 | --- | ---: | ---: |
 | `vital.wasm` raw | `1,488,407 bytes` | `< 2,000,000` |
 | `vital.wasm` Node gzip level 9 | `375,983 bytes` | `< 500,000` |
 | Browser transfer / encoded / decoded | `1,488,707 / 1,488,407 / 1,488,407 bytes` | encoded and decoded equal artifact |
-| Page navigation to processor ready | `3,043.2 ms` | `< 5,000 ms` |
-| Host prepare to processor ready | `808.8 ms` | `< 2,000 ms` |
-| One held voice | `0.160 ms average`, `1 ms max`, `0 / 256 overruns` | average `< 2.000 ms` |
-| Eight held voices | `0.473 ms average`, `1 ms max`, `0 / 256 overruns` | average `< 2.000 ms` |
-| One-note, two-oscillator 8x-unison effects patch | `0.516 ms average`, `2 ms max`, `0 / 256 overruns` | average `< 2.000 ms` |
-| Structural H load round trip / processor duration | `215.9 / 214 ms` | round trip `< 1,000 ms` |
-| Scalar cutoff patch round trip / processor duration | `1.2 / 1 ms` | round trip `< 50 ms` |
+| Page navigation to processor ready | `1,131.2 ms` | `< 5,000 ms` |
+| Host prepare to processor ready | `430.7 ms` | `< 2,000 ms` |
+| One held voice | `0.180 ms average`, `1 ms max`, `0 / 256 overruns` | average `< 2.000 ms` |
+| Quick-preview three-note chord | `0.301 ms average`, `1 ms max`, `0 / 256 overruns` | average `< 2.000 ms` |
+| Eight held voices | `0.539 ms average`, `1 ms max`, `0 / 256 overruns` | average `< 2.000 ms` |
+| One-note, three-oscillator 8x-unison effects patch | `0.535 ms average`, `1 ms max`, `0 / 256 overruns` | average `< 2.000 ms` |
+| Three-wavetable structural state | `194,753 bytes` | records all three slots |
+| Structural state round trip / processor duration | `221.1 / 216 ms` | round trip `< 1,000 ms` |
+| Scalar cutoff round trip / processor duration | `2.5 / 1 ms` | round trip `< 50 ms` |
+| Effect-order round trip / processor duration | `2.1 / 0 ms` | round trip `< 50 ms` |
 | Audio quantum | `2.667 ms` | reference |
-| Context base / reported output latency | `5.333 / 152 ms` | recorded, not loopback latency |
+| Context base / reported output latency | `5.813 / 32 ms` | recorded, not loopback latency |
 
 Chromium quantized `performance.now()` in the worklet to 1 ms. The gate therefore requires 25%
 average deadline headroom and permits one 1-ms tick of uncertainty on interval maxima. Raw overrun
 counts remain recorded diagnostics rather than a hard gate: a reported 3 ms block cannot be
 classified reliably against a 2.667 ms quantum with a 1 ms clock. The recorded reference run had
-zero measured overruns in all three steady scenarios.
+zero measured overruns in all four steady scenarios.
 
 ### Checked-in command
 
-Playwright uses port 4181 by default and accepts `PLAYWRIGHT_PORT` when another isolated port is
-needed. The performance spec runs in its own project before the remaining Chromium suite and uses
-a blank same-origin harness instead of starting the application's default renderer beside the
-measured host. This avoids reuse of a Vite server from another worktree, parallel browser-test
-contention, and a second Vital engine competing with the measurement. The exact command
-`npm run test:e2e -- vital-performance` now exercises this worktree and passes.
+Playwright derives an isolated default port from the workspace path and accepts `PLAYWRIGHT_PORT`
+when an explicit port is needed. The performance spec runs in its own project before the remaining
+Chromium suite and uses a blank same-origin harness instead of starting the application's default
+renderer beside the measured host. This avoids reuse of a Vite server from another worktree,
+parallel browser-test contention, and a second Vital engine competing with the measurement. The
+exact command `npm run test:e2e -- vital-performance` exercises this worktree and passes.
+
+`npm run test:e2e:preview` performs a clean production build and then runs 21 production-server
+checks covering first-gesture startup and release, quick previews, WebMCP state edits, Vital
+import/export, effect ordering, tabs, and desktop/tablet/mobile layouts. The built distribution
+contains `vital.mjs`, `vital.wasm`, `fixtures/vital/init.vital`, `LICENSE`, and `NOTICE`.
 
 ## Desktop Vital 1.0.7 manual matrix
 
@@ -168,16 +182,21 @@ comparison. Metrics support the comparison; they do not replace listening.
 
 | Stage | Manual target | Browser WASM vs desktop Vital 1.0.7 | Notes |
 | --- | --- | --- | --- |
-| A | Sine oscillator, no filter/modulation/effects | Pass | Sounds the same in browser WASM and desktop Vital 1.0.7. |
-| B | Custom Air Spectrum wavetable | Pass | Waveform character and fixed position match. |
-| C | Attack, decay, sustain, and release | Pass | Envelope behavior matches. |
-| D | Deterministic five-voice unison | Pass | Width and detune match. |
-| E | 4.2 kHz resonant low-pass | Pass | Filter character matches. |
-| F | Point LFO at `1/8`, 120 BPM | Pass | Shape, phase, depth, and shortened second pulse match. |
-| G | Oscillator 2 one octave above | Pass | Oscillator contribution matches. |
-| H | Synchronized delay and algorithmic reverb | Pass | Delay, reverb, and release tail match. |
+| A | Sine oscillator, no filter/modulation/effects | Pending rerun | Passed before the redesign integration; rerun with the rebuilt export. |
+| B | Custom Air Spectrum wavetable | Pending rerun | Passed before the redesign integration; rerun with the rebuilt export. |
+| C | Attack, decay, sustain, and release | Pending rerun | Passed before the redesign integration; rerun with the rebuilt export. |
+| D | Deterministic five-voice unison | Pending rerun | Passed before the redesign integration; rerun with the rebuilt export. |
+| E | Reorderable 4.2 kHz resonant FX low-pass | Pending | The pre-redesign pass used Filter 1 and does not cover the integrated mapping. |
+| F | Point LFO at `1/8`, 120 BPM through the FX filter | Pending | Confirm shape, phase, depth, and shortened second pulse. |
+| G | Oscillator 2 one octave above through the FX chain | Pending | Confirm oscillator contribution and chain routing. |
+| H | Reordered FX filter, synchronized delay, and reverb | Pending | Confirm processor placement and release tail. |
 
-Manual interaction checks completed:
+The fresh pass must also cover an oscillator-3-only patch, oscillator 3 modulation, lowpass,
+highpass, bandpass, and notch FX-filter types, and at least two filter/delay/reverb orders. Those
+cases pass adapter, import/export, WASM render, and browser automation, but same-source automation
+cannot verify the desktop Vital application boundary.
+
+Manual interaction checks to repeat with the post-redesign build:
 
 1. Drag cutoff, level, wavetable position, detune, spread, and envelope controls with the default
    renderer; scalar previews must remain immediate and must not trigger structural loads.
@@ -188,11 +207,16 @@ Manual interaction checks completed:
 
 ## Gate decision
 
-- Same-source A-H automation: pass.
+- Rebuilt same-source A-H automation: pass.
+- Oscillator 3, FX-filter type, modulation, and reordered-effects WASM automation: pass.
 - Ported WASM directional assertions: pass.
-- Isolated Chromium artifact/init/block/state/scalar telemetry: pass.
-- Checked-in Playwright spec: pass in the dedicated performance project on isolated port 4181.
-- Desktop Vital 1.0.7 listening: pass.
-- Human interaction-feel check: pass.
+- Isolated Chromium artifact/init/block/state/scalar/order telemetry: pass.
+- Development-server browser suite: 52 passed; one compact-layout assertion failed once and passed
+  immediately on focused rerun.
+- Clean production-preview matrix: 21 passed.
+- Distribution assets and corresponding-source metadata: pass.
+- Fresh desktop Vital 1.0.7 listening: pending external manual gate.
+- Post-redesign human interaction-feel check: pending with the desktop comparison.
 
-Phase 5 is accepted and Phase 6 may proceed.
+The automated and distributable integration is accepted. Final interoperability sign-off remains
+blocked only on the fresh external desktop Vital 1.0.7 listening matrix above.

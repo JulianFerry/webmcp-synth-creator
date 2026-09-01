@@ -197,6 +197,7 @@ test.describe('Vital browser performance', () => {
         structuralState: {
           processorDurationMs: stateEvent.durationMs,
           roundTripMs: structuralRoundTripMs,
+          stateBytes: new TextEncoder().encode(heavyJson).byteLength,
           wavetableSlots: heavyDocument.settings.wavetables.length,
         },
         scalarDrag: {
@@ -248,6 +249,7 @@ test.describe('Vital browser performance', () => {
       result.context.quantumMs + 1,
     )
     expect(result.structuralState.wavetableSlots).toBe(3)
+    expect(result.structuralState.stateBytes).toBeGreaterThan(0)
     expect(result.structuralState.roundTripMs).toBeLessThan(1_000)
     expect(result.scalarDrag.operationCount).toBeGreaterThan(0)
     expect(result.scalarDrag.processorDurationMs).toBeLessThan(result.context.quantumMs)

@@ -93,10 +93,10 @@ files leave the patch and history unchanged.
 The **Calibration ladder** group in the starting-patch menu contains eight cumulative
 test patches. A is one retriggered sine oscillator with a neutral gate envelope; B adds
 the custom Air Spectrum wavetable; C adds ADSR; D adds deterministic unison; E enables
-the filter; F adds eighth-note LFO gating; G enables OSC2; and H enables delay and
-reverb. Parameters for later stages are already configured while bypassed, so each step
-activates only the subsystem named in its title. Both oscillator controls are fixed at
-the workbench's `100%` reference level throughout the ladder.
+the reorderable Vital FX filter; F adds eighth-note LFO gating; G enables OSC2; and H
+enables delay and reverb. Parameters for later stages are already configured while
+bypassed, so each step activates only the subsystem named in its title. Enabled
+calibration oscillators use the workbench's `100%` reference level.
 
 For each letter, press A or hold C2 (MIDI note 48) in the browser, listen, export the
 preset, then press A at the same keyboard-octave setting in Vital at a matched output
@@ -116,16 +116,18 @@ Unison detune is also quadratic in Vital: the workbench's `0–100%` span is
 D's `25%` therefore loads as `3%` in Vital, with the same approximately six-cent
 outer-voice detune as the browser.
 The first strongly different browser/desktop pair is the useful result: A/B points at
-state or wavetable compatibility, C at envelopes, D at unison, E at the filter, F at
+state or wavetable compatibility, C at envelopes, D at unison, E at the FX filter, F at
 LFO mapping/timing, G at oscillator summing, and H at the effects chain. D deliberately
 keeps random phase at zero, and every stage ignores note velocity, so repeated trials
-are stable.
+are stable. After A-H, separately verify an OSC3-only patch, OSC3 modulation, all four
+FX-filter types, and at least two filter/delay/reverb orders; those redesigned-state
+cases are automated against WASM but still require a fresh desktop Vital listening pass.
 
-The automated Phase 5 reference uses MIDI 60, velocity `100 / 127`, 120 BPM, a
+The automated fidelity reference uses MIDI 60, velocity `100 / 127`, 120 BPM, a
 2-second hold, and a 3-second release/tail at 48 kHz for both WASM and the native
 same-source renderer. See [`docs/vital-wasm-fidelity.md`](docs/vital-wasm-fidelity.md)
-for measured tolerances, browser costs, native build instructions, and the completed
-desktop Vital 1.0.7 listening matrix.
+for the post-redesign measurements, browser costs, native build instructions, and the
+exact status of the external desktop Vital 1.0.7 listening gate.
 
 The exporter clones `fixtures/vital/init.vital`; dependency installation does
 not create or replace it. See [`fixtures/vital/README.md`](fixtures/vital/README.md)
@@ -140,16 +142,21 @@ scripts:
 npx playwright install chromium
 bash wasm/vital/fetch-source.sh
 bash wasm/vital/build.sh
+bash wasm/vital/native/build.sh
 npm run test:unit
 npm run test:e2e
+npm run test:e2e:preview
 npm run lint
 npm run typecheck
 npm run build
 ```
 
-The end-to-end suite starts its own Vite server. `npm run build` type-checks the
-project and writes the production bundle to `dist/`. A production build fails if
-the Vital module is absent and distributes `vital.mjs`, `vital.wasm`,
+The normal end-to-end suite starts its own Vite development server.
+`npm run test:e2e:preview` first creates a clean `dist/`, then runs the production
+preview coverage for gesture-gated playback, quick previews, WebMCP edits,
+import/export, effects, and responsive layouts. `npm run build` type-checks the project
+and writes the production bundle to `dist/`. A production build fails if the Vital
+module is absent and distributes `vital.mjs`, `vital.wasm`,
 `fixtures/vital/init.vital`, `LICENSE`, and `NOTICE`.
 
 ## License and source
@@ -159,7 +166,9 @@ Wavetable Workbench is distributed under the GNU General Public License version
 source from `mtytel/vital@636ca0ef517a4db087a6a08a6a8a5e704e21f836`,
 copyright 2013-2019 Matt Tytel. See [`LICENSE`](LICENSE) for the terms and
 [`NOTICE`](NOTICE) for incorporated source areas, the exact patch list, and
-corresponding-source rebuild instructions.
+corresponding-source rebuild instructions. The distribution metadata test keeps
+`package.json`, `NOTICE`, `wasm/vital/UPSTREAM.json`, the patch directory, and the
+pinned fetch/build commands aligned.
 
 ## Troubleshooting
 
