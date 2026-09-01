@@ -13,3 +13,4 @@ coverage/
 
 # Local development files
 prototype/
+.vercel

@@ -1,12 +1,17 @@
 # Wavetable Workbench
 
+[![CI](https://github.com/JulianFerry/wavetable-workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/JulianFerry/wavetable-workbench/actions/workflows/ci.yml)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FJulianFerry%2Fwavetable-workbench)
+
 Wavetable Workbench is a React/Vite prototype for editing one synth patch from
 the UI or Chrome WebMCP, auditioning a functional browser preview, and exporting
 a `.vital` preset.
 
+**Live app:** [wavetable-workbench.vercel.app](https://wavetable-workbench.vercel.app)
+
 ## Prerequisites
 
-- Node.js `^20.19.0` or `>=22.12.0`, with npm
+- Node.js 22, with npm (the deployment and CI version is pinned in `.nvmrc`)
 - Chrome with WebMCP testing enabled, plus the [Model Context Tool Inspector][inspector], for the WebMCP workflow
 - Vital only for loading and auditioning exported presets
 
@@ -21,6 +26,46 @@ npm run dev -- --strictPort
 
 Open the URL printed by Vite. The checked-in development configuration currently
 uses `http://127.0.0.1:4173`.
+
+## Deploy to Vercel
+
+The app is deployment-ready without environment variables. Import this repository
+into Vercel, keep `main` as the production branch, and leave the framework settings
+at their detected values. [`vercel.json`](vercel.json) pins the locked install,
+production build, `dist/` output, CDN caching, and browser security headers.
+
+The Vercel GitHub app should have access to this repository. Once connected, pushes
+to `main` create production deployments and pull requests receive isolated preview
+deployments. GitHub Actions independently runs linting, unit tests, a production
+build with a compressed bundle budget, and a Chromium deployment smoke test across
+mobile, tablet, and desktop viewports before a change is merged.
+
+After the first production deployment, add its domain to the repository homepage
+and verify the deployment from a clean browser profile. No secrets should be added
+to GitHub or Vercel for the current client-only application.
+
+To run the deployment smoke test against production instead of a local Vite server:
+
+```bash
+PLAYWRIGHT_BASE_URL=https://wavetable-workbench.vercel.app npm run test:e2e:deployment
+```
+
+## Delivery and scale
+
+The production output is static: Vercel serves hashed JavaScript and CSS from its
+edge CDN with one-year immutable caching, while each visitor runs synthesis and
+patch editing locally in Web Audio. The pinned Vital fixture is also edge-cached.
+There is no shared application server, database, or per-user server state that can
+become a concurrency bottleneck, so traffic does not multiply synthesis load on an
+origin process.
+
+`npm run check:bundle` caps compressed JavaScript at 160 KiB and CSS at 20 KiB to
+protect startup performance as the app grows. The responsive Playwright coverage
+exercises desktop, tablet, compact, and 360 px mobile layouts. For a public launch,
+confirm that the selected Vercel plan's bandwidth limits match the expected traffic,
+enable Vercel Observability, and run a gradual load test against the final domain;
+CDN architecture removes the application-server bottleneck but does not replace
+production traffic validation.
 
 Set a safe output level, then click **Hold C2** (MIDI note 48) to start audio. Browser autoplay
 rules require this direct user gesture; a WebMCP tool call cannot start audio.
