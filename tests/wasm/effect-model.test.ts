@@ -8,7 +8,11 @@ import { VitalEngine, type VitalWasmModuleFactory } from '../../src/audio/vital/
 import { renderVitalOffline, type VitalOfflineRender } from '../../src/audio/vital/offlineRender'
 import { createDefaultPatch } from '../../src/patch/defaults'
 import type { FilterType, PatchState } from '../../src/patch/types'
-import { CALIBRATION_H_PATCH } from '../../src/presets/patches/calibration'
+import {
+  CALIBRATION_A_PATCH,
+  CALIBRATION_F_PATCH,
+  CALIBRATION_H_PATCH,
+} from '../../src/presets/patches/calibration'
 import { VitalPresetAdapter } from '../../src/vital/VitalPresetAdapter'
 import { findVitalArtifact } from './support/artifact'
 
@@ -46,6 +50,79 @@ describe.skipIf(artifact === null)('Vital WASM PatchState v2 effect model', () =
     },
     60_000,
   )
+
+  it('renders an oscillator-3-only patch and settles after all-notes-off', async () => {
+    const patch = oscillatorThreeOnlyPatch()
+    const engine = await createEngine()
+    const left = new Float32Array(128)
+    const right = new Float32Array(128)
+
+    try {
+      expect(engine.loadState(adapter.exportPatch(patch).json)).toBe(true)
+      engine.setBpm(120)
+      engine.noteOn(60, 100 / 127)
+
+      let audiblePeak = 0
+      let nonFiniteSamples = 0
+      for (let block = 0; block < 96; block += 1) {
+        engine.process(128)
+        engine.copyStereoTo(left, right, 128)
+        for (let frame = 0; frame < 128; frame += 1) {
+          if (!Number.isFinite(left[frame])) nonFiniteSamples += 1
+          if (!Number.isFinite(right[frame])) nonFiniteSamples += 1
+          audiblePeak = Math.max(audiblePeak, Math.abs(left[frame]), Math.abs(right[frame]))
+        }
+      }
+
+      engine.allNotesOff()
+      let settledPeak = 0
+      for (let block = 0; block < 256; block += 1) {
+        engine.process(128)
+        engine.copyStereoTo(left, right, 128)
+        if (block === 255) {
+          for (let frame = 0; frame < 128; frame += 1) {
+            settledPeak = Math.max(settledPeak, Math.abs(left[frame]), Math.abs(right[frame]))
+          }
+        }
+      }
+
+      expect(nonFiniteSamples).toBe(0)
+      expect(audiblePeak).toBeGreaterThan(1e-3)
+      expect(audiblePeak).toBeLessThanOrEqual(1)
+      expect(settledPeak).toBeLessThan(1e-7)
+    } finally {
+      engine.dispose()
+    }
+  }, 60_000)
+
+  it('renders oscillator 3 modulation as a measurably different finite signal', async () => {
+    const staticPatch = oscillatorThreeOnlyPatch()
+    const modulatedPatch = structuredClone(staticPatch)
+    modulatedPatch.lfo1 = structuredClone(CALIBRATION_F_PATCH.lfo1)
+    modulatedPatch.modulations = [
+      {
+        id: 'oscillator-3-level-gate',
+        source: 'lfo1',
+        destination: 'oscillator3.level',
+        amount: -0.68,
+        bipolar: false,
+      },
+    ]
+
+    const exported = adapter.exportPatch(modulatedPatch).document.settings
+    expect((exported.modulations as Array<Record<string, unknown>>)[0]).toEqual({
+      source: 'lfo_1',
+      destination: 'osc_3_level',
+    })
+
+    const staticRender = await renderPatch(staticPatch, 0.8, 0.2)
+    const modulatedRender = await renderPatch(modulatedPatch, 0.8, 0.2)
+    expect(staticRender.metrics.nonFiniteSamples).toBe(0)
+    expect(modulatedRender.metrics.nonFiniteSamples).toBe(0)
+    expect(staticRender.metrics.rms).toBeGreaterThan(0)
+    expect(modulatedRender.metrics.rms).toBeGreaterThan(0)
+    expect(stereoDifferenceRms(staticRender, modulatedRender)).toBeGreaterThan(1e-4)
+  }, 120_000)
 
   it('renders a measurably different signal when enabled FX processors are reordered', async () => {
     const filterFirst = structuredClone(CALIBRATION_H_PATCH)
@@ -135,4 +212,20 @@ function stereoDifferenceRms(left: VitalOfflineRender, right: VitalOfflineRender
     sumSquares += leftDifference * leftDifference + rightDifference * rightDifference
   }
   return Math.sqrt(sumSquares / Math.max(1, frames * 2))
+}
+
+function oscillatorThreeOnlyPatch(): PatchState {
+  const patch = structuredClone(CALIBRATION_A_PATCH)
+  patch.oscillators[0].enabled = false
+  patch.oscillators[1].enabled = false
+  patch.oscillators[2] = {
+    ...structuredClone(CALIBRATION_A_PATCH.oscillators[0]),
+    enabled: true,
+  }
+  patch.filter.enabled = false
+  patch.lfo1.enabled = false
+  patch.modulations = []
+  patch.effects.delay.enabled = false
+  patch.effects.reverb.enabled = false
+  return patch
 }

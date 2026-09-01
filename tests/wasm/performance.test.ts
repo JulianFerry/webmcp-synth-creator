@@ -49,17 +49,21 @@ describe.skipIf(artifact === null)('Vital WASM performance matrix', () => {
       const cutoffOperation = adapter
         .controlOperations(CALIBRATION_H_PATCH, withCutoff(CALIBRATION_H_PATCH, 2_400))
         .find((operation) => operation.name === 'filter_fx_cutoff')
+      const reordered = structuredClone(CALIBRATION_H_PATCH)
+      reordered.effects.order = [...reordered.effects.order].reverse()
+      const effectOrderOperation = adapter
+        .controlOperations(CALIBRATION_H_PATCH, reordered)
+        .find((operation) => operation.name === 'effect_chain_order')
       expect(cutoffOperation).toBeDefined()
-      const controlStartedAt = performance.now()
-      for (let index = 0; index < 512; index += 1) {
-        expect(
-          engine.setControl(
-            cutoffOperation!.name,
-            cutoffOperation!.value + (index % 2 === 0 ? 0 : 0.01),
-          ),
-        ).toBe(true)
+      expect(effectOrderOperation).toBeDefined()
+      const controlAverageMs = {
+        cutoff: measureAverageControl(engine, cutoffOperation!.name, cutoffOperation!.value),
+        effectOrder: measureAverageControl(
+          engine,
+          effectOrderOperation!.name,
+          effectOrderOperation!.value,
+        ),
       }
-      const controlAverageMs = (performance.now() - controlStartedAt) / 512
       // The browser spec owns the realtime deadline gate. These Node wall-clock values retain the
       // structural/scalar cost contrast and expose large regressions without pretending a parallel
       // Vitest worker has an AudioWorklet deadline.
@@ -71,13 +75,15 @@ describe.skipIf(artifact === null)('Vital WASM performance matrix', () => {
       // The broad wall-clock ceiling tolerates worker contention; the scalar/full-load ratio is
       // the meaningful regression boundary here.
       expect(Math.max(...Object.values(loadMs))).toBeLessThan(5_000)
-      expect(controlAverageMs).toBeLessThan(Math.min(...Object.values(loadMs)) / 100)
+      for (const averageMs of Object.values(controlAverageMs)) {
+        expect(averageMs).toBeLessThan(Math.min(...Object.values(loadMs)) / 100)
+      }
     } finally {
       engine.dispose()
     }
   }, 120_000)
 
-  it('records one voice, eight voices, and a unison/effects stress patch', async () => {
+  it('records one voice, quick-preview chord, eight voices, and three-oscillator unison', async () => {
     const heavy = structuredClone(CALIBRATION_H_PATCH)
     heavy.voice.polyphony = 8
     for (const oscillator of heavy.oscillators) {
@@ -89,8 +95,9 @@ describe.skipIf(artifact === null)('Vital WASM performance matrix', () => {
 
     const costs = {
       oneVoice: await measureBlockCost(CALIBRATION_A_PATCH, [60]),
+      quickPreviewChord: await measureBlockCost(CALIBRATION_A_PATCH, [60, 63, 67]),
       eightVoices: await measureBlockCost(CALIBRATION_A_PATCH, [48, 50, 52, 53, 55, 57, 59, 60]),
-      unisonEffects: await measureBlockCost(heavy, [60]),
+      threeOscillatorUnison: await measureBlockCost(heavy, [60]),
     }
     console.info(`[vital-performance] blocks=${JSON.stringify({ quantumMs, ...costs })}`)
     writeMeasurement('block-cost.json', { quantumMs, ...costs })
@@ -100,7 +107,7 @@ describe.skipIf(artifact === null)('Vital WASM performance matrix', () => {
       expect(cost.p95Ms).toBeLessThan(100)
     }
     expect(costs.oneVoice.averageMs).toBeLessThan(costs.eightVoices.averageMs)
-    expect(costs.oneVoice.averageMs).toBeLessThan(costs.unisonEffects.averageMs)
+    expect(costs.oneVoice.averageMs).toBeLessThan(costs.threeOscillatorUnison.averageMs)
   }, 120_000)
 })
 
@@ -146,6 +153,14 @@ function measure(operation: () => void): number {
   const startedAt = performance.now()
   operation()
   return performance.now() - startedAt
+}
+
+function measureAverageControl(engine: VitalEngine, name: string, value: number): number {
+  const startedAt = performance.now()
+  for (let index = 0; index < 512; index += 1) {
+    expect(engine.setControl(name, value + (index % 2 === 0 ? 0 : Number.EPSILON))).toBe(true)
+  }
+  return (performance.now() - startedAt) / 512
 }
 
 function writeMeasurement(filename: string, value: unknown): void {

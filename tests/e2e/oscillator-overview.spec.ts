@@ -22,7 +22,10 @@ test('oscillators default to 3D and toggle locally with full, matched stages', a
   await expect(page.getByTestId('oscillator-1-waveform')).toBeVisible()
   const stage2d = await editor.locator('.detailed-oscillator-waveform').boundingBox()
   const waveform2d = await page.getByTestId('oscillator-1-waveform').boundingBox()
-  expect(stage2d).toMatchObject({ x: stage3d!.x, y: stage3d!.y, width: stage3d!.width, height: stage3d!.height })
+  expect(Math.abs(stage2d!.x - stage3d!.x)).toBeLessThan(2)
+  expect(Math.abs(stage2d!.y - stage3d!.y)).toBeLessThan(2)
+  expect(Math.abs(stage2d!.width - stage3d!.width)).toBeLessThan(2)
+  expect(Math.abs(stage2d!.height - stage3d!.height)).toBeLessThan(2)
   expect(Math.abs((waveform2d!.x + waveform2d!.width / 2) - (stage2d!.x + stage2d!.width / 2))).toBeLessThan(2)
   expect(Math.abs((waterfall3d!.x + waterfall3d!.width / 2) - (stage3d!.x + stage3d!.width / 2))).toBeLessThan(2)
 

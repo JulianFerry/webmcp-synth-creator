@@ -13,7 +13,7 @@ const gzipWasmBytes = artifactPresent ? gzipSync(readFileSync(wasmPath), { level
 test.describe('Vital browser performance', () => {
   test.skip(!artifactPresent, 'Vital WASM artifact is not built')
 
-  test('records loading, steady audio, structural state, and scalar patch telemetry', async ({
+  test('records loading, voice matrix, structural state, and scalar control telemetry', async ({
     page,
   }) => {
     await page.route('**/', (route) =>
@@ -50,9 +50,13 @@ test.describe('Vital browser performance', () => {
         oscillator.stereoSpread = 1
       }
       const heavyJson = adapter.exportPatch(heavyPatch).json
+      const heavyDocument = JSON.parse(heavyJson) as { settings: { wavetables: unknown[] } }
       const cutoffPatch = structuredClone(heavyPatch)
       cutoffPatch.filter.cutoffHz = 2_400
       const cutoffOperations = adapter.controlOperations(heavyPatch, cutoffPatch)
+      const reorderedPatch = structuredClone(cutoffPatch)
+      reorderedPatch.effects.order = [...reorderedPatch.effects.order].reverse()
+      const effectOrderOperations = adapter.controlOperations(cutoffPatch, reorderedPatch)
 
       const context = new AudioContext({ latencyHint: 'interactive', sampleRate: 48_000 })
       await context.resume()
@@ -127,6 +131,10 @@ test.describe('Vital browser performance', () => {
       const oneVoice = await captureSteadyStats()
       host.allNotesOff()
 
+      for (const note of [60, 63, 67]) host.noteOn(note, 100 / 127)
+      const quickPreviewChord = await captureSteadyStats()
+      host.allNotesOff()
+
       for (const note of [48, 50, 52, 53, 55, 57, 59, 60]) host.noteOn(note, 100 / 127)
       const eightVoices = await captureSteadyStats()
       host.allNotesOff()
@@ -141,7 +149,7 @@ test.describe('Vital browser performance', () => {
       const structuralRoundTripMs = stateEvent.receivedAt - stateRequestedAt
 
       host.noteOn(60, 100 / 127)
-      const unisonEffects = await captureSteadyStats()
+      const threeOscillatorUnison = await captureSteadyStats()
 
       const controlRequestedAt = performance.now()
       host.setControls(3, cutoffOperations)
@@ -151,6 +159,15 @@ test.describe('Vital browser performance', () => {
       )
       const controlEvent = controlEvents.find((event) => event.revision === 3)!
       const scalarRoundTripMs = controlEvent.receivedAt - controlRequestedAt
+
+      const effectOrderRequestedAt = performance.now()
+      host.setControls(4, effectOrderOperations)
+      await waitFor(
+        () => controlEvents.some((event) => event.revision === 4),
+        'effect-order control revision',
+      )
+      const effectOrderEvent = controlEvents.find((event) => event.revision === 4)!
+      const effectOrderRoundTripMs = effectOrderEvent.receivedAt - effectOrderRequestedAt
 
       const resources = performance
         .getEntriesByType('resource')
@@ -174,16 +191,23 @@ test.describe('Vital browser performance', () => {
         },
         initialization: { navigationToReadyMs, prepareMs },
         oneVoice,
+        quickPreviewChord,
         eightVoices,
-        unisonEffects,
+        threeOscillatorUnison,
         structuralState: {
           processorDurationMs: stateEvent.durationMs,
           roundTripMs: structuralRoundTripMs,
+          wavetableSlots: heavyDocument.settings.wavetables.length,
         },
-        scalarPatch: {
+        scalarDrag: {
           operationCount: cutoffOperations.length,
           processorDurationMs: controlEvent.durationMs,
           roundTripMs: scalarRoundTripMs,
+        },
+        effectOrder: {
+          operationCount: effectOrderOperations.length,
+          processorDurationMs: effectOrderEvent.durationMs,
+          roundTripMs: effectOrderRoundTripMs,
         },
         errors,
       }
@@ -212,14 +236,24 @@ test.describe('Vital browser performance', () => {
     // overrun count remains telemetry: a measured 3 ms block cannot be classified reliably against
     // a 2.67 ms quantum with this clock resolution.
     expect(result.oneVoice.averageBlockMs).toBeLessThan(result.context.quantumMs * 0.75)
+    expect(result.quickPreviewChord.averageBlockMs).toBeLessThan(result.context.quantumMs * 0.75)
     expect(result.eightVoices.averageBlockMs).toBeLessThan(result.context.quantumMs * 0.75)
-    expect(result.unisonEffects.averageBlockMs).toBeLessThan(result.context.quantumMs * 0.75)
+    expect(result.threeOscillatorUnison.averageBlockMs).toBeLessThan(
+      result.context.quantumMs * 0.75,
+    )
     expect(result.oneVoice.maxBlockMs).toBeLessThanOrEqual(result.context.quantumMs + 1)
+    expect(result.quickPreviewChord.maxBlockMs).toBeLessThanOrEqual(result.context.quantumMs + 1)
     expect(result.eightVoices.maxBlockMs).toBeLessThanOrEqual(result.context.quantumMs + 1)
-    expect(result.unisonEffects.maxBlockMs).toBeLessThanOrEqual(result.context.quantumMs + 1)
+    expect(result.threeOscillatorUnison.maxBlockMs).toBeLessThanOrEqual(
+      result.context.quantumMs + 1,
+    )
+    expect(result.structuralState.wavetableSlots).toBe(3)
     expect(result.structuralState.roundTripMs).toBeLessThan(1_000)
-    expect(result.scalarPatch.operationCount).toBeGreaterThan(0)
-    expect(result.scalarPatch.processorDurationMs).toBeLessThan(result.context.quantumMs)
-    expect(result.scalarPatch.roundTripMs).toBeLessThan(50)
+    expect(result.scalarDrag.operationCount).toBeGreaterThan(0)
+    expect(result.scalarDrag.processorDurationMs).toBeLessThan(result.context.quantumMs)
+    expect(result.scalarDrag.roundTripMs).toBeLessThan(50)
+    expect(result.effectOrder.operationCount).toBe(1)
+    expect(result.effectOrder.processorDurationMs).toBeLessThan(result.context.quantumMs)
+    expect(result.effectOrder.roundTripMs).toBeLessThan(50)
   })
 })

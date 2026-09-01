@@ -448,6 +448,50 @@ describe('VitalWasmRenderer', () => {
     expect(context.state).toBe('closed')
   })
 
+  it('forwards note, chord, and arpeggiator schedules in UI order', async () => {
+    const { host, renderer } = createHarness()
+    await renderer.startAudio()
+
+    await renderer.noteOn(60, 1)
+    renderer.releaseAllNotes()
+
+    await Promise.all([60, 63, 67].map((note) => renderer.noteOn(note, 1)))
+    renderer.releaseAllNotes()
+
+    await renderer.noteOn(60, 1)
+    renderer.releaseAllNotes()
+    await renderer.noteOn(63, 1)
+
+    expect(
+      host.calls.filter((call) => call === 'all-off' || call.startsWith('on:')),
+    ).toEqual([
+      'on:60:1',
+      'all-off',
+      'on:60:1',
+      'on:63:1',
+      'on:67:1',
+      'all-off',
+      'on:60:1',
+      'all-off',
+      'on:63:1',
+    ])
+    expect(renderer.getState()).toMatchObject({ activeNotes: [63], activeVoiceCount: 1 })
+    renderer.dispose()
+  })
+
+  it('propagates worklet errors to renderer state subscribers', async () => {
+    const { host, renderer } = createHarness()
+    const lifecycles: string[] = []
+    renderer.subscribe((state) => lifecycles.push(state.lifecycle))
+    await renderer.startAudio()
+
+    host.emit({ type: 'error', phase: 'process', message: 'render failed' })
+
+    expect(renderer.getState().lifecycle).toBe('error')
+    expect(lifecycles).toContain('error')
+    renderer.dispose()
+  })
+
   it('surfaces preparation failure without constructing a host', async () => {
     const { creationCounts, host, renderer } = createHarness({
       preloadWasm: () => Promise.reject(new Error('missing wasm')),

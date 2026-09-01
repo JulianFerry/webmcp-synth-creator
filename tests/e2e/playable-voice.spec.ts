@@ -59,6 +59,7 @@ async function installWebMcpDouble(page: Page): Promise<void> {
 test('playable voice stays gesture gated and steals the oldest voice at configured polyphony', async ({
   page,
 }) => {
+  await installWebMcpDouble(page)
   await page.goto('/')
 
   await expect(page.getByTestId('active-voice-count')).toHaveText('0')
@@ -66,11 +67,16 @@ test('playable voice stays gesture gated and steals the oldest voice at configur
   await expect(page.getByTestId('hold-note')).toHaveCount(0)
   await expect(page.locator('#audition-velocity')).toHaveCount(0)
 
-  await page.getByRole('tab', { name: 'Effects' }).click()
-  const polyphony = page.getByTestId('voice-polyphony')
-  await polyphony.focus()
-  await polyphony.press('Home')
-  await expect(polyphony).toHaveValue('1')
+  await page.evaluate(async () => {
+    const tools = await document.modelContext!.getTools()
+    const applyPatch = tools.find((tool) => tool.name === 'apply_patch')
+    if (!applyPatch) throw new Error('apply_patch was not registered')
+    await document.modelContext!.executeTool(applyPatch, {
+      reason: 'Limit the Vital audition renderer to one voice',
+      changes: [{ path: 'voice.polyphony', value: 1 }],
+    })
+  })
+  await expect(page.getByTestId('voice-polyphony')).toHaveCount(0)
   await expect(page.getByTestId('history-size')).toHaveText('1')
 
   await page.getByTestId('keyboard-surface').focus()
@@ -406,16 +412,8 @@ test('playable voice cancels generalized previews back to canonical active audio
 
   await page.getByRole('tab', { name: 'Effects' }).click()
   await expect(adapter).toHaveAttribute('data-preview-count', '0')
-  const glide = page.getByTestId('voice-glide')
-  await glide.evaluate((element) => {
-    const input = element as HTMLInputElement
-    input.value = '0.45'
-    input.dispatchEvent(new InputEvent('input', { bubbles: true }))
-  })
-  await expect(adapter).toHaveAttribute('data-preview-count', '0')
-  await glide.dispatchEvent('pointercancel')
-  await expect(adapter).toHaveAttribute('data-preview-count', '0')
-  await page.getByRole('tab', { name: 'Effects' }).click()
+  await expect(page.getByTestId('voice-glide')).toHaveCount(0)
+  await expect(page.getByTestId('voice-polyphony')).toHaveCount(0)
   await expect(adapter).toHaveAttribute('data-preview-count', '0')
 
   await expect(adapter).toHaveAttribute('data-effective-transpose', '0')

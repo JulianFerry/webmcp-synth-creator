@@ -131,6 +131,86 @@ describe('Vital PatchState v2 effect model', () => {
     expect(routes[0]).toEqual({ source: 'env_2', destination: 'filter_fx_cutoff' })
   })
 
+  it('round-trips oscillator 3 scalars, wavetable slot, and modulation through one adapter state', () => {
+    const adapter = realAdapter()
+    const before = createDefaultPatch()
+    const patch = structuredClone(before)
+    patch.oscillators[2] = {
+      enabled: true,
+      wavetableId: 'sine',
+      wavetablePosition: 0.25,
+      level: 0.49,
+      transposeSemitones: -12,
+      fineTuneCents: 25,
+      unisonVoices: 3,
+      unisonDetune: 0.36,
+      stereoSpread: 0.72,
+      randomPhase: 0.18,
+    }
+    patch.modulations = [
+      {
+        id: 'oscillator-3-pitch',
+        source: 'lfo1',
+        destination: 'oscillator3.pitch',
+        amount: 0.31,
+        bipolar: true,
+      },
+    ]
+
+    const exported = adapter.exportPatch(patch)
+    const routes = exported.document.settings.modulations as Array<Record<string, unknown>>
+    expect(exported.document.settings.wavetables).toHaveLength(3)
+    expect(exported.document.settings).toMatchObject({
+      osc_3_on: 1,
+      osc_3_destination: 3,
+      osc_3_level: Math.sqrt(0.49 * 0.5),
+      osc_3_wave_frame: 64,
+      osc_3_transpose: -12,
+      osc_3_tune: 0.25,
+      osc_3_unison_voices: 3,
+      osc_3_unison_detune: Math.sqrt(0.36 * 12),
+      osc_3_stereo_spread: 0.72,
+      osc_3_random_phase: 0.18,
+      modulation_1_amount: 0.31,
+      modulation_1_bipolar: 1,
+    })
+    expect(routes[0]).toEqual({ source: 'lfo_1', destination: 'osc_3_tune' })
+
+    expect(adapter.controlOperations(before, patch).map(({ name }) => name)).toEqual(
+      expect.arrayContaining([
+        'osc_3_on',
+        'osc_3_level',
+        'osc_3_wave_frame',
+        'osc_3_transpose',
+        'osc_3_tune',
+        'osc_3_unison_voices',
+        'osc_3_unison_detune',
+        'osc_3_stereo_spread',
+        'osc_3_random_phase',
+        'modulation_1_amount',
+        'modulation_1_bipolar',
+      ]),
+    )
+
+    const imported = adapter.importPatch(exported.document).patch
+    expect(imported.oscillators[2]).toMatchObject({
+      ...patch.oscillators[2],
+      level: expect.any(Number),
+      unisonDetune: expect.any(Number),
+    })
+    expect(imported.oscillators[2].level).toBeCloseTo(patch.oscillators[2].level)
+    expect(imported.oscillators[2].unisonDetune).toBeCloseTo(
+      patch.oscillators[2].unisonDetune,
+    )
+    expect(imported.modulations[0]).toMatchObject({
+      source: 'lfo1',
+      destination: 'oscillator3.pitch',
+      amount: 0.31,
+      bipolar: true,
+    })
+    expect(imported.effects.order).toEqual(patch.effects.order)
+  })
+
   it('lossily normalizes unsupported FX-filter and effect-order values with warnings', () => {
     const adapter = realAdapter()
     const document = structuredClone(adapter.exportPatch(createDefaultPatch()).document)

@@ -73,10 +73,13 @@ test.describe('default VitalWasmRenderer', () => {
     await expect(page.getByTestId('vital-status')).toContainText('ready')
     await expect(page.getByTestId('audio-lifecycle')).toHaveText('suspended')
 
-    await page.getByTestId('hold-note').click()
+    await expect(page.getByTestId('hold-note')).toHaveCount(0)
+    await page.getByTestId('preview-note').click()
     await expect(page.getByTestId('audio-lifecycle')).toHaveText('running', { timeout: 30_000 })
-    await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-held', 'true')
+    await expect(page.getByTestId('active-voice-count')).toHaveText('1')
+    await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-active-count', '1')
 
+    await page.getByRole('tab', { name: 'Effects' }).click()
     const cutoff = page.getByTestId('filter-cutoff-control')
     await cutoff.evaluate((element, value) => {
       const input = element as HTMLInputElement
@@ -106,7 +109,7 @@ test.describe('default VitalWasmRenderer', () => {
     await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-position', '0.25')
     await expect(page.getByTestId('history-size')).toHaveText('2')
 
-    await page.getByTestId('create-variant-b').click()
+    await page.getByTestId('variant-b').click()
     await expect(page.getByTestId('current-variant')).toHaveText('B')
     await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute(
       'data-effective-spread',
@@ -132,5 +135,7 @@ test.describe('default VitalWasmRenderer', () => {
       '1',
     )
     await expect(page.getByTestId('audio-lifecycle')).toHaveText('running')
+    await page.getByTestId('preview-stop').click()
+    await expect(page.getByTestId('active-voice-count')).toHaveText('0')
   })
 })
