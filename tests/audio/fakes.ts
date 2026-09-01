@@ -56,6 +56,10 @@ export class FakeAudioNode {
     this.connections.push(destination)
     return destination
   }
+
+  disconnect(): void {
+    this.connections.length = 0
+  }
 }
 
 export class FakeGainNode extends FakeAudioNode {

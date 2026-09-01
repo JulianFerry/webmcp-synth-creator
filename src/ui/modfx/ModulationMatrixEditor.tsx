@@ -11,7 +11,7 @@ interface Props {
 }
 
 const SOURCES = [
-  { value: 'lfo1', label: 'LFO 1' },
+  { value: 'lfo1', label: 'LFO' },
   { value: 'modEnvelope', label: 'ENV 2' },
 ] satisfies Array<{ value: ModulationSource; label: string }>
 

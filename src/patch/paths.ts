@@ -11,6 +11,7 @@ import {
   TEMPO_SYNC_DIVISIONS,
 } from './limits'
 import { isAllowedModulationRoute } from './modulation'
+import { EFFECT_IDS } from './effects'
 import type { PatchState } from './types'
 
 export const SUPPORTED_PATCH_PATHS = [
@@ -72,6 +73,7 @@ export const SUPPORTED_PATCH_PATHS = [
   'voice.legato',
   'voice.glideSeconds',
   'voice.velocitySensitivity',
+  'effects.order',
   'effects.delay.enabled',
   'effects.delay.mode',
   'effects.delay.division',
@@ -225,6 +227,7 @@ const pathValueSchemas: Record<SupportedPatchPath, ZodTypeAny> = {
   'voice.legato': z.boolean(),
   'voice.glideSeconds': seconds(5),
   'voice.velocitySensitivity': unitInterval,
+  'effects.order': z.array(z.enum(EFFECT_IDS)).length(EFFECT_IDS.length).refine((order) => new Set(order).size === EFFECT_IDS.length, 'Effect order must contain each effect exactly once'),
   'effects.delay.enabled': z.boolean(),
   'effects.delay.mode': z.enum(['sync', 'free']),
   'effects.delay.division': z.enum(TEMPO_SYNC_DIVISIONS),

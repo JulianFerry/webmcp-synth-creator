@@ -28,33 +28,41 @@ export function buildWaveformPath(
 export interface EnvelopePlotGeometry {
   path: string
   attackEndX: number
+  holdEndX: number
   decayEndX: number
   sustainY: number
   releaseStartX: number
+  releaseEndX: number
 }
 
 function phaseWidth(seconds: number, maximum: number): number {
-  return 6 + 18 * Math.sqrt(clamp(seconds, 0, maximum) / maximum)
+  return 4 + 14 * Math.sqrt(clamp(seconds, 0, maximum) / maximum)
 }
 
 export function createEnvelopePlot(envelope: EnvelopeState): EnvelopePlotGeometry {
-  const attackEndX = 2 + phaseWidth(envelope.attackSeconds, 3)
-  const decayEndX = attackEndX + phaseWidth(envelope.decaySeconds, 5)
-  const sustainY = 64 - clamp(envelope.sustainLevel, 0, 1) * 57
-  const releaseStartX = 98 - phaseWidth(envelope.releaseSeconds, 8)
+  const attackEndX = 4 + phaseWidth(envelope.attackSeconds, 3)
+  const holdEndX = attackEndX + phaseWidth(envelope.holdSeconds, 4)
+  const decayEndX = holdEndX + phaseWidth(envelope.decaySeconds, 5)
+  const sustainY = 29 - clamp(envelope.sustainLevel, 0, 1) * 26
+  const releaseStartX = Math.min(decayEndX + 14, 76)
+  const releaseEndX = Math.min(96, releaseStartX + phaseWidth(envelope.releaseSeconds, 8))
 
   return {
     path: [
-      'M2 64',
-      `L${point(attackEndX)} 7`,
+      'M4 29',
+      `L${point(attackEndX)} 3`,
+      `L${point(holdEndX)} 3`,
       `L${point(decayEndX)} ${point(sustainY)}`,
       `L${point(releaseStartX)} ${point(sustainY)}`,
-      'L98 64',
+      `L${point(releaseEndX)} 29`,
+      'L96 29',
     ].join(' '),
     attackEndX,
+    holdEndX,
     decayEndX,
     sustainY,
     releaseStartX,
+    releaseEndX,
   }
 }
 

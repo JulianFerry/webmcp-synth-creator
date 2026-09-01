@@ -18,20 +18,25 @@ const envelope: EnvelopeState = {
 }
 
 describe('ADSR visualization', () => {
-  it('gives attack, decay, sustain, and release independent visible geometry', () => {
+  it('gives attack, hold, decay/sustain, and release independent visible geometry', () => {
     const base = createEnvelopePlot(envelope)
     const attack = createEnvelopePlot({ ...envelope, attackSeconds: 2.5 })
+    const hold = createEnvelopePlot({ ...envelope, holdSeconds: 3 })
     const decay = createEnvelopePlot({ ...envelope, decaySeconds: 4 })
     const sustain = createEnvelopePlot({ ...envelope, sustainLevel: 0.2 })
     const release = createEnvelopePlot({ ...envelope, releaseSeconds: 7 })
 
     expect(attack.attackEndX).toBeGreaterThan(base.attackEndX)
+    expect(hold.holdEndX - hold.attackEndX).toBeGreaterThan(
+      base.holdEndX - base.attackEndX,
+    )
     expect(decay.decayEndX - decay.attackEndX).toBeGreaterThan(
       base.decayEndX - base.attackEndX,
     )
     expect(sustain.sustainY).toBeGreaterThan(base.sustainY)
-    expect(release.releaseStartX).toBeLessThan(base.releaseStartX)
-    expect(new Set([base.path, attack.path, decay.path, sustain.path, release.path]).size).toBe(5)
+    expect(release.releaseStartX).toBe(base.releaseStartX)
+    expect(release.releaseEndX).toBeGreaterThan(base.releaseEndX)
+    expect(new Set([base.path, attack.path, hold.path, decay.path, sustain.path, release.path]).size).toBe(6)
   })
 })
 

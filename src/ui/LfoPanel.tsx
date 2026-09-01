@@ -22,31 +22,30 @@ function rateLabel(rate: LfoRate): string {
 }
 
 export function LfoPanel({ lfo, resetKey, onChange }: LfoPanelProps) {
-  const commitRate = (rate: LfoRate) => onChange('lfo1.rate', rate, 'Set LFO 1 rate')
+  const commitRate = (rate: LfoRate) => onChange('lfo1.rate', rate, 'Set LFO rate')
 
   return (
-    <article className="panel lfo-panel">
+    <article className={`panel lfo-panel${lfo.enabled ? '' : ' is-disabled'}`}>
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Structured modulation source</p>
-          <h2>LFO 1</h2>
+          <h2>LFO</h2>
         </div>
         <ToggleControl
           checked={lfo.enabled}
-          label="LFO 1"
-          onCommit={(enabled) => onChange('lfo1.enabled', enabled, 'Set LFO 1 enablement')}
+          label="LFO"
+          onCommit={(enabled) => onChange('lfo1.enabled', enabled, 'Set LFO enablement')}
           testId="lfo-enabled"
         />
       </div>
 
       <figure className="lfo-plot" data-enabled={lfo.enabled} data-testid="lfo-shape">
         <EditableLfoGraph
-          onCommit={(points) => onChange('lfo1.points', points, 'Edit LFO 1 shape')}
+          onCommit={(points) => onChange('lfo1.points', points, 'Edit LFO shape')}
           points={lfo.points}
           resetKey={resetKey}
           smooth={lfo.smooth}
         />
-        <figcaption>
+        <figcaption className="visually-hidden">
           <span data-testid="lfo-point-count">{lfo.points.length} points</span>
           <span data-testid="lfo-rate-readout">{rateLabel(lfo.rate)}</span>
           <strong>{lfo.enabled ? 'modulation enabled' : 'modulation disabled'}</strong>
@@ -54,23 +53,6 @@ export function LfoPanel({ lfo, resetKey, onChange }: LfoPanelProps) {
       </figure>
 
       <div className="control-grid lfo-controls">
-        <ParameterSelect
-          id="lfo-rate-mode"
-          label="Rate mode"
-          onCommit={(mode) =>
-            commitRate(
-              mode === 'sync'
-                ? { mode: 'sync', division: lfo.rate.mode === 'sync' ? lfo.rate.division : '1/8' }
-                : { mode: 'free', hz: lfo.rate.mode === 'free' ? lfo.rate.hz : 1 },
-            )
-          }
-          options={[
-            { value: 'sync', label: 'Tempo sync' },
-            { value: 'free', label: 'Free rate' },
-          ]}
-          testId="lfo-rate-mode"
-          value={lfo.rate.mode}
-        />
         {lfo.rate.mode === 'sync' ? (
           <ParameterSelect
             id="lfo-sync-division"
@@ -94,23 +76,11 @@ export function LfoPanel({ lfo, resetKey, onChange }: LfoPanelProps) {
             value={lfo.rate.hz}
           />
         )}
-        <ParameterSlider
-          formatValue={(value) => `${Math.round(value * 360)} deg`}
-          id="lfo-phase"
-          label="Phase"
-          max={1}
-          min={0}
-          onCommit={(phase) => onChange('lfo1.phase', phase, 'Set LFO 1 phase')}
-          resetKey={resetKey}
-          step={0.01}
-          testId="lfo-phase"
-          value={lfo.phase}
-        />
         <ParameterSelect
           id="lfo-shape-mode"
           label="Shape mode"
           onCommit={(mode) =>
-            onChange('lfo1.smooth', mode === 'smooth', `Set LFO 1 shape mode to ${mode}`)
+            onChange('lfo1.smooth', mode === 'smooth', `Set LFO shape mode to ${mode}`)
           }
           options={[
             { value: 'smooth', label: 'Smooth' },
@@ -119,8 +89,19 @@ export function LfoPanel({ lfo, resetKey, onChange }: LfoPanelProps) {
           testId="lfo-smooth"
           value={lfo.smooth ? 'smooth' : 'precise'}
         />
+        <ParameterSlider
+          formatValue={(value) => `${Math.round(value * 360)} deg`}
+          id="lfo-phase"
+          label="Phase"
+          max={1}
+          min={0}
+          onCommit={(phase) => onChange('lfo1.phase', phase, 'Set LFO phase')}
+          resetKey={resetKey}
+          step={0.01}
+          testId="lfo-phase"
+          value={lfo.phase}
+        />
       </div>
-      <p className="gesture-note">Drag points to shape the cycle, double-click to add, and press Delete to remove. Each gesture creates one history entry.</p>
     </article>
   )
 }

@@ -1,7 +1,7 @@
 import type { PatchState } from '../patch/types'
 import { resolveWavetable } from '../wavetables/registry'
 import { scheduleEnvelopeAttack, scheduleEnvelopeRelease } from './envelope'
-import { DelayEffect } from './delay'
+import { AudioEffectsChain } from './effectsChain'
 import { applyFilterState } from './filter'
 import { evaluateEnvelope } from './lfo'
 import {
@@ -9,7 +9,6 @@ import {
   type ModulationFrame,
   type ModulationTarget,
 } from './ModulationScheduler'
-import { ReverbEffect } from './reverb'
 import { transposeFrequency, velocityToGain } from './units'
 import { WavetableVoiceOscillator } from './WavetableVoiceOscillator'
 
@@ -128,14 +127,12 @@ export async function renderOfflineVoiceBuffer(
     Math.ceil(durationSeconds * sampleRate),
     sampleRate,
   )
-  const filter = context.createBiquadFilter()
   const amplitude = context.createGain()
-  if (options.includeEffects) {
-    const delay = new DelayEffect(context, patch.effects.delay)
-    const reverb = new ReverbEffect(context, patch.effects.reverb)
-    filter.connect(amplitude).connect(delay.input)
-    delay.connect(reverb.input)
-    reverb.connect(context.destination)
+  const effects = options.includeEffects ? new AudioEffectsChain(context, patch) : null
+  const filter = effects?.filter ?? context.createBiquadFilter()
+  if (effects) {
+    amplitude.connect(effects.input)
+    effects.connect(context.destination)
   } else {
     filter.connect(amplitude).connect(context.destination)
   }
@@ -162,7 +159,7 @@ export async function renderOfflineVoiceBuffer(
       0,
     )
     voice.connect(level)
-    level.connect(filter)
+    level.connect(effects ? amplitude : filter)
     oscillatorLevels.push(level)
     voice.setPositionAtTime(oscillator.wavetablePosition, 0)
     voice.setFrequencyAtTime(
@@ -172,7 +169,7 @@ export async function renderOfflineVoiceBuffer(
     return voice
   })
 
-  applyFilterState(filter, patch.filter, 0)
+  if (!effects) applyFilterState(filter, patch.filter, 0)
   scheduleEnvelopeAttack(amplitude.gain, patch.ampEnvelope, 0)
   if (options.includeModulation) {
     const target: ModulationTarget = {

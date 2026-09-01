@@ -48,6 +48,10 @@ export const AUDIO_PREVIEW_BEHAVIORS: Partial<
     scope: 'draft-only',
     semantics: 'Updates the draft envelope graph during the gesture; the committed value starts with the next note.',
   },
+  'ampEnvelope.holdSeconds': {
+    scope: 'draft-only',
+    semantics: 'Updates the draft envelope graph during the gesture; the committed hold starts with the next note.',
+  },
   'ampEnvelope.decaySeconds': {
     scope: 'draft-only',
     semantics: 'Updates the draft envelope graph during the gesture; the committed value starts with the next note.',

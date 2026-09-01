@@ -162,6 +162,7 @@ describe('ephemeral audio patch preview', () => {
       'active-and-future-voices',
     )
     expect(getAudioPreviewBehavior('ampEnvelope.attackSeconds')?.scope).toBe('draft-only')
+    expect(getAudioPreviewBehavior('ampEnvelope.holdSeconds')?.scope).toBe('draft-only')
     expect(getAudioPreviewBehavior('ampEnvelope.decaySeconds')?.scope).toBe('draft-only')
     expect(getAudioPreviewBehavior('ampEnvelope.releaseSeconds')?.scope).toBe(
       'draft-only',

@@ -1,5 +1,6 @@
 import type { SupportedPatchPath } from './paths'
 import type { TempoSyncDivision } from './limits'
+import type { EffectId } from './effects'
 
 export type PatchCategory =
   | 'pad'
@@ -138,6 +139,7 @@ export interface PatchState {
   modulations: ModulationRoute[]
   voice: VoiceState
   effects: {
+    order: EffectId[]
     delay: DelayState
     reverb: ReverbState
   }

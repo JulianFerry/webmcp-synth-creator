@@ -1,4 +1,5 @@
-import { useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { useRef, type ComponentProps, type KeyboardEvent, type ReactNode } from 'react'
+import { HistoryControls } from '../HistoryControls'
 
 import { WORKBENCH_TABS, type WorkbenchTab } from '../../app/uiState'
 
@@ -6,9 +7,10 @@ interface WorkbenchTabsProps {
   active: WorkbenchTab
   children: ReactNode
   onChange: (tab: WorkbenchTab) => void
+  history: ComponentProps<typeof HistoryControls>
 }
 
-export function WorkbenchTabs({ active, children, onChange }: WorkbenchTabsProps) {
+export function WorkbenchTabs({ active, children, history, onChange }: WorkbenchTabsProps) {
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
 
   const moveFocus = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -48,6 +50,7 @@ export function WorkbenchTabs({ active, children, onChange }: WorkbenchTabsProps
             {tab.label}
           </button>
         ))}
+        <HistoryControls {...history} />
       </div>
       <div
         aria-labelledby={metadata.tabId}

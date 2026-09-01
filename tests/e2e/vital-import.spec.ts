@@ -7,15 +7,17 @@ test('top patch controls stay synchronized and Vital import is one undoable B-lo
 }) => {
   await page.goto('/')
   await expect(page.getByTestId('vital-status')).toContainText('ready')
+  await expect(page.locator('.diagnostic-drawer')).toHaveCount(0)
+  await expect(page.getByTestId('telemetry-region')).toBeAttached()
 
   const presetSelector = page.getByTestId('preset-selector')
   await expect(presetSelector).toHaveValue('ethereal-gate')
 
   await presetSelector.selectOption('glass-pluck')
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Glass Pluck')
+  await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', 'Glass Pluck')
   await expect(presetSelector).toHaveValue('glass-pluck')
 
-  await page.getByRole('button', { name: 'Make darker' }).click()
+  await page.locator('.darken-control').evaluate((button: HTMLButtonElement) => button.click())
   await expect(presetSelector).toHaveValue('')
   await page.getByRole('button', { name: 'Undo transaction' }).click()
   await expect(presetSelector).toHaveValue('glass-pluck')
@@ -38,7 +40,7 @@ test('top patch controls stay synchronized and Vital import is one undoable B-lo
     buffer: exportedBuffer,
   })
 
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Wide Lead')
+  await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', 'Wide Lead')
   await expect(presetSelector).toHaveValue('')
   await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-cutoff', '5400')
   await expect(page.getByTestId('history-size')).toHaveText('5')
@@ -48,11 +50,11 @@ test('top patch controls stay synchronized and Vital import is one undoable B-lo
   await expect(page.getByTestId('export-filename')).toHaveText('wide-lead.vital')
 
   await page.getByRole('button', { name: 'Undo transaction' }).click()
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Glass Pluck')
+  await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', 'Glass Pluck')
   await expect(presetSelector).toHaveValue('glass-pluck')
   await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-cutoff', '9200')
 
-  await page.getByTestId('create-variant-b').click()
+  await page.getByTestId('variant-b').click()
   await expect(page.getByTestId('current-variant')).toHaveText('B')
   await expect(presetSelector).toHaveValue('')
   await page.getByTestId('import-vital-input').setInputFiles({
@@ -61,19 +63,19 @@ test('top patch controls stay synchronized and Vital import is one undoable B-lo
     buffer: exportedBuffer,
   })
   await expect(page.getByTestId('history-size')).toHaveText('2')
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Wide Lead')
+  await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', 'Wide Lead')
 
   await page.getByTestId('variant-a').click()
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Glass Pluck')
+  await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', 'Glass Pluck')
   await expect(presetSelector).toHaveValue('glass-pluck')
   await page.getByTestId('variant-b').click()
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Wide Lead')
+  await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', 'Wide Lead')
   await expect(presetSelector).toHaveValue('')
 
   const stateBeforeInvalidImport = await page.evaluate(() => {
     const audio = document.querySelector('[data-testid="audio-adapter-state"]')
     return {
-      title: document.querySelector('h1')?.textContent,
+      patchName: document.querySelector('.patch-actions')?.getAttribute('data-patch-name'),
       cutoff: audio?.getAttribute('data-cutoff'),
       history: document.querySelector('[data-testid="history-size"]')?.textContent,
       transactions: document.querySelector('[data-testid="transaction-count"]')?.textContent,
@@ -91,7 +93,7 @@ test('top patch controls stay synchronized and Vital import is one undoable B-lo
     await page.evaluate(() => {
       const audio = document.querySelector('[data-testid="audio-adapter-state"]')
       return {
-        title: document.querySelector('h1')?.textContent,
+        patchName: document.querySelector('.patch-actions')?.getAttribute('data-patch-name'),
         cutoff: audio?.getAttribute('data-cutoff'),
         history: document.querySelector('[data-testid="history-size"]')?.textContent,
         transactions: document.querySelector('[data-testid="transaction-count"]')?.textContent,
@@ -106,16 +108,18 @@ test('responsive top patch controls expose keyboard and screen-reader semantics'
   await page.goto('/')
   await expect(page.getByTestId('vital-status')).toContainText('ready')
 
-  const selector = page.getByRole('combobox', { name: 'Starting patch' })
+  const selector = page.getByRole('combobox', { name: 'Preset' })
   const importButton = page.getByRole('button', { name: 'Import Vital' })
   const exportButton = page.getByRole('button', { name: 'Export Vital' })
   await expect(selector).toBeVisible()
   await expect(importButton).toBeVisible()
   await expect(exportButton).toBeVisible()
   await expect(selector.locator('option')).toHaveCount(15)
-  await expect(page.getByTestId('hold-note')).toHaveText('Hold C2')
-  await expect(page.getByTestId('note-48')).toHaveAttribute('aria-label', 'C 2, keyboard A')
-  await expect(page.getByTestId('note-60')).toHaveAttribute('aria-label', 'C 3, keyboard K')
+  await expect(page.getByTestId('hold-note')).toHaveCount(0)
+  await expect(page.getByTestId('start-audio')).toHaveCount(0)
+  await expect(page.getByTestId('note-48')).toHaveAttribute('aria-label', 'C 2, keyboard Z')
+  await expect(page.getByTestId('note-60')).toHaveAttribute('aria-label', 'C 3, keyboard Q')
+  await expect(page.getByTestId('note-72')).toHaveAttribute('aria-label', 'C 4, keyboard I')
   await expect(page.getByTestId('import-vital-input')).toHaveAttribute(
     'accept',
     '.vital,application/json',
@@ -123,9 +127,9 @@ test('responsive top patch controls expose keyboard and screen-reader semantics'
 
   await selector.selectOption('midnight-pad')
   await expect(selector).toHaveValue('midnight-pad')
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Midnight Pad')
-  await selector.focus()
-  await page.keyboard.press('Tab')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('WAVETABLE WORKBENCH')
+  await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', 'Midnight Pad')
+  await importButton.focus()
   await expect(importButton).toBeFocused()
   await page.keyboard.press('Tab')
   await expect(exportButton).toBeFocused()
@@ -133,7 +137,7 @@ test('responsive top patch controls expose keyboard and screen-reader semantics'
   const layout = await page.evaluate(() => {
     const importRect = document.querySelector('[data-testid="import-vital"]')!.getBoundingClientRect()
     const exportRect = document.querySelector('[data-testid="export-vital"]')!.getBoundingClientRect()
-    const actionsRect = document.querySelector('.masthead-actions')!.getBoundingClientRect()
+    const actionsRect = document.querySelector('.patch-actions')!.getBoundingClientRect()
     return {
       noHorizontalOverflow:
         getComputedStyle(document.body).overflowX === 'hidden' &&

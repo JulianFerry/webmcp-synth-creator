@@ -50,11 +50,23 @@ function voiceOscillators(context: FakeAudioContext): FakeOscillatorNode[] {
   return context.oscillators.filter((oscillator) => oscillator.detune.calls.length > 0)
 }
 
+function chainFilter(context: FakeAudioContext) {
+  return context.filters[0]
+}
+
+function voiceAmplitudes(context: FakeAudioContext): FakeGainNode[] {
+  const master = context.gains[0]
+  return context.gains.filter((gain) =>
+    gain.connections.includes(master) &&
+    gain.gain.calls.some((call) => call.method === 'linearRamp' && call.value === 1),
+  )
+}
+
 describe('held-note slider preview', () => {
   it('keeps a whole-Hz cutoff preview isolated and commits it exactly once', async () => {
     const { commands, context, session, store, synth, trace } = createHarness()
     await synth.holdNote()
-    const filter = context.filters.at(-1)!
+    const filter = chainFilter(context)
 
     store.getState().previewPatchChange('filter.cutoffHz', 632)
 
@@ -87,8 +99,8 @@ describe('held-note slider preview', () => {
     const { commands, context, session, store, synth, trace } = createHarness()
     await synth.holdNote()
 
-    const filter = context.filters.at(-1)!
-    const amplitude = (filter.connections[0] as FakeGainNode).gain
+    const filter = chainFilter(context)
+    const amplitude = voiceAmplitudes(context)[0].gain
     const oscillatorOneLevel = context.gains.at(-3)!.gain
     const oscillatorOneLanes = voiceOscillators(context).slice(0, 10)
     const voicePanners = context.panners.slice(-6)
@@ -165,7 +177,7 @@ describe('held-note slider preview', () => {
     const { commands, context, session, store, synth } = createHarness()
     await synth.holdNote()
     const oscillatorOneLevel = context.gains.at(-3)!.gain
-    const filter = context.filters.at(-1)!
+    const filter = chainFilter(context)
 
     store.getState().previewPatchChange('oscillators.0.level', 0.18)
     store.getState().previewPatchChange('filter.cutoffHz', 1_800)
@@ -246,7 +258,7 @@ describe('envelope gesture semantics', () => {
   it('keeps attack and decay off active automation and uses committed values for the next note', async () => {
     const { context, store, synth } = createHarness()
     await synth.holdNote()
-    const heldAmplitude = (context.filters.at(-1)!.connections[0] as FakeGainNode).gain
+    const heldAmplitude = voiceAmplitudes(context)[0].gain
     heldAmplitude.calls.length = 0
 
     store.getState().previewPatchChange('ampEnvelope.attackSeconds', 0.8)
@@ -271,9 +283,8 @@ describe('envelope gesture semantics', () => {
     expect(heldAmplitude.calls).toEqual([])
 
     context.currentTime = 4
-    const gainCountBeforeNextNote = context.gains.length
     await synth.noteOn(64)
-    const nextAmplitude = context.gains[gainCountBeforeNextNote].gain
+    const nextAmplitude = voiceAmplitudes(context).at(-1)!.gain
     expect(hasRamp(nextAmplitude, 1, 4.8)).toBe(true)
     expect(hasRamp(nextAmplitude, 0.78 ** 2, 7)).toBe(true)
     synth.dispose()
@@ -282,7 +293,7 @@ describe('envelope gesture semantics', () => {
   it('uses only a committed release value at a held voice subsequent note-off', async () => {
     const { context, store, synth } = createHarness()
     await synth.holdNote()
-    const amplitude = (context.filters.at(-1)!.connections[0] as FakeGainNode).gain
+    const amplitude = voiceAmplitudes(context)[0].gain
     amplitude.calls.length = 0
 
     store.getState().previewPatchChange('ampEnvelope.releaseSeconds', 4.1)

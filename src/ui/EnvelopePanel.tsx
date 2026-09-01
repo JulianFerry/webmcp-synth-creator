@@ -27,7 +27,7 @@ export function EnvelopePanel({
 }: EnvelopePanelProps) {
   const path = (field: keyof EnvelopeState) => `ampEnvelope.${field}` as SupportedPatchPath
   const commit = (field: keyof EnvelopeState, value: number, label: string) => {
-    return onChange(path(field), value, `Set amp envelope ${label}`)
+    return onChange(path(field), value, `Set amplitude envelope ${label}`)
   }
   const commitHandle = (handle: EnvelopeHandle, value: number) =>
     commit(ENVELOPE_HANDLE_FIELDS[handle], value, handle)
@@ -36,10 +36,9 @@ export function EnvelopePanel({
     <article className="panel envelope-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Amplitude contour</p>
-          <h2>Amp envelope</h2>
+          <h2>Amplitude envelope</h2>
         </div>
-        <span className="version-chip">ADSR</span>
+        <span className="version-chip envelope-type-chip">AHDSR</span>
       </div>
 
       <EditableEnvelopeGraph
@@ -64,7 +63,21 @@ export function EnvelopePanel({
           resetKey={resetKey}
           step={0.01}
           testId="amp-attack"
-          value={envelope.attackSeconds}
+          value={previewEnvelope.attackSeconds}
+        />
+        <ParameterSlider
+          formatValue={seconds}
+          id="amp-hold"
+          label="Hold"
+          max={4}
+          min={0}
+          onCancel={() => onCancelPreview(path('holdSeconds'))}
+          onCommit={(value) => commit('holdSeconds', value, 'hold')}
+          onPreview={(value) => onPreview(path('holdSeconds'), value)}
+          resetKey={resetKey}
+          step={0.01}
+          testId="amp-hold"
+          value={previewEnvelope.holdSeconds}
         />
         <ParameterSlider
           formatValue={seconds}
@@ -78,7 +91,7 @@ export function EnvelopePanel({
           resetKey={resetKey}
           step={0.01}
           testId="amp-decay"
-          value={envelope.decaySeconds}
+          value={previewEnvelope.decaySeconds}
         />
         <ParameterSlider
           formatValue={(value) => `${Math.round(value * 100)}%`}
@@ -92,7 +105,7 @@ export function EnvelopePanel({
           resetKey={resetKey}
           step={0.01}
           testId="amp-sustain"
-          value={envelope.sustainLevel}
+          value={previewEnvelope.sustainLevel}
         />
         <ParameterSlider
           formatValue={seconds}
@@ -106,13 +119,9 @@ export function EnvelopePanel({
           resetKey={resetKey}
           step={0.01}
           testId="amp-release"
-          value={envelope.releaseSeconds}
+          value={previewEnvelope.releaseSeconds}
         />
       </div>
-      <p className="gesture-note envelope-preview-note">
-        Sustain previews held notes. Attack and decay start with the next note; release commits
-        for the held note&apos;s later note-off without reshaping it now.
-      </p>
     </article>
   )
 }

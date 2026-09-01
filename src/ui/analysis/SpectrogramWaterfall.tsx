@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 
 import type { SynthPreviewRender } from '../../audio/previewRender'
+import { observePatchTheme, themedGraphColor } from '../colorThemes'
 import { depthShade, projectIsometricPoint } from '../visualizations/perspective'
 import { buildSpectrogramGrid } from '../visualizations/spectrogram'
 
@@ -25,6 +26,9 @@ export function SpectrogramWaterfall({ render }: SpectrogramWaterfallProps) {
       context.setTransform(ratio, 0, 0, ratio, 0, 0)
       context.clearRect(0, 0, bounds.width, bounds.height)
       if (!grid) return
+      const graphColor = themedGraphColor(canvas)
+      const [red, green, blue] = graphColor?.rgb ?? [69, 200, 189]
+      canvas.dataset.graphColor = graphColor?.hex ?? '#45c8bd'
 
       for (let depth = 0; depth < grid.windows; depth += 1) {
         context.beginPath()
@@ -35,7 +39,7 @@ export function SpectrogramWaterfall({ render }: SpectrogramWaterfallProps) {
           else context.lineTo(point.x, point.y)
         }
         const shade = depthShade(depth, grid.windows)
-        context.strokeStyle = `rgba(69, 200, 189, ${shade})`
+        context.strokeStyle = `rgba(${red}, ${green}, ${blue}, ${shade})`
         context.lineWidth = 1 + shade * 0.45
         context.stroke()
       }
@@ -43,7 +47,11 @@ export function SpectrogramWaterfall({ render }: SpectrogramWaterfallProps) {
     draw()
     const observer = new ResizeObserver(draw)
     observer.observe(canvas)
-    return () => observer.disconnect()
+    const disconnectThemeObserver = observePatchTheme(canvas, draw)
+    return () => {
+      disconnectThemeObserver()
+      observer.disconnect()
+    }
   }, [grid])
 
   return <section className="panel spectrogram-panel" aria-label="C3 spectral waterfall">

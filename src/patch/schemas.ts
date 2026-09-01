@@ -11,6 +11,7 @@ import {
   TEMPO_SYNC_DIVISIONS,
 } from './limits'
 import { isAllowedModulationRoute } from './modulation'
+import { EFFECT_IDS } from './effects'
 import { isSupportedPatchPath, parsePatchPathValue } from './paths'
 import type { ApplyPatchCommand, PatchState, SetLfoShapeCommand } from './types'
 import { upgradePatchDocument } from './upgrade'
@@ -214,7 +215,11 @@ export const patchStateSchema = z
     lfo1: lfoStateSchema,
     modulations: z.array(modulationRouteSchema).max(16),
     voice: voiceStateSchema,
-    effects: z.object({ delay: delayStateSchema, reverb: reverbStateSchema }).strict(),
+    effects: z.object({ order: z.array(z.enum(EFFECT_IDS)).length(EFFECT_IDS.length), delay: delayStateSchema, reverb: reverbStateSchema }).strict().superRefine((effects, context) => {
+      if (new Set(effects.order).size !== EFFECT_IDS.length) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: 'Effect order must contain each effect exactly once', path: ['order'] })
+      }
+    }),
     wavetableData: z.record(wavetableStateSchema),
   })
   .strict()

@@ -15,7 +15,7 @@ function seconds(value: number): string {
 }
 
 function routeLabel(route: ModulationRoute): string {
-  return `${route.source === 'lfo1' ? 'LFO 1' : 'ENV 2'} -> ${route.destination}`
+  return `${route.source === 'lfo1' ? 'LFO' : 'ENV 2'} -> ${route.destination}`
 }
 
 export function ModulationPanel({

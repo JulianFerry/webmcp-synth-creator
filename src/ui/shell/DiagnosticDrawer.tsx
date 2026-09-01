@@ -24,13 +24,11 @@ interface DiagnosticDrawerProps {
   webMcpStatus: CapabilityStatus
 }
 
-export function DiagnosticDrawer(props: DiagnosticDrawerProps) {
+export function TelemetryRegion(props: DiagnosticDrawerProps) {
   const { audio, patch } = props
   const previewPaths = Object.keys(audio.previewValues)
   return (
-    <details className="diagnostic-drawer" data-testid="diagnostic-drawer" open>
-      <summary><span>Diagnostics</span><strong>Patch telemetry</strong></summary>
-      <div className="diagnostic-content">
+    <div aria-hidden="true" className="visually-hidden" data-testid="telemetry-region">
         <section className="signal-strip" aria-label="Adapter and audio status">
           <WebMcpStatus reason={props.webMcpReason} status={props.webMcpStatus} />
           <div
@@ -43,6 +41,7 @@ export function DiagnosticDrawer(props: DiagnosticDrawerProps) {
             data-lfo-rate={patch.lfo1.rate.mode === 'sync' ? patch.lfo1.rate.division : patch.lfo1.rate.hz}
             data-modulation-version={audio.modulationScheduleVersion} data-route-count={patch.modulations.length}
             data-delay-enabled={patch.effects.delay.enabled} data-reverb-enabled={patch.effects.reverb.enabled}
+            data-effects-order={patch.effects.order.join(',')} data-effective-effects-order={audio.effective.effects.order.join(',')}
             data-variant={props.currentVariant} data-resonance={patch.filter.resonance}
             data-sustain={patch.ampEnvelope.sustainLevel} data-transpose={patch.oscillators[0].transposeSemitones}
             data-unison={patch.oscillators[0].unisonVoices} data-spread={patch.oscillators[0].stereoSpread}
@@ -60,7 +59,7 @@ export function DiagnosticDrawer(props: DiagnosticDrawerProps) {
             data-position={audio.wavetablePosition} data-preview-count={previewPaths.length}
             data-preview-paths={previewPaths.sort().join(',')} data-preview-position={audio.previewWavetablePositions[0] ?? ''}
             data-testid="audio-adapter-state"
-          ><span>Audio engine</span><strong>{audio.lifecycle}</strong><small>{audio.activeVoiceCount} active / {audio.polyphony} max / {audio.stolenVoiceCount} stolen</small></div>
+          ><span>Audio engine</span><strong data-testid="audio-lifecycle">{audio.lifecycle}</strong><small>{audio.activeVoiceCount} active / {audio.polyphony} max / {audio.stolenVoiceCount} stolen</small></div>
           <div className={`status-cell status-${props.vitalStatus}`} data-testid="vital-status"><span>Vital fixture</span><strong>{props.vitalStatus}</strong><small>{props.vitalError ?? 'Pinned Init loaded'}</small></div>
         </section>
         <section className="state-monitor-grid" aria-label="Committed patch transaction">
@@ -70,7 +69,7 @@ export function DiagnosticDrawer(props: DiagnosticDrawerProps) {
               {props.summary.oscillators.map((oscillator, index) => <div key={index}><dt>Osc {index + 1}</dt><dd>{oscillator.wavetableId}</dd></div>)}
               <div><dt>Filter</dt><dd>{props.summary.filter.cutoffHz.toLocaleString()} Hz</dd></div>
               <div><dt>Polyphony</dt><dd>{props.summary.voice.polyphony}</dd></div>
-              <div><dt>LFO 1</dt><dd>{props.summary.lfo1.pointCount} pts</dd></div>
+              <div><dt>LFO</dt><dd>{props.summary.lfo1.pointCount} pts</dd></div>
               <div><dt>Routes</dt><dd>{props.summary.modulations.length}</dd></div>
               <div><dt>Variant</dt><dd data-testid="current-variant">{props.currentVariant}</dd></div>
               <div><dt>Transactions</dt><dd data-testid="transaction-count">{props.transactionCount}</dd></div>
@@ -81,7 +80,6 @@ export function DiagnosticDrawer(props: DiagnosticDrawerProps) {
           </article>
           <ChangeSummary canRedo={props.canRedo} canUndo={props.canUndo} changed={props.changed} reason={props.reason} />
         </section>
-      </div>
-    </details>
+    </div>
   )
 }

@@ -21,13 +21,11 @@ async function installWebMcpDouble(page: Page): Promise<void> {
   })
 }
 
-test('processed waveform rerenders once for a burst of canonical commits', async ({ page }) => {
+test('variant A spectral preview follows canonical WebMCP edits', async ({ page }) => {
   await installWebMcpDouble(page)
   await page.goto('/')
-  const preview = page.getByLabel('C3 processed preview')
-  const path = page.getByTestId('processed-waveform-path')
-  await expect(preview).toHaveAttribute('data-preview-render-id', '1', { timeout: 15_000 })
-  const beforePath = await path.getAttribute('d')
+  const preview = page.getByTestId('variant-a-spectrogram')
+  const beforeSignature = await preview.getAttribute('data-spectral-signature')
 
   await page.evaluate(async () => {
     const tool = (await document.modelContext!.getTools()).find((candidate) => candidate.name === 'apply_patch')
@@ -40,8 +38,6 @@ test('processed waveform rerenders once for a burst of canonical commits', async
     }
   })
 
-  await expect(preview).toHaveAttribute('data-preview-render-id', '2', { timeout: 15_000 })
-  await expect(path).not.toHaveAttribute('d', beforePath ?? '')
-  await page.waitForTimeout(500)
-  await expect(preview).toHaveAttribute('data-preview-render-id', '2')
+  await expect(preview).not.toHaveAttribute('data-spectral-signature', beforeSignature ?? '')
+  await expect(preview).toHaveAttribute('data-spectral-signature', /"cutoff":6500/)
 })

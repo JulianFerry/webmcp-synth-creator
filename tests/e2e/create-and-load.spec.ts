@@ -186,7 +186,7 @@ test('create and load complete patches through WebMCP and curated UI paths', asy
     allStarts.map(([id]) => id).sort(),
   )
 
-  await page.getByTestId('hold-note').click()
+  await page.getByTestId('preview-note').click()
   const created = await executeTool<{
     changed: Record<string, unknown>
     summary: { name: string }
@@ -198,19 +198,19 @@ test('create and load complete patches through WebMCP and curated UI paths', asy
   expect(created.summary.name).toBe('Agent Sine Sketch')
   expect(created.session).toMatchObject({ currentVariant: 'A', canUndo: true })
   expect(created.changed).toHaveProperty('wavetableData')
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agent Sine Sketch')
+  await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', 'Agent Sine Sketch')
   await expect(page.getByTestId('preset-selector')).toHaveValue('')
-  await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-held', 'true')
+  await expect(page.getByTestId('active-voice-count')).toHaveText('1')
   await expect(page.getByTestId('latest-diff')).toContainText('wavetableData')
 
   await executeTool(page, 'undo', {})
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ethereal Gate')
+  await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', 'Ethereal Gate')
   await expect(page.getByTestId('preset-selector')).toHaveValue('ethereal-gate')
 
   for (const [presetId, name] of allStarts) {
     await page.getByTestId('preset-selector').selectOption(presetId)
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(name)
-    await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-held', 'true')
+    await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', name)
+    await expect(page.getByTestId('active-voice-count')).toHaveText('1')
     await expect(page.getByTestId('export-filename')).toContainText(`${presetId}.vital`)
   }
 
@@ -222,7 +222,7 @@ test('create and load complete patches through WebMCP and curated UI paths', asy
     )
     expect(loaded.summary.name).toBe(name)
     expect(Object.keys(loaded.changed).length).toBeGreaterThan(0)
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(name)
+    await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', name)
     await expect(page.getByTestId('preset-selector')).toHaveValue(presetId)
   }
 

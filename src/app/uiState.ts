@@ -1,4 +1,4 @@
-export type WorkbenchTab = 'overview' | 'oscillators' | 'modulation-effects'
+export type WorkbenchTab = 'oscillators' | 'modulation-effects'
 
 export interface WorkbenchTabMetadata {
   id: WorkbenchTab
@@ -8,7 +8,6 @@ export interface WorkbenchTabMetadata {
 }
 
 export const WORKBENCH_TABS: readonly WorkbenchTabMetadata[] = [
-  { id: 'overview', label: 'Overview', tabId: 'tab-overview', panelId: 'panel-overview' },
   {
     id: 'oscillators',
     label: 'Oscillators',
@@ -17,7 +16,7 @@ export const WORKBENCH_TABS: readonly WorkbenchTabMetadata[] = [
   },
   {
     id: 'modulation-effects',
-    label: 'Modulation & FX',
+    label: 'Effects',
     tabId: 'tab-modulation-effects',
     panelId: 'panel-modulation-effects',
   },
@@ -33,5 +32,5 @@ export function tabForPatchPath(path: string): WorkbenchTab {
   ) {
     return 'modulation-effects'
   }
-  return 'overview'
+  return 'oscillators'
 }

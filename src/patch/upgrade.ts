@@ -1,4 +1,5 @@
 import type { OscillatorState } from './types'
+import { DEFAULT_EFFECT_ORDER } from './effects'
 
 const THIRD_OSCILLATOR_DEFAULTS = {
   enabled: false,
@@ -14,21 +15,29 @@ const THIRD_OSCILLATOR_DEFAULTS = {
 
 export function upgradePatchDocument(value: unknown): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value
-  const document = value as Record<string, unknown>
-  if (document.version !== 1 || !Array.isArray(document.oscillators) || document.oscillators.length !== 2) {
-    return value
+  let document = structuredClone(value as Record<string, unknown>)
+  let changed = false
+  if (document.version === 1 && Array.isArray(document.oscillators) && document.oscillators.length === 2) {
+    const first = document.oscillators[0]
+    if (!first || typeof first !== 'object' || Array.isArray(first)) return value
+    const wavetableId = (first as Record<string, unknown>).wavetableId
+    if (typeof wavetableId !== 'string') return value
+    document = {
+      ...document,
+      version: 2,
+      oscillators: [
+        ...document.oscillators,
+        { ...THIRD_OSCILLATOR_DEFAULTS, wavetableId },
+      ],
+    }
+    changed = true
   }
-  const first = document.oscillators[0]
-  if (!first || typeof first !== 'object' || Array.isArray(first)) return value
-  const wavetableId = (first as Record<string, unknown>).wavetableId
-  if (typeof wavetableId !== 'string') return value
 
-  return {
-    ...structuredClone(document),
-    version: 2,
-    oscillators: [
-      ...structuredClone(document.oscillators),
-      { ...THIRD_OSCILLATOR_DEFAULTS, wavetableId },
-    ],
+  const effects = document.effects
+  if (document.version === 2 && effects && typeof effects === 'object' && !Array.isArray(effects) && !('order' in effects)) {
+    document.effects = { ...(effects as Record<string, unknown>), order: [...DEFAULT_EFFECT_ORDER] }
+    changed = true
   }
+
+  return changed ? document : value
 }

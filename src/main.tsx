@@ -19,7 +19,7 @@ const store = createAppStore({ session, commands, synth })
 
 const rootElement = document.getElementById('root')
 if (!rootElement) throw new Error('Application root was not found')
-createRoot(rootElement).render(<App previewRenderer={synth} session={session} store={store} />)
+createRoot(rootElement).render(<App session={session} store={store} />)
 
 let registration: ToolRegistration | null = null
 

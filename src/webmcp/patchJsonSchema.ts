@@ -6,6 +6,7 @@ import {
   REVERB_DECAY_MIN_SECONDS,
   TEMPO_SYNC_DIVISIONS,
 } from '../patch/limits'
+import { EFFECT_IDS } from '../patch/effects'
 
 const unitInterval = { type: 'number', minimum: 0, maximum: 1 }
 const envelopeSchema = {
@@ -213,6 +214,13 @@ export const PATCH_STATE_INPUT_SCHEMA: Record<string, unknown> = {
     effects: {
       type: 'object',
       properties: {
+        order: {
+          type: 'array',
+          minItems: EFFECT_IDS.length,
+          maxItems: EFFECT_IDS.length,
+          uniqueItems: true,
+          items: { type: 'string', enum: [...EFFECT_IDS] },
+        },
         delay: {
           type: 'object',
           properties: {

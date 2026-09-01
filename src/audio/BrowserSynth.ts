@@ -2,14 +2,12 @@ import { diffSupportedPaths, type PatchDiff } from '../commands/diff'
 import { LatencyTrace } from '../dev/latencyTrace'
 import type { SupportedPatchPath } from '../patch/paths'
 import type {
-  DelayState,
   EnvelopeState,
   FilterState,
   LfoState,
   ModulationRoute,
   OscillatorState,
   PatchState,
-  ReverbState,
   VoiceState,
 } from '../patch/types'
 import { SessionService, type SessionCommitEvent } from '../session/SessionService'
@@ -20,8 +18,7 @@ import {
   scheduleEnvelopeRelease,
   updateEnvelopeSustain,
 } from './envelope'
-import { applyFilterState } from './filter'
-import { DelayEffect } from './delay'
+import { AudioEffectsChain } from './effectsChain'
 import {
   ModulationScheduler,
   type ModulationFrame,
@@ -34,7 +31,6 @@ import {
   type AudioPreviewValues,
 } from './preview'
 import { VoiceAllocator } from './VoiceAllocator'
-import { ReverbEffect } from './reverb'
 import {
   BROWSER_OUTPUT_GAIN,
   configureOutputLimiter,
@@ -76,7 +72,7 @@ export interface AudioPatchReflection {
   lfo1: LfoState
   modulations: ModulationRoute[]
   voice: VoiceState
-  effects: { delay: DelayState; reverb: ReverbState }
+  effects: PatchState['effects']
 }
 
 export interface AudioOscillatorUpdatePlan {
@@ -102,6 +98,7 @@ export interface AudioUpdatePlan {
   modulation: boolean
   delay: boolean
   reverb: boolean
+  effectsOrder: boolean
 }
 
 export interface NoteOnTimingMeasurement {
@@ -137,7 +134,7 @@ export interface BrowserSynthState {
   effective: AudioPatchReflection
   previewValues: AudioPreviewValues
   modulationScheduleVersion: number
-  effects: { delay: DelayState; reverb: ReverbState }
+  effects: PatchState['effects']
   reflectedPatchName: string
   lastCorrelationId: string | null
   lastUpdatePlan: AudioUpdatePlan | null
@@ -179,6 +176,7 @@ export function planAudioPatchUpdate(changed: PatchDiff): AudioUpdatePlan {
     modulation: false,
     delay: false,
     reverb: false,
+    effectsOrder: false,
   }
 
   for (const path of Object.keys(changed)) {
@@ -230,6 +228,7 @@ export function planAudioPatchUpdate(changed: PatchDiff): AudioUpdatePlan {
     }
     if (path.startsWith('effects.delay.')) plan.delay = true
     if (path.startsWith('effects.reverb.')) plan.reverb = true
+    if (path === 'effects.order') plan.effectsOrder = true
   }
 
   return plan
@@ -278,7 +277,6 @@ class BrowserVoice implements ModulationTarget {
   private patch: PatchState
   private readonly oscillators: [WavetableVoiceOscillator, WavetableVoiceOscillator, WavetableVoiceOscillator]
   private readonly oscillatorLevels: [GainNode, GainNode, GainNode]
-  private readonly filter: BiquadFilterNode
   private readonly amplitude: GainNode
   private readonly velocityGain: number
   private readonly modulation: ModulationScheduler
@@ -293,12 +291,12 @@ class BrowserVoice implements ModulationTarget {
     readonly midi: number,
     velocity: number,
     output: AudioNode,
+    private readonly filter: BiquadFilterNode,
     startMidi?: number,
     private readonly onDisposed: () => void = () => undefined,
   ) {
     this.patch = patch
     this.velocityGain = velocityToGain(velocity, patch.voice.velocitySensitivity)
-    this.filter = context.createBiquadFilter()
     this.amplitude = context.createGain()
 
     const oscillatorA = new WavetableVoiceOscillator(
@@ -322,10 +320,10 @@ class BrowserVoice implements ModulationTarget {
     oscillatorA.connect(levelA)
     oscillatorB.connect(levelB)
     oscillatorC.connect(levelC)
-    levelA.connect(this.filter)
-    levelB.connect(this.filter)
-    levelC.connect(this.filter)
-    this.filter.connect(this.amplitude).connect(output)
+    levelA.connect(this.amplitude)
+    levelB.connect(this.amplitude)
+    levelC.connect(this.amplitude)
+    this.amplitude.connect(output)
     this.oscillators = [oscillatorA, oscillatorB, oscillatorC]
     this.oscillatorLevels = [levelA, levelB, levelC]
 
@@ -347,7 +345,6 @@ class BrowserVoice implements ModulationTarget {
       )
       this.applyOscillatorLevel(index, oscillator, now, false)
     })
-    applyFilterState(this.filter, patch.filter, now)
     scheduleEnvelopeAttack(this.amplitude.gain, patch.ampEnvelope, now)
     this.modulation = new ModulationScheduler(context, patch, midi, now, this)
   }
@@ -382,7 +379,6 @@ class BrowserVoice implements ModulationTarget {
       }
     })
 
-    if (plan.filter) applyFilterState(this.filter, patch.filter, time, 0.015)
     if (plan.envelopeSustain && !this.released) {
       updateEnvelopeSustain(this.amplitude.gain, patch.ampEnvelope.sustainLevel, time)
     }
@@ -419,7 +415,6 @@ class BrowserVoice implements ModulationTarget {
         time,
       )
     })
-    applyFilterState(this.filter, patch.filter, time)
   }
 
   release(time: number, stolen = false): void {
@@ -490,8 +485,7 @@ export class BrowserSynth implements SynthPreviewRenderer {
   private master: GainNode | null = null
   private output: GainNode | null = null
   private limiter: DynamicsCompressorNode | null = null
-  private delayEffect: DelayEffect | null = null
-  private reverbEffect: ReverbEffect | null = null
+  private effectsChain: AudioEffectsChain | null = null
   private allocator: VoiceAllocator<BrowserVoice>
   private readonly voices = new Set<BrowserVoice>()
   private lastPlayedMidi: number | null = null
@@ -595,11 +589,9 @@ export class BrowserSynth implements SynthPreviewRenderer {
         this.output.gain.setValueAtTime(BROWSER_OUTPUT_GAIN, this.context.currentTime)
         this.limiter = this.context.createDynamicsCompressor()
         configureOutputLimiter(this.limiter, this.context.currentTime)
-        this.delayEffect = new DelayEffect(this.context, this.effectivePatch.effects.delay)
-        this.reverbEffect = new ReverbEffect(this.context, this.effectivePatch.effects.reverb)
-        this.master.connect(this.delayEffect.input)
-        this.delayEffect.connect(this.reverbEffect.input)
-        this.reverbEffect.connect(this.output)
+        this.effectsChain = new AudioEffectsChain(this.context, this.effectivePatch)
+        this.master.connect(this.effectsChain.input)
+        this.effectsChain.connect(this.output)
         this.output.connect(this.limiter).connect(this.context.destination)
         this.context.addEventListener('statechange', () => this.reflectContextState())
       }
@@ -636,6 +628,7 @@ export class BrowserSynth implements SynthPreviewRenderer {
       midi,
       velocity,
       this.master,
+      this.effectsChain!.filter,
       startMidi,
       () => this.voices.delete(voice),
     )
@@ -734,8 +727,7 @@ export class BrowserSynth implements SynthPreviewRenderer {
     this.master = null
     this.output = null
     this.limiter = null
-    this.delayEffect = null
-    this.reverbEffect = null
+    this.effectsChain = null
     this.previewValues = {}
     this.draftPatch = structuredClone(this.patch)
     this.effectivePatch = structuredClone(this.patch)
@@ -844,8 +836,12 @@ export class BrowserSynth implements SynthPreviewRenderer {
         }
       }
     }
-    if (plan.delay) this.delayEffect?.applyState(patch.effects.delay, now)
-    if (plan.reverb) this.reverbEffect?.applyState(patch.effects.reverb, now)
+    this.effectsChain?.applyPatch(patch, {
+      filter: plan.filter,
+      delay: plan.delay,
+      reverb: plan.reverb,
+      order: plan.effectsOrder,
+    })
     this.voices.forEach((voice) => voice.applyPatch(patch, plan, now))
     return plan
   }
