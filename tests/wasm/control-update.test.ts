@@ -30,7 +30,7 @@ describe.skipIf(artifact === null)('Vital WASM scalar controls', () => {
     after.filter.cutoffHz = 2_400
     const operation = adapter
       .controlOperations(before, after)
-      .find((candidate) => candidate.name === 'filter_1_cutoff')
+      .find((candidate) => candidate.name === 'filter_fx_cutoff')
 
     try {
       expect(operation).toBeDefined()

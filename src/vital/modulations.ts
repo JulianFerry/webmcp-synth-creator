@@ -20,7 +20,7 @@ export const VITAL_MODULATION_DESTINATIONS: Record<ModulationDestination, string
   'oscillator3.level': 'osc_3_level',
   'oscillator3.wavetablePosition': 'osc_3_wave_frame',
   'oscillator3.pitch': 'osc_3_tune',
-  'filter.cutoff': 'filter_1_cutoff',
+  'filter.cutoff': 'filter_fx_cutoff',
 }
 
 export interface VitalModulationRoute {

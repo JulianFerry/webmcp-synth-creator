@@ -23,17 +23,12 @@ Record the version, date, operating system, creation method, and redistribution
 basis; confirm both the fixture and a representative export load in that
 version; then run `npm run test:unit -- tests/vital` and update this note.
 
-## Browser preview limitation
+## Shared engine boundary
 
-The browser preview and Vital use different synthesis and rendering engines.
-The browser adapter mirrors the pinned Vital subset's modulation polarity and
-destination ranges, quadratic oscillator levels, unison detune/energy/phase
-behavior, LFO and envelope curves, and equal-power delay/reverb mixes. The
-preview should therefore retain the exported patch's level movement, brightness,
-pitch depth, width, and broad envelope/effect balance. Web Audio's oscillator,
-biquad filter, static convolution reverb, and output stage are still different
-algorithms, so timbral or sample-level identity is not expected. A fresh human
-comparison against the pinned Vital version remains required.
+Browser playback and preset export consume the same adapter-generated Vital state.
+The browser uses the pinned Vital DSP through WASM, while desktop Vital consumes the
+downloaded JSON. Same-source automated renders cover the mapped state, but a fresh
+human comparison against the pinned desktop Vital version remains required.
 
 ## Pinned export mappings
 
@@ -41,7 +36,9 @@ comparison against the pinned Vital version remains required.
 - Free delay stores log2 frequency with an inverted seconds display, so exports use `log2(1 / seconds)`; synchronized delay uses tempo indexes `6..12` for `1/1..1/64`, with sync mode `3` for retained triplets.
 - Vital LFO point Y coordinates are UI coordinates: logical `0..1` values export as `1 - y`, so low remains low and high remains high when Vital decodes the shape.
 - Vital `1.0.7` has no fixture-backed LFO enable key. Disabled logical LFOs keep their exported routes and amounts but set those route slots' `modulation_N_bypass` to `1`.
-- The one logical amp envelope maps to ENV 1, the modulation envelope maps to ENV 2, and both oscillators use destination `0` (Filter 1). Filter 2 is forced off; extra envelopes and unsupported Filter 2 settings remain at Init values.
+- The one logical amp envelope maps to ENV 1, the modulation envelope maps to ENV 2, and all three oscillators use destination `3` (Effects). Filter 1 and Filter 2 are forced off; the logical filter maps to Vital's reorderable FX filter.
+- Logical low-pass, high-pass, band-pass, and notch use the pinned Analog model (`0`) with source-derived style/blend values. Cutoff modulation targets `filter_fx_cutoff`.
+- The six workbench processors map to Vital indexes chorus `0`, compressor `1`, delay `2`, distortion `3`, FX filter `5`, and reverb `8`. Disabled EQ `4`, flanger `6`, and phaser `7` are appended in stable order before applying Vital's permutation codec.
 - Logical glide maps to `portamento_time` as `log2(seconds)`; zero uses Vital's `-10` minimum and imports back as zero.
 - Unison detune is a quadratic Vital control. The workbench's linear `0–100%`
   range represents `0–24` outer-voice cents and maps to Vital's effective
@@ -59,16 +56,16 @@ frames, and reports every class of omitted or approximated feature in the UI.
 The supported subset is:
 
 - preset name, comments/description, and the exporter style/category names; Vital author is informational, while PatchState tags, modulation route IDs, and non-registry custom wavetable IDs are regenerated with a visible warning;
-- oscillator 1 and 2 enablement, workbench `0–100%` level mapped to Vital's effective `0–0.5` range only at the import/export boundary, frame position, transpose, fine tune, unison voices/detune, stereo spread, random phase, and destination `0` through Filter 1;
+- oscillator 1, 2, and 3 enablement, workbench `0–100%` level mapped to Vital's effective `0–0.5` range only at the import/export boundary, frame position, transpose, fine tune, unison voices/detune, stereo spread, random phase, and destination `3` through Effects;
 - one canonical `Wave Source` component per oscillator with 1-64 uniformly positioned keyframes, exactly 2,048 finite little-endian float32 samples per frame, interpolation/style `1`, DC removal, and normalization enabled;
-- ENV 1 as the amp envelope, ENV 2 as the modulation envelope, the pinned lowpass Filter 1 model, integer-Hz cutoff, resonance, and Filter 2 off;
+- ENV 1 as the amp envelope, ENV 2 as the modulation envelope, the four source-derived FX-filter types, integer-Hz cutoff, resonance, fully wet FX-filter mix, and Filter 1/Filter 2 off;
 - LFO 1's 2-32 sorted points, powers, shape polarity, canonical smoothing, phase, supported sync/triplet divisions or free rate, plus enabled state inferred from consistently bypassed/enabled LFO routes;
-- only the closed `lfo_1`/`env_2` source and oscillator level/frame/tune or Filter 1 cutoff destination mappings, with amount and bipolar state; stereo, line mappings, route power, mixed bypass state, and all other source/destination strings are rejected;
-- polyphony, legato, glide, velocity tracking, linked left/right delay timing, feedback/mix, and reverb enablement/mix/decay/size.
+- only the closed `lfo_1`/`env_2` source and oscillator level/frame/tune or FX-filter cutoff destination mappings, with amount and bipolar state; stereo, line mappings, route power, mixed bypass state, and all other source/destination strings are rejected;
+- the relative order of the six modeled effects through `effect_chain_order`, plus polyphony, legato, glide, velocity tracking, linked left/right delay timing, feedback/mix, and reverb enablement/mix/decay/size.
 
-Oscillator 3, the sample slot, extra wavetable groups/components, nonuniform frame
-positions, arbitrary waveform phase, extra LFOs, Filter 2, non-lowpass Filter 1
-models, and any other setting changed from Init are outside the boundary. Malformed
+The sample slot, extra wavetable groups/components, nonuniform frame positions,
+arbitrary waveform phase, extra LFOs, Filter 1, Filter 2, unsupported FX-filter
+models/styles, and any other setting changed from Init are outside the boundary. Malformed
 JSON, missing structure/version, invalid Base64, wrong frame sizes, non-finite
 samples, and out-of-schema values are rejected before a command is committed.
 
@@ -81,6 +78,6 @@ Overall per-frame wavetable gain is not preserved because both engines normalize
 An enabled LFO with no LFO route imports as disabled because Vital `1.0.7` has no
 fixture-backed standalone LFO enable field; this is sonically equivalent until a
 route is added. Lossy imports additionally omit oscillator 3, the sample layer,
-unsupported modulation routes, extra LFOs, wavetable transforms, Filter 2, alternate
-Filter 1 models, and unsupported effects. Imported patches receive a `vital-lossy`
+unsupported modulation routes, extra LFOs, wavetable transforms, Filter 1/Filter 2,
+alternate FX-filter models, and unsupported effect parameters. Imported patches receive a `vital-lossy`
 tag whenever that fallback is used.

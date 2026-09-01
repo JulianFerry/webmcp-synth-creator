@@ -123,7 +123,7 @@ test('LFO edit updates one transaction, SVG, audio scheduling, and Vital structu
   expect(exported.settings).toMatchObject({ lfo_1_sync: 1, lfo_1_tempo: 9 })
   expect(exported.settings.modulations.slice(0, 2)).toEqual([
     { source: 'lfo_1', destination: 'osc_1_level' },
-    { source: 'lfo_1', destination: 'filter_1_cutoff' },
+    { source: 'lfo_1', destination: 'filter_fx_cutoff' },
   ])
 })
 

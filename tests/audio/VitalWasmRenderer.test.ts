@@ -9,6 +9,7 @@ import type { VitalWorkletEventListener } from '../../src/audio/vital/VitalWorkl
 import { CommandService } from '../../src/commands/CommandService'
 import { LatencyTrace } from '../../src/dev/latencyTrace'
 import { createDefaultPatch } from '../../src/patch/defaults'
+import { encodeVitalEffectOrder } from '../../src/vital/effectOrder'
 import { SessionService } from '../../src/session/SessionService'
 import {
   VitalPresetAdapter,
@@ -303,6 +304,41 @@ describe('VitalWasmRenderer', () => {
     expect(host.controlUpdates).toHaveLength(controlUpdateCount)
     expect(host.stateUpdates).toHaveLength(2)
     expect(host.stateUpdates.at(-1)?.json).toBe(adapter.exportPatch(session.getPatch()).json)
+    renderer.dispose()
+  })
+
+  it('applies filter types and effect order as scalar controls without reloading state', async () => {
+    const { commands, host, renderer, session } = createHarness()
+    await renderer.startAudio()
+
+    commands.applyPatch(
+      {
+        type: 'apply_patch',
+        reason: 'Use a high-pass FX filter',
+        changes: [{ path: 'filter.type', value: 'highpass' }],
+      },
+      { source: 'ui' },
+    )
+    expect(host.controlUpdates.at(-1)?.operations).toContainEqual({
+      name: 'filter_fx_blend',
+      value: 2,
+    })
+    expect(host.stateUpdates).toHaveLength(1)
+
+    const order = ['reverb', 'delay', 'filter', 'chorus', 'compressor', 'distortion'] as const
+    commands.applyPatch(
+      {
+        type: 'apply_patch',
+        reason: 'Move reverb to the front of the Vital chain',
+        changes: [{ path: 'effects.order', value: [...order] }],
+      },
+      { source: 'ui' },
+    )
+    expect(host.controlUpdates.at(-1)?.operations).toEqual([
+      { name: 'effect_chain_order', value: encodeVitalEffectOrder(order) },
+    ])
+    expect(host.stateUpdates).toHaveLength(1)
+    expect(session.getPatch().effects.order).toEqual(order)
     renderer.dispose()
   })
 

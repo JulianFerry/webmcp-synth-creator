@@ -48,7 +48,7 @@ describe.skipIf(artifact === null)('Vital WASM performance matrix', () => {
       }
       const cutoffOperation = adapter
         .controlOperations(CALIBRATION_H_PATCH, withCutoff(CALIBRATION_H_PATCH, 2_400))
-        .find((operation) => operation.name === 'filter_1_cutoff')
+        .find((operation) => operation.name === 'filter_fx_cutoff')
       expect(cutoffOperation).toBeDefined()
       const controlStartedAt = performance.now()
       for (let index = 0; index < 512; index += 1) {

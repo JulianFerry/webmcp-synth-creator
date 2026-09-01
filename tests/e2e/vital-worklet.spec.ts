@@ -44,13 +44,13 @@ test.describe('Vital AudioWorklet', () => {
         host.loadState(3, json)
         host.loadState(2, json)
         host.setControls(4, [
-          { name: 'filter_1_cutoff', value: initialSettings.filter_1_cutoff - 3 },
+          { name: 'filter_fx_cutoff', value: initialSettings.filter_fx_cutoff - 3 },
         ])
         host.setControls(6, [
-          { name: 'filter_1_cutoff', value: initialSettings.filter_1_cutoff - 6 },
+          { name: 'filter_fx_cutoff', value: initialSettings.filter_fx_cutoff - 6 },
         ])
         const staleControlsAccepted = host.setControls(5, [
-          { name: 'filter_1_cutoff', value: initialSettings.filter_1_cutoff },
+          { name: 'filter_fx_cutoff', value: initialSettings.filter_fx_cutoff },
         ])
         host.setBpm(120)
         host.noteOn(60, 100 / 127)

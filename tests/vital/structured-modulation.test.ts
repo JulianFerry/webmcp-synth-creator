@@ -96,7 +96,7 @@ describe('structured Vital modulation export', () => {
     const settings = realAdapter().exportPatch(patch).document.settings
     const routes = settings.modulations as Array<Record<string, unknown>>
 
-    expect(routes[0]).toEqual({ source: 'env_2', destination: 'filter_1_cutoff' })
+    expect(routes[0]).toEqual({ source: 'env_2', destination: 'filter_fx_cutoff' })
     expect(routes[1]).toEqual({ source: 'lfo_1', destination: 'osc_2_wave_frame' })
     expect(routes[2]).toEqual({ source: '', destination: '' })
     expect(settings).toMatchObject({
@@ -117,7 +117,7 @@ describe('structured Vital modulation export', () => {
 
     expect(routes.slice(0, 2)).toEqual([
       { source: 'lfo_1', destination: 'osc_1_level' },
-      { source: 'lfo_1', destination: 'filter_1_cutoff' },
+      { source: 'lfo_1', destination: 'filter_fx_cutoff' },
     ])
     expect(settings).toMatchObject({
       modulation_1_amount: 0.56,
@@ -205,7 +205,7 @@ describe('structured Vital modulation export', () => {
     },
   )
 
-  it('uses ENV 1 as the amp envelope and routes both oscillators through enabled Filter 1', () => {
+  it('uses ENV 1 as the amp envelope and routes all oscillators through the FX chain', () => {
     const fixture = JSON.parse(
       readFileSync(resolve(process.cwd(), 'fixtures/vital/init.vital'), 'utf8'),
     ) as { settings: Record<string, unknown> }
@@ -225,10 +225,12 @@ describe('structured Vital modulation export', () => {
     expect(settings.env_1_sustain).toBe(0.46)
     expect(decodeVitalEnvelopeSeconds(settings.env_1_release as number)).toBeCloseTo(2.4)
     expect(settings).toMatchObject({
-      osc_1_destination: 0,
-      osc_2_destination: 0,
-      filter_1_on: 1,
+      osc_1_destination: 3,
+      osc_2_destination: 3,
+      osc_3_destination: 3,
+      filter_1_on: 0,
       filter_2_on: 0,
+      filter_fx_on: 1,
     })
     expect(settings.env_1_delay).toBe(fixture.settings.env_1_delay)
     for (const key of ['env_3_attack', 'env_3_decay', 'env_3_sustain', 'env_3_release']) {
