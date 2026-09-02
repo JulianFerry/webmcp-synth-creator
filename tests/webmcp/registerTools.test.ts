@@ -31,6 +31,12 @@ function createHarness() {
   return { session, commands }
 }
 
+function expectAffectedSections(result: unknown, sections: string[], undoStep: number) {
+  const response = result as { current: Record<string, unknown>; undo_step: number }
+  expect(Object.keys(response.current)).toEqual(sections)
+  expect(response.undo_step).toBe(undoStep)
+}
+
 describe('WebMCP tool registration', () => {
   it('asynchronously registers patch and session tools with current annotations and schemas', async () => {
     const gateway = new CapturingGateway()
@@ -93,11 +99,73 @@ describe('WebMCP tool registration', () => {
         },
       ],
     })
+    const applyChangeUnion = (applyPatch.inputSchema.properties as any).changes.items.oneOf
+    expect(applyChangeUnion).toHaveLength(13)
+    expect(applyChangeUnion.slice(0, 12).map((schema: any) => schema.properties.op.const)).toEqual([
+      'tone', 'articulation', 'timbre', 'width', 'space', 'drive',
+      'movement', 'gate', 'balance', 'layer', 'pitch', 'response',
+    ])
+    const createVariant = gateway.registrations.find(({ tool }) => tool.name === 'create_variant')!.tool
+    const variantChangeUnion = (createVariant.inputSchema.properties as any).changes.items.oneOf
+    expect(variantChangeUnion).toEqual(applyChangeUnion)
+    expect(createVariant.description).toContain('variant B becomes the active variant')
+    expect(applyPatch.description).toContain('filter.cutoffHz = cutoffHz(0.12 + brightness*0.80')
+    expect(applyPatch.description).toContain("t' = t * (0.25 + speed*1.5)")
+    expect(applyPatch.description).toContain('voice.transposeSemitones = clamp(')
+    expect(applyPatch.description).toContain('Routes reaching amount 0 are removed')
+    expect(applyPatch.description).toMatch(/Prefer operations over raw paths[\s\S]*call to this tool\.$/)
     expect(setLfoShape.inputSchema).toMatchObject({
       type: 'object',
       required: ['reason', 'points'],
       additionalProperties: false,
     })
+  })
+
+  it('executes an operation and returns only its affected sections', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const applyPatch = gateway.registrations.find(({ tool }) => tool.name === 'apply_patch')!.tool
+
+    const result = await applyPatch.execute({
+      reason: 'Make the patch darker but retain air',
+      changes: [{ op: 'tone', brightness: 0.2, keep_air: true }],
+    })
+
+    expect(result).toMatchObject({
+      changed: {
+        'filter.cutoffHz': { before: 7200, after: expect.any(Number) },
+      },
+      current: { filter: { slope: 12 } },
+      undo_step: 1,
+    })
+    expect(result).not.toHaveProperty('summary')
+    expect((result as { current: object }).current).toEqual({ filter: session.getPatch().filter })
+    expectAffectedSections(result, ['filter'], 1)
+  })
+
+  it('creates and activates variant B from an operation change', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const createVariant = gateway.registrations.find(
+      ({ tool }) => tool.name === 'create_variant',
+    )!.tool
+
+    const result = await createVariant.execute({
+      description: 'Create a darker B alternative',
+      changes: [{ op: 'tone', brightness: 0.15, keep_air: false }],
+    })
+
+    expect(result).toMatchObject({
+      changed: { 'filter.cutoffHz': { before: 7200, after: expect.any(Number) } },
+      current: { filter: { slope: 24 } },
+      undo_step: 1,
+      session: { currentVariant: 'B', hasVariantB: true },
+    })
+    expectAffectedSections(result, ['filter'], 1)
+    expect(session.getSummary().currentVariant).toBe('B')
+    expect(session.getPatch('A').filter.cutoffHz).toBe(7200)
   })
 
   it('returns plain JSON-serializable read and write results', async () => {
@@ -125,10 +193,12 @@ describe('WebMCP tool registration', () => {
     )
     expect(JSON.parse(JSON.stringify(writeResult))).toMatchObject({
       changed: { 'filter.cutoffHz': { before: 7200, after: 3600 } },
-      summary: { filter: { cutoffHz: 3600 } },
+      current: { filter: { cutoffHz: 3600 } },
+      undo_step: 1,
       canUndo: true,
     })
     expect(writeResult).not.toHaveProperty('content')
+    expectAffectedSections(writeResult, ['filter'], 1)
   })
 
   it('executes the documented Inspector JSON after Chrome JSON serialization', async () => {
@@ -145,7 +215,8 @@ describe('WebMCP tool registration', () => {
     })
     await expect(applyPatch.execute(inspectorInput)).resolves.toMatchObject({
       changed: { 'filter.cutoffHz': { before: 7200, after: 3200 } },
-      summary: { filter: { cutoffHz: 3200 } },
+      current: { filter: { cutoffHz: 3200 } },
+      undo_step: 1,
       canUndo: true,
     })
   })
@@ -197,7 +268,7 @@ describe('WebMCP tool registration', () => {
     })
     expect(writeResult).toMatchObject({
       changed: { 'filter.cutoffHz': { before: 7200, after: 3600 } },
-      summary: { filter: { cutoffHz: 3600 } },
+      current: { filter: { cutoffHz: 3600 } },
       canUndo: true,
     })
   })
@@ -224,12 +295,13 @@ describe('WebMCP tool registration', () => {
 
     expect(result).toMatchObject({
       changed: { 'lfo1.points': { before: before.lfo1.points, after: points } },
-      summary: { lfo1: { enabled: true, points, rate: before.lfo1.rate } },
+      current: { lfo: { enabled: true, points, rate: before.lfo1.rate } },
       canUndo: true,
     })
     expect(session.getPatch().modulations).toEqual(before.modulations)
     expect(commands.historySize).toBe(1)
     expect(result).not.toHaveProperty('content')
+    expectAffectedSections(result, ['lfo'], 1)
   })
 
   it('reports LFO enablement and preserves retained configuration through apply_patch', async () => {
@@ -246,9 +318,10 @@ describe('WebMCP tool registration', () => {
 
     expect(result).toMatchObject({
       changed: { 'lfo1.enabled': { before: true, after: false } },
-      summary: { lfo1: { enabled: false, points: before.lfo1.points, rate: before.lfo1.rate } },
+      current: { lfo: { enabled: false, points: before.lfo1.points, rate: before.lfo1.rate } },
     })
     expect(session.getPatch().modulations).toEqual(before.modulations)
+    expectAffectedSections(result, ['lfo'], 1)
   })
 
   it('reports absent B and keeps every session write result scoped to the active variant', async () => {
@@ -274,7 +347,7 @@ describe('WebMCP tool registration', () => {
     })
 
     const created = await tool('create_variant').execute({
-      reason: 'Create a wider B alternative',
+      description: 'Create a wider B alternative',
       changes: [
         { path: 'metadata.name', value: 'Ethereal Gate Wide B' },
         { path: 'oscillators.0.stereoSpread', value: 1 },
@@ -285,36 +358,40 @@ describe('WebMCP tool registration', () => {
         'metadata.name': { before: 'Ethereal Gate', after: 'Ethereal Gate Wide B' },
         'oscillators.0.stereoSpread': { before: 0.88, after: 1 },
       },
-      summary: { name: 'Ethereal Gate Wide B' },
+      current: { metadata: { name: 'Ethereal Gate Wide B' }, osc1: { stereoSpread: 1 } },
       canUndo: true,
       canRedo: false,
       session: { currentVariant: 'B', hasVariantB: true },
     })
     expect(created).not.toHaveProperty('content')
+    expectAffectedSections(created, ['metadata', 'osc1'], 1)
     expect(session.getPatch('A').metadata.name).toBe('Ethereal Gate')
 
     const undone = await tool('undo').execute({})
     expect(undone).toMatchObject({
-      summary: { name: 'Ethereal Gate' },
+      current: { metadata: { name: 'Ethereal Gate' } },
       canUndo: false,
       canRedo: true,
       session: { currentVariant: 'B' },
     })
+    expectAffectedSections(undone, ['metadata', 'osc1'], 0)
     const redone = await tool('redo').execute({})
     expect(redone).toMatchObject({
-      summary: { name: 'Ethereal Gate Wide B' },
+      current: { metadata: { name: 'Ethereal Gate Wide B' } },
       canUndo: true,
       canRedo: false,
       session: { currentVariant: 'B' },
     })
+    expectAffectedSections(redone, ['metadata', 'osc1'], 1)
 
     const selectedA = await tool('select_variant').execute({ variant: 'A' })
     expect(selectedA).toMatchObject({
-      summary: { name: 'Ethereal Gate' },
+      current: { metadata: { name: 'Ethereal Gate' } },
       canUndo: false,
       canRedo: false,
       session: { currentVariant: 'A', hasVariantB: true },
     })
+    expectAffectedSections(selectedA, ['metadata', 'osc1'], 0)
     expect(session.getPatch('B').metadata.name).toBe('Ethereal Gate Wide B')
   })
 
@@ -332,10 +409,14 @@ describe('WebMCP tool registration', () => {
 
     const loaded = await tool('load_preset').execute({ presetId: 'glass-pluck' })
     expect(loaded).toMatchObject({
-      summary: { name: 'Glass Pluck', category: 'pluck' },
+      current: { metadata: { name: 'Glass Pluck', category: 'pluck' } },
       session: { currentVariant: 'A', canUndo: true },
     })
     expect(loaded).not.toHaveProperty('content')
+    expectAffectedSections(loaded, [
+      'metadata', 'osc1', 'osc2', 'osc3', 'amp_env', 'mod_env', 'filter',
+      'lfo', 'modulations', 'voice', 'effects', 'wavetables',
+    ], 1)
 
     const createdPatch = session.getPatch()
     createdPatch.metadata.name = 'Created Glass Variant'
@@ -349,10 +430,11 @@ describe('WebMCP tool registration', () => {
         'metadata.name': { before: 'Glass Pluck', after: 'Created Glass Variant' },
         'filter.cutoffHz': { before: 9200, after: 7600 },
       },
-      summary: { name: 'Created Glass Variant' },
+      current: { metadata: { name: 'Created Glass Variant' } },
       session: { currentVariant: 'A', canUndo: true },
     })
     expect(commands.historySize).toBe(2)
+    expectAffectedSections(created, ['metadata', 'filter'], 2)
   })
 
   it('returns one normalized write error for duplicate B, empty undo, and empty redo', async () => {
@@ -372,7 +454,7 @@ describe('WebMCP tool registration', () => {
     })
 
     const input = {
-      reason: 'Create B',
+      description: 'Create B',
       changes: [{ path: 'metadata.name', value: 'Variant B' }],
     }
     await tool('create_variant').execute(input)
@@ -387,12 +469,12 @@ describe('WebMCP tool registration', () => {
 
     await expect(
       tool('create_variant').execute({
-        reason: 'Explicitly replace B',
+        description: 'Explicitly replace B',
         changes: [{ path: 'filter.cutoffHz', value: 4100 }],
         replaceExisting: true,
       }),
     ).resolves.toMatchObject({
-      summary: { filter: { cutoffHz: 4100 } },
+      current: { filter: { cutoffHz: 4100 } },
       session: { currentVariant: 'B', hasVariantB: true, canUndo: true, canRedo: false },
     })
   })
@@ -443,7 +525,7 @@ describe('WebMCP tool registration', () => {
       },
       get_session_state: {},
       create_variant: {
-        reason: 'This B transaction must be cancelled',
+        description: 'This B transaction must be cancelled',
         changes: [{ path: 'metadata.name', value: 'Cancelled B' }],
       },
       select_variant: { variant: 'A' },

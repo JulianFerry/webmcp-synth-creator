@@ -1,6 +1,8 @@
 import { LatencyTrace, type RequestSource } from '../dev/latencyTrace'
 import { parseApplyPatchCommand } from '../patch/schemas'
+import { affectedSections } from '../patch/sections'
 import { summarizePatch } from '../patch/summary'
+import type { Change } from '../ops/types'
 import type {
   ApplyPatchCommand,
   PatchSummary,
@@ -36,6 +38,8 @@ export interface CommandResult {
   patch: PatchState
   changed: PatchDiff
   summary: PatchSummary
+  current: Record<string, unknown>
+  undoStep: number
   canUndo: boolean
   canRedo: boolean
   session: SessionSummary
@@ -51,10 +55,13 @@ export class CommandService {
     if (history) this.session.attachInitialHistory(history)
   }
 
-  applyPatch(commandInput: ApplyPatchCommand, context: CommandContext = {}): CommandResult {
+  applyPatch(
+    commandInput: ApplyPatchCommand | { type: 'apply_patch'; reason: string; changes: Change[] },
+    context: CommandContext = {},
+  ): CommandResult {
     const { correlationId, source } = this.beginRequest(context, 'ui')
-    const command = parseApplyPatchCommand(commandInput)
     const before = this.session.getPatch()
+    const command = parseApplyPatchCommand(commandInput, before)
     const nextPatch = applyPatchChanges(before, command)
     const commandPaths = command.changes.map((change) => change.path)
     const changed = diffSupportedPaths(before, nextPatch, commandPaths)
@@ -259,6 +266,8 @@ export class CommandService {
       patch: committedPatch,
       changed,
       summary: summarizePatch(patch),
+      current: affectedSections(patch, Object.keys(changed)),
+      undoStep: this.historySize,
       canUndo: this.canUndo,
       canRedo: this.canRedo,
       session: this.session.getSummary(),

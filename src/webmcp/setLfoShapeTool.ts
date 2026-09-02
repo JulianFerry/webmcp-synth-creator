@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { CommandError, CommandService } from '../commands/CommandService'
 import type { LfoPoint } from '../patch/types'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
+import { writeToolResult } from './writeResult'
 
 const documentedSetLfoShapeInput = {
   reason: 'Shorten the second pulse while preserving the current rate and routes',
@@ -92,14 +93,7 @@ export function createSetLfoShapeTool(commandService: CommandService): WebMcpToo
           },
           { source: 'webmcp' },
         )
-        return {
-          changed: result.changed,
-          summary: result.summary,
-          canUndo: result.canUndo,
-          canRedo: result.canRedo,
-          session: result.session,
-          correlationId: result.correlationId,
-        }
+        return writeToolResult(result)
       } catch (error) {
         if (error instanceof z.ZodError) return invalidInputResult(error)
         if (error instanceof CommandError) {

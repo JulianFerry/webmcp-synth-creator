@@ -71,7 +71,7 @@ describe('apply_patch command schema', () => {
     expect(parsed.changes).toHaveLength(2)
   })
 
-  it('rejects unknown paths, duplicate paths, and out-of-bounds values', () => {
+  it('rejects unknown paths and out-of-bounds values while merging duplicate paths', () => {
     expect(() =>
       parseApplyPatchCommand({
         type: 'apply_patch',
@@ -80,7 +80,7 @@ describe('apply_patch command schema', () => {
       }),
     ).toThrow(/Unsupported patch path/)
 
-    expect(() =>
+    expect(
       parseApplyPatchCommand({
         type: 'apply_patch',
         reason: 'Duplicate an edit',
@@ -88,8 +88,8 @@ describe('apply_patch command schema', () => {
           { path: 'filter.cutoffHz', value: 4000 },
           { path: 'filter.cutoffHz', value: 3500 },
         ],
-      }),
-    ).toThrow(/Duplicate patch path/)
+      }).changes,
+    ).toEqual([{ path: 'filter.cutoffHz', value: 3500 }])
 
     expect(() =>
       parseApplyPatchCommand({

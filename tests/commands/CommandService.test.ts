@@ -37,12 +37,33 @@ describe('CommandService', () => {
       'filter.cutoffHz': { before: 7200, after: 4200 },
       'oscillators.0.wavetablePosition': { before: 0.62, after: 0.5 },
     })
+    expect(result.current).toMatchObject({
+      filter: { cutoffHz: 4200 },
+      osc1: { wavetablePosition: 0.5 },
+    })
+    expect(result.undoStep).toBe(1)
     expect(session.getPatch().metadata).toEqual(before.metadata)
     expect(before.filter.cutoffHz).toBe(7200)
     expect(trace.getEvents().map((event) => event.stage)).toEqual([
       'request_received',
       'patch_committed',
     ])
+  })
+
+  it('resolves operations before validation and reports concrete musical-unit paths', () => {
+    const { commands } = createHarness()
+
+    const result = commands.applyPatch({
+      type: 'apply_patch',
+      reason: 'Darken the patch while keeping some air',
+      changes: [{ op: 'tone', brightness: 0.2, keep_air: true }],
+    })
+
+    expect(result.changed).toMatchObject({
+      'filter.cutoffHz': { before: 7200, after: expect.any(Number) },
+    })
+    expect(result.current).toEqual({ filter: result.patch.filter })
+    expect(result.undoStep).toBe(1)
   })
 
   it('leaves patch, history, and subscribers untouched after atomic validation failure', () => {

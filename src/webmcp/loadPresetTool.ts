@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { CommandError, CommandService } from '../commands/CommandService'
 import { listPresets, PresetRegistryError } from '../presets/registry'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
+import { writeToolResult } from './writeResult'
 
 const presetIds = listPresets().map(({ id }) => id)
 
@@ -32,14 +33,7 @@ export function createLoadPresetTool(commandService: CommandService): WebMcpTool
           { type: 'load_preset', presetId: input.presetId as string },
           { source: 'webmcp' },
         )
-        return {
-          changed: result.changed,
-          summary: result.summary,
-          session: result.session,
-          canUndo: result.canUndo,
-          canRedo: result.canRedo,
-          correlationId: result.correlationId,
-        }
+        return writeToolResult(result)
       } catch (error) {
         if (error instanceof z.ZodError || error instanceof PresetRegistryError) {
           return {

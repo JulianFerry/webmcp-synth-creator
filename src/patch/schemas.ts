@@ -1,5 +1,9 @@
 import { z } from 'zod'
 
+import { resolveOps } from '../ops/resolve'
+import { operationSchema } from '../ops/schema'
+import type { Change } from '../ops/types'
+import type { RawChange } from '../ops/types'
 import {
   DELAY_TIME_MAX_SECONDS,
   DELAY_TIME_MIN_SECONDS,
@@ -307,19 +311,17 @@ export const patchStateSchema = z
     })
   })
 
+const rawChangeSchema = z.union([
+  operationSchema,
+  z.object({ path: z.string().min(1), value: z.unknown() }).strict(),
+])
+
 const rawApplyPatchCommandSchema = z
   .object({
     type: z.literal('apply_patch'),
     reason: z.string().trim().min(1).max(500),
     changes: z
-      .array(
-        z
-          .object({
-            path: z.string().min(1),
-            value: z.unknown(),
-          })
-          .strict(),
-      )
+      .array(rawChangeSchema)
       .min(1)
       .max(32),
   })
@@ -338,25 +340,34 @@ export function parsePatchState(value: unknown): PatchState {
   return patchStateSchema.parse(upgradePatchDocument(value)) as PatchState
 }
 
-export function parseApplyPatchCommand(value: unknown): ApplyPatchCommand {
+export function parseApplyPatchCommand(value: unknown, patch?: PatchState): ApplyPatchCommand {
   const command = rawApplyPatchCommandSchema.parse(value)
-  const seenPaths = new Set<string>()
+  const isRawChange = (
+    change: (typeof command.changes)[number],
+  ): change is Extract<(typeof command.changes)[number], { path: string }> => 'path' in change
+  let unresolvedChanges: Array<{ path: string; value: unknown }>
 
-  for (const [index, change] of command.changes.entries()) {
+  if (command.changes.every(isRawChange)) {
+    unresolvedChanges = [
+      ...new Map(
+        command.changes.map((change) => [
+          change.path,
+          { path: change.path, value: change.value },
+        ]),
+      ).values(),
+    ]
+  } else {
+    if (patch === undefined) throw new TypeError('Patch state is required to resolve operations')
+    unresolvedChanges = resolveOps(patch, command.changes as Change[])
+  }
+
+  const changes: RawChange[] = []
+  for (const [index, change] of unresolvedChanges.entries()) {
     if (!isSupportedPatchPath(change.path)) {
       throw new z.ZodError([
         {
           code: z.ZodIssueCode.custom,
           message: `Unsupported patch path: ${change.path}`,
-          path: ['changes', index, 'path'],
-        },
-      ])
-    }
-    if (seenPaths.has(change.path)) {
-      throw new z.ZodError([
-        {
-          code: z.ZodIssueCode.custom,
-          message: `Duplicate patch path: ${change.path}`,
           path: ['changes', index, 'path'],
         },
       ])
@@ -374,10 +385,10 @@ export function parseApplyPatchCommand(value: unknown): ApplyPatchCommand {
       }
       throw error
     }
-    seenPaths.add(change.path)
+    changes.push({ path: change.path, value: change.value })
   }
 
-  return command as ApplyPatchCommand
+  return { ...command, changes } as ApplyPatchCommand
 }
 
 export function parseSetLfoShapeCommand(value: unknown): SetLfoShapeCommand {

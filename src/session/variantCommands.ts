@@ -4,13 +4,14 @@ import { applyPatchChanges } from '../commands/applyPatch'
 import { diffSupportedPaths, type PatchDiff } from '../commands/diff'
 import type { HistoryEntry } from '../commands/history'
 import { parseApplyPatchCommand } from '../patch/schemas'
-import type { ApplyPatchCommand, PatchState } from '../patch/types'
+import type { PatchState } from '../patch/types'
+import type { Change } from '../ops/types'
 import type { VariantId } from './SessionService'
 
 export interface CreateVariantCommand {
   type: 'create_variant'
   reason: string
-  changes: ApplyPatchCommand['changes']
+  changes: Change[]
   replaceExisting?: boolean
 }
 
@@ -35,7 +36,7 @@ export function createVariantTransaction(
     type: 'apply_patch',
     reason: commandInput.reason,
     changes: commandInput.changes,
-  })
+  }, currentPatch)
   const patch = applyPatchChanges(currentPatch, command)
   const changed = diffSupportedPaths(
     currentPatch,

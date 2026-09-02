@@ -4,6 +4,7 @@ import { CommandError, CommandService } from '../commands/CommandService'
 import type { PatchState } from '../patch/types'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
 import { PATCH_STATE_INPUT_SCHEMA } from './patchJsonSchema'
+import { writeToolResult } from './writeResult'
 
 function createPatchError(error: z.ZodError | CommandError) {
   if (error instanceof z.ZodError) {
@@ -60,14 +61,7 @@ export function createCreatePatchTool(commandService: CommandService): WebMcpToo
           },
           { source: 'webmcp' },
         )
-        return {
-          changed: result.changed,
-          summary: result.summary,
-          session: result.session,
-          canUndo: result.canUndo,
-          canRedo: result.canRedo,
-          correlationId: result.correlationId,
-        }
+        return writeToolResult(result)
       } catch (error) {
         if (error instanceof z.ZodError || error instanceof CommandError) {
           return createPatchError(error)
