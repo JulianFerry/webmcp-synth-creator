@@ -1616,17 +1616,24 @@ export function importVitalPatch(
   options: VitalImportOptions = {},
 ): VitalImportResult {
   try {
-    assertDocumentEnvelope(value, template)
-    const patch = parsePatch(value, template)
-    const warnings = [
-      'Vital has no PatchState tags or modulation route IDs; import uses a vital-import tag and generated route IDs. Custom wavetable IDs are regenerated unless the table exactly matches the built-in registry.',
-    ]
-    if (value.author !== APP_AUTHOR) {
-      warnings.push('Vital author metadata is informational and is not retained in PatchState.')
-    }
-    return { patch, warnings, sourceVersion: value.synth_version }
+    return importVitalPatchStrict(value, template)
   } catch (error) {
     if (!(error instanceof VitalImportError) || !isLossyCandidate(value)) throw error
     return parseLossyPatch(value, template, options, error)
   }
+}
+
+export function importVitalPatchStrict(
+  value: unknown,
+  template: VitalPresetDocument,
+): VitalImportResult {
+  assertDocumentEnvelope(value, template)
+  const patch = parsePatch(value, template)
+  const warnings = [
+    'Vital has no PatchState tags or modulation route IDs; import uses a vital-import tag and generated route IDs. Custom wavetable IDs are regenerated unless the table exactly matches the built-in registry.',
+  ]
+  if (value.author !== APP_AUTHOR) {
+    warnings.push('Vital author metadata is informational and is not retained in PatchState.')
+  }
+  return { patch, warnings, sourceVersion: value.synth_version }
 }

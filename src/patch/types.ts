@@ -209,6 +209,7 @@ export interface SetLfoPointCommand {
 }
 
 export interface PatchSummary {
+  version: PatchState['version']
   name: string
   category: PatchCategory | null
   description: string | null
@@ -221,7 +222,9 @@ export interface PatchSummary {
     transposeSemitones: number
     fineTuneCents: number
     unisonVoices: number
+    unisonDetune: number
     stereoSpread: number
+    randomPhase: number
     pan: number
   }>
   ampEnvelope: EnvelopeState

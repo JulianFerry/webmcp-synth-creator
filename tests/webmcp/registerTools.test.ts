@@ -4,6 +4,7 @@ import { CommandService } from '../../src/commands/CommandService'
 import { PatchHistory } from '../../src/commands/history'
 import { LatencyTrace } from '../../src/dev/latencyTrace'
 import { createDefaultPatch } from '../../src/patch/defaults'
+import { SUPPORTED_PATCH_PATHS } from '../../src/patch/paths'
 import { ARTICULATION_PRESETS } from '../../src/ops/articulationAndLayer'
 import { normalizedToCutoffHz, normalizedToReverbDecaySeconds } from '../../src/ops/normalization'
 import { getTemplatePatch } from '../../src/presets/templates'
@@ -14,6 +15,7 @@ import type {
 } from '../../src/webmcp/ModelContextGateway'
 import { UnavailableModelContextGateway } from '../../src/webmcp/ModelContextGateway'
 import { registerTools } from '../../src/webmcp/registerTools'
+import type { VitalPresetAdapter } from '../../src/vital/VitalPresetAdapter'
 
 class CapturingGateway implements ModelContextGateway {
   readonly available = true
@@ -51,10 +53,11 @@ describe('WebMCP tool registration', () => {
     expect(registration.status).toBe('available')
     expect(gateway.registrations.map(({ tool }) => tool.name)).toEqual([
       'get_patch',
+      'get_section',
+      'get_capabilities',
       'apply_patch',
       'set_lfo_shape',
       'set_lfo_point',
-      'get_session_state',
       'create_variant',
       'select_variant',
       'undo',
@@ -63,12 +66,14 @@ describe('WebMCP tool registration', () => {
       'list_presets',
       'load_preset',
       'describe_patch',
+      'export_patch',
     ])
 
-    const getPatch = gateway.registrations[0].tool
-    const applyPatch = gateway.registrations[1].tool
-    const setLfoShape = gateway.registrations[2].tool
-    const setLfoPoint = gateway.registrations[3].tool
+    const tool = (name: string) => gateway.registrations.find(({ tool }) => tool.name === name)!.tool
+    const getPatch = tool('get_patch')
+    const applyPatch = tool('apply_patch')
+    const setLfoShape = tool('set_lfo_shape')
+    const setLfoPoint = tool('set_lfo_point')
     expect(getPatch.annotations).toEqual({ readOnlyHint: true, untrustedContentHint: false })
     expect(applyPatch.annotations).toEqual({ readOnlyHint: false, untrustedContentHint: false })
     expect(setLfoShape.annotations).toEqual({
@@ -79,19 +84,16 @@ describe('WebMCP tool registration', () => {
       readOnlyHint: false,
       untrustedContentHint: false,
     })
-    expect(
-      gateway.registrations.find(({ tool }) => tool.name === 'get_session_state')?.tool.annotations,
-    ).toEqual({ readOnlyHint: true, untrustedContentHint: false })
+    for (const toolName of ['get_patch', 'get_section', 'get_capabilities', 'list_presets', 'describe_patch']) {
+      expect(tool(toolName).annotations).toEqual({ readOnlyHint: true, untrustedContentHint: false })
+    }
     for (const toolName of ['create_variant', 'select_variant', 'undo', 'redo']) {
       expect(gateway.registrations.find(({ tool }) => tool.name === toolName)?.tool.annotations).toEqual({
         readOnlyHint: false,
         untrustedContentHint: false,
       })
     }
-    expect(
-      gateway.registrations.find(({ tool }) => tool.name === 'list_presets')?.tool.annotations,
-    ).toEqual({ readOnlyHint: true, untrustedContentHint: false })
-    for (const toolName of ['create_patch', 'load_preset']) {
+    for (const toolName of ['create_patch', 'load_preset', 'export_patch']) {
       expect(gateway.registrations.find(({ tool }) => tool.name === toolName)?.tool.annotations).toEqual({
         readOnlyHint: false,
         untrustedContentHint: false,
@@ -196,12 +198,17 @@ describe('WebMCP tool registration', () => {
       { signal: executionController.signal },
     )
     expect(JSON.parse(JSON.stringify(readResult))).toMatchObject({
+      version: 3,
       name: 'Ethereal Gate',
+      oscillators: expect.arrayContaining([
+        expect.objectContaining({ unisonDetune: 0.36, randomPhase: 0.7 }),
+      ]),
       filter: { cutoffHz: 7200 },
       lfo1: { enabled: true },
+      session: { currentVariant: 'A', hasVariantB: false, canUndo: false, canRedo: false },
     })
 
-    const writeResult = await gateway.registrations[1].tool.execute(
+    const writeResult = await gateway.registrations.find(({ tool }) => tool.name === 'apply_patch')!.tool.execute(
       {
         reason: 'Lower the filter in one transaction',
         changes: [{ path: 'filter.cutoffHz', value: 3600 }],
@@ -222,7 +229,7 @@ describe('WebMCP tool registration', () => {
     const gateway = new CapturingGateway()
     const { commands, session } = createHarness()
     await registerTools(gateway, session, commands)
-    const applyPatch = gateway.registrations[1].tool
+    const applyPatch = gateway.registrations.find(({ tool }) => tool.name === 'apply_patch')!.tool
     const [schemaExample] = applyPatch.inputSchema.examples as Record<string, unknown>[]
     const inspectorInput = JSON.parse(JSON.stringify(schemaExample)) as Record<string, unknown>
 
@@ -242,7 +249,7 @@ describe('WebMCP tool registration', () => {
     const gateway = new CapturingGateway()
     const { commands, session } = createHarness()
     await registerTools(gateway, session, commands)
-    const applyPatch = gateway.registrations[1].tool
+    const applyPatch = gateway.registrations.find(({ tool }) => tool.name === 'apply_patch')!.tool
 
     const result = await applyPatch.execute({
       reason: 'example_string',
@@ -279,7 +286,7 @@ describe('WebMCP tool registration', () => {
       filter: { cutoffHz: 7200 },
     })
 
-    const writeResult = await gateway.registrations[1].tool.execute({
+    const writeResult = await gateway.registrations.find(({ tool }) => tool.name === 'apply_patch')!.tool.execute({
       reason: 'Lower the filter without an execution context',
       changes: [{ path: 'filter.cutoffHz', value: 3600 }],
     })
@@ -397,12 +404,9 @@ describe('WebMCP tool registration', () => {
     const tool = (name: string) =>
       gateway.registrations.find(({ tool: candidate }) => candidate.name === name)!.tool
 
-    await expect(tool('get_session_state').execute({})).resolves.toMatchObject({
-      currentVariant: 'A',
-      hasVariantB: false,
-      canUndo: false,
-      canRedo: false,
-      summary: { name: 'Ethereal Gate' },
+    await expect(tool('get_patch').execute({})).resolves.toMatchObject({
+      name: 'Ethereal Gate',
+      session: { currentVariant: 'A', hasVariantB: false, canUndo: false, canRedo: false },
     })
     await expect(tool('select_variant').execute({ variant: 'B' })).resolves.toEqual({
       ok: false,
@@ -432,6 +436,10 @@ describe('WebMCP tool registration', () => {
     expect(created).not.toHaveProperty('content')
     expectAffectedSections(created, ['metadata', 'osc1'], 1)
     expect(session.getPatch('A').metadata.name).toBe('Ethereal Gate')
+    await expect(tool('get_patch').execute({})).resolves.toMatchObject({
+      name: 'Ethereal Gate Wide B',
+      session: { currentVariant: 'B', hasVariantB: true, canUndo: true, canRedo: false },
+    })
 
     const undone = await tool('undo').execute({})
     expect(undone).toMatchObject({
@@ -459,6 +467,10 @@ describe('WebMCP tool registration', () => {
     })
     expectAffectedSections(selectedA, ['metadata', 'osc1'], 0)
     expect(session.getPatch('B').metadata.name).toBe('Ethereal Gate Wide B')
+    await expect(tool('get_patch').execute({})).resolves.toMatchObject({
+      name: 'Ethereal Gate',
+      session: { currentVariant: 'A', hasVariantB: true, canUndo: false, canRedo: false },
+    })
   })
 
   it('lists, loads, and creates patches through plain JSON tool results', async () => {
@@ -608,6 +620,75 @@ describe('WebMCP tool registration', () => {
     expect(commands.historySize).toBe(0)
   })
 
+  it('reports capabilities and full section detail from validator-backed constants', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const tool = (name: string) => gateway.registrations.find(({ tool }) => tool.name === name)!.tool
+
+    const capabilities = await tool('get_capabilities').execute({}) as {
+      rawPaths: Array<{ path: string; unit: string }>
+      [key: string]: unknown
+    }
+    expect(capabilities).toMatchObject({
+      modulationSources: ['lfo1', 'modEnvelope', 'velocity'],
+      filterTypes: ['lowpass', 'highpass', 'bandpass', 'notch'],
+      filterSlopesDbPerOctave: [12, 24],
+      distortionTypes: ['soft_clip', 'hard_clip', 'sine_fold', 'bit_crush'],
+      wavetables: expect.arrayContaining([
+        { id: 'glass', name: 'Generated Glass', character: 'Sparse inharmonic partials for a clear, struck-glass character.' },
+      ]),
+      templateCategories: expect.arrayContaining(['bass', 'percussion']),
+      rawPaths: expect.arrayContaining([
+        { path: 'filter.cutoffHz', unit: 'hertz' },
+        { path: 'voice.polyphony', unit: 'voice count' },
+      ]),
+    })
+    expect(capabilities.rawPaths.map(({ path }) => path)).toEqual([...SUPPORTED_PATCH_PATHS])
+    expect(capabilities.rawPaths.every(({ unit }) => unit.length > 0)).toBe(true)
+    const expectedSections = {
+      osc1: session.getPatch().oscillators[0],
+      osc2: session.getPatch().oscillators[1],
+      osc3: session.getPatch().oscillators[2],
+      amp_env: session.getPatch().ampEnvelope,
+      mod_env: session.getPatch().modEnvelope,
+      lfo: session.getPatch().lfo1,
+      filter: session.getPatch().filter,
+      effects: session.getPatch().effects,
+      voice: { ...session.getPatch().voice, mode: 'poly' },
+      modulations: session.getPatch().modulations,
+    }
+    for (const [section, current] of Object.entries(expectedSections)) {
+      await expect(tool('get_section').execute({ section })).resolves.toEqual({ section, current })
+    }
+  })
+
+  it('exports through the threaded adapter and fails cleanly before Vital is ready', async () => {
+    const unavailableGateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(unavailableGateway, session, commands)
+    const unavailable = unavailableGateway.registrations.find(({ tool }) => tool.name === 'export_patch')!.tool
+    await expect(unavailable.execute({})).resolves.toEqual({
+      ok: false,
+      error: { code: 'VITAL_NOT_READY', message: 'Vital export is not ready' },
+    })
+
+    const adapter = {
+      exportPatch: () => ({ document: { valid: true }, filename: 'default.vital', json: '{}' }),
+      importPatchStrict: () => ({ patch: session.getPatch(), warnings: [], sourceVersion: '1.0.7' }),
+      downloadPatch: (_patch: unknown, filename?: string) => `${filename}.vital`,
+    } as unknown as VitalPresetAdapter
+    const gateway = new CapturingGateway()
+    await registerTools(gateway, session, commands, {
+      snapshot: () => ({ adapter, status: 'ready' }),
+    })
+    const exportPatch = gateway.registrations.find(({ tool }) => tool.name === 'export_patch')!.tool
+    await expect(exportPatch.execute({ filename: 'agent-export' })).resolves.toEqual({
+      filename: 'agent-export.vital',
+      validation: { valid: true, mode: 'strict', warnings: [] },
+    })
+  })
+
   it('returns one normalized write error for duplicate B, empty undo, and empty redo', async () => {
     const gateway = new CapturingGateway()
     const { commands, session } = createHarness()
@@ -699,7 +780,8 @@ describe('WebMCP tool registration', () => {
         index: 1,
         y: 0.5,
       },
-      get_session_state: {},
+      get_section: { section: 'filter' },
+      get_capabilities: {},
       create_variant: {
         description: 'This B transaction must be cancelled',
         changes: [{ path: 'metadata.name', value: 'Cancelled B' }],
@@ -711,9 +793,10 @@ describe('WebMCP tool registration', () => {
         reason: 'This complete patch creation must be cancelled',
         patch: session.getPatch(),
       },
-      list_presets: {},
       load_preset: { presetId: 'glass-pluck' },
       describe_patch: {},
+      export_patch: {},
+      list_presets: {},
     }
 
     await Promise.all(

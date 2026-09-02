@@ -4,6 +4,7 @@ import { createDefaultPatch } from '../../src/patch/defaults'
 import {
   getPatchPathValue,
   isSupportedPatchPath,
+  PATCH_PATH_REGISTRY,
   parsePatchPathValue,
   setPatchPathValue,
   SUPPORTED_PATCH_PATHS,
@@ -28,8 +29,36 @@ describe('closed patch paths', () => {
 
   it('keeps every supported path paired with a value schema', () => {
     const patch = createDefaultPatch()
+    expect(Object.keys(PATCH_PATH_REGISTRY)).toEqual([...SUPPORTED_PATCH_PATHS])
     for (const path of SUPPORTED_PATCH_PATHS) {
+      const metadata = PATCH_PATH_REGISTRY[path]
+      expect(metadata.unit).not.toBe('')
+      expect(metadata.validator).toBeDefined()
+      expect(() => metadata.validator.parse(getPatchPathValue(patch, path))).not.toThrow()
       expect(() => parsePatchPathValue(path, getPatchPathValue(patch, path))).not.toThrow()
     }
+  })
+
+  it.each([
+    ['seconds', ['ampEnvelope.attackSeconds', 'modEnvelope.releaseSeconds', 'voice.glideSeconds', 'effects.delay.timeSeconds', 'effects.reverb.predelay']],
+    ['semitones', ['oscillators.0.transposeSemitones', 'oscillators.1.transposeSemitones', 'oscillators.2.transposeSemitones', 'voice.transposeSemitones']],
+    ['cents', ['oscillators.0.fineTuneCents', 'oscillators.1.fineTuneCents', 'oscillators.2.fineTuneCents']],
+    ['voice count', ['oscillators.0.unisonVoices', 'oscillators.1.unisonVoices', 'oscillators.2.unisonVoices', 'voice.polyphony', 'effects.chorus.voices']],
+    ['enum', ['metadata.category', 'filter.type', 'effects.distortion.type', 'effects.delay.mode']],
+    ['tempo division', ['effects.delay.division']],
+    ['hertz', ['filter.cutoffHz']],
+    ['dB/octave', ['filter.slope']],
+  ] as const)('declares explicit %s units for its semantic path class', (unit, paths) => {
+    for (const path of paths) {
+      expect(PATCH_PATH_REGISTRY[path].unit).toBe(unit)
+    }
+  })
+
+  it('labels every remaining normalized scalar explicitly', () => {
+    const normalizedPaths = SUPPORTED_PATCH_PATHS.filter((path) =>
+      PATCH_PATH_REGISTRY[path].unit === 'normalized 0..1')
+    expect(normalizedPaths).toContain('oscillators.0.unisonDetune')
+    expect(normalizedPaths).toContain('effects.chorus.rate')
+    expect(normalizedPaths).toContain('effects.reverb.highCut')
   })
 })

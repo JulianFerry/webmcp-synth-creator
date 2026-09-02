@@ -10,6 +10,7 @@ import { buildVitalLfo } from './lfo'
 import { buildVitalModulations } from './modulations'
 import {
   importVitalPatch,
+  importVitalPatchStrict,
   type VitalImportOptions,
   type VitalImportResult,
 } from './VitalPresetImporter'
@@ -211,16 +212,23 @@ export class VitalPresetAdapter {
     return importVitalPatch(value, this.template, options)
   }
 
-  downloadPatch(patch: PatchState): string {
+  importPatchStrict(value: unknown): VitalImportResult {
+    return importVitalPatchStrict(value, this.template)
+  }
+
+  downloadPatch(patch: PatchState, requestedFilename?: string): string {
     const exported = this.exportPatch(patch)
+    const filename = requestedFilename
+      ? vitalFilename(requestedFilename.replace(/\.vital$/i, ''))
+      : exported.filename
     const anchor = document.createElement('a')
     anchor.href = URL.createObjectURL(
       new Blob([exported.json], { type: 'application/json;charset=utf-8' }),
     )
-    anchor.download = exported.filename
+    anchor.download = filename
     anchor.click()
     window.setTimeout(() => URL.revokeObjectURL(anchor.href), 4_000)
-    return exported.filename
+    return filename
   }
 
   private mapControlValues(patch: PatchState): Record<string, number> {

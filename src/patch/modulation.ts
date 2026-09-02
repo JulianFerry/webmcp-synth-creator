@@ -1,5 +1,7 @@
 import type { ModulationDestination, ModulationSource } from './types'
 
+export const MODULATION_SOURCES = ['lfo1', 'modEnvelope', 'velocity'] as const
+
 export const MODULATION_DESTINATIONS_BY_SOURCE = {
   lfo1: [
     'oscillator1.level',
@@ -35,6 +37,10 @@ export const MODULATION_DESTINATIONS_BY_SOURCE = {
   ],
   velocity: ['filter.cutoff', 'volume'],
 } as const satisfies Record<ModulationSource, readonly ModulationDestination[]>
+
+export const MODULATION_DESTINATIONS = [...new Set(
+  Object.values(MODULATION_DESTINATIONS_BY_SOURCE).flat(),
+)] as ModulationDestination[]
 
 export function isAllowedModulationRoute(
   source: ModulationSource,

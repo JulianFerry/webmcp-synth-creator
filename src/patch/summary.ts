@@ -2,6 +2,7 @@ import type { PatchState, PatchSummary } from './types'
 
 export function summarizePatch(patch: PatchState): PatchSummary {
   return {
+    version: patch.version,
     name: patch.metadata.name,
     category: patch.metadata.category ?? null,
     description: patch.metadata.description ?? null,
@@ -14,7 +15,9 @@ export function summarizePatch(patch: PatchState): PatchSummary {
       transposeSemitones: oscillator.transposeSemitones,
       fineTuneCents: oscillator.fineTuneCents,
       unisonVoices: oscillator.unisonVoices,
+      unisonDetune: oscillator.unisonDetune,
       stereoSpread: oscillator.stereoSpread,
+      randomPhase: oscillator.randomPhase,
       pan: oscillator.pan,
     })),
     ampEnvelope: structuredClone(patch.ampEnvelope),
