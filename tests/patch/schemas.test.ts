@@ -6,9 +6,9 @@ import { parseApplyPatchCommand, parsePatchState } from '../../src/patch/schemas
 
 describe('PatchState schema', () => {
   it('accepts the generated default and checked-in vertical slice fixture', () => {
-    expect(parsePatchState(createDefaultPatch()).version).toBe(2)
+    expect(parsePatchState(createDefaultPatch()).version).toBe(3)
     expect(parsePatchState(verticalSliceFixture)).toMatchObject({
-      version: 2,
+      version: 3,
       metadata: { name: 'Ethereal Gate' },
     })
   })

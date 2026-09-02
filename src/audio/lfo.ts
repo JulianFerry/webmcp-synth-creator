@@ -87,19 +87,23 @@ export function evaluateEnvelope(
     const releaseProgress = (elapsed - release.elapsedSeconds) / envelope.releaseSeconds
     return Math.max(
       0,
-      release.startValue * (1 - vitalPowerScale(releaseProgress, -2)),
+      release.startValue * (1 - vitalPowerScale(releaseProgress, envelope.releaseCurve * 20)),
     )
   }
 
-  if (envelope.attackSeconds > 0 && elapsed < envelope.attackSeconds) {
-    return elapsed / envelope.attackSeconds
+  if (elapsed < envelope.delaySeconds) return 0
+  const afterDelay = elapsed - envelope.delaySeconds
+
+  if (envelope.attackSeconds > 0 && afterDelay < envelope.attackSeconds) {
+    return vitalPowerScale(afterDelay / envelope.attackSeconds, envelope.attackCurve * 20)
   }
-  const afterAttack = elapsed - envelope.attackSeconds
+  const afterAttack = afterDelay - envelope.attackSeconds
   if (afterAttack < envelope.holdSeconds) return 1
   const afterHold = afterAttack - envelope.holdSeconds
   if (envelope.decaySeconds > 0 && afterHold < envelope.decaySeconds) {
     const decayProgress = afterHold / envelope.decaySeconds
-    return 1 + (envelope.sustainLevel - 1) * vitalPowerScale(decayProgress, -2)
+    return 1 +
+      (envelope.sustainLevel - 1) * vitalPowerScale(decayProgress, envelope.decayCurve * 20)
   }
   return envelope.sustainLevel
 }

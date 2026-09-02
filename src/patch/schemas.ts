@@ -3,11 +3,13 @@ import { z } from 'zod'
 import {
   DELAY_TIME_MAX_SECONDS,
   DELAY_TIME_MIN_SECONDS,
+  ENVELOPE_DELAY_MAX_SECONDS,
   ENVELOPE_HOLD_MAX_SECONDS,
   FILTER_CUTOFF_MAX_HZ,
   FILTER_CUTOFF_MIN_HZ,
   REVERB_DECAY_MAX_SECONDS,
   REVERB_DECAY_MIN_SECONDS,
+  REVERB_PREDELAY_MAX_SECONDS,
   TEMPO_SYNC_DIVISIONS,
 } from './limits'
 import { isAllowedModulationRoute } from './modulation'
@@ -44,16 +46,21 @@ export const oscillatorStateSchema = z
     unisonDetune: unitInterval,
     stereoSpread: unitInterval,
     randomPhase: unitInterval,
+    pan: unitInterval,
   })
   .strict()
 
 export const envelopeStateSchema = z
   .object({
+    delaySeconds: seconds(ENVELOPE_DELAY_MAX_SECONDS),
     attackSeconds: seconds(10),
     holdSeconds: seconds(ENVELOPE_HOLD_MAX_SECONDS),
     decaySeconds: seconds(10),
     sustainLevel: unitInterval,
     releaseSeconds: seconds(20),
+    attackCurve: z.number().finite().min(-1).max(1),
+    decayCurve: z.number().finite().min(-1).max(1),
+    releaseCurve: z.number().finite().min(-1).max(1),
   })
   .strict()
 
@@ -68,6 +75,9 @@ export const filterStateSchema = z
       .min(FILTER_CUTOFF_MIN_HZ)
       .max(FILTER_CUTOFF_MAX_HZ),
     resonance: unitInterval,
+    slope: z.union([z.literal(12), z.literal(24)]),
+    drive: unitInterval,
+    keytrack: unitInterval,
   })
   .strict()
 
@@ -112,24 +122,29 @@ export const lfoStateSchema = z
     rate: lfoRateSchema,
     phase: unitInterval,
     smooth: z.boolean(),
+    smoothing: unitInterval,
   })
   .strict()
 
 export const modulationRouteSchema = z
   .object({
     id: z.string().trim().min(1).max(64),
-    source: z.enum(['lfo1', 'modEnvelope']),
+    source: z.enum(['lfo1', 'modEnvelope', 'velocity']),
     destination: z.enum([
       'oscillator1.level',
       'oscillator1.wavetablePosition',
       'oscillator1.pitch',
+      'oscillator1.pan',
       'oscillator2.level',
       'oscillator2.wavetablePosition',
       'oscillator2.pitch',
+      'oscillator2.pan',
       'oscillator3.level',
       'oscillator3.wavetablePosition',
       'oscillator3.pitch',
+      'oscillator3.pan',
       'filter.cutoff',
+      'volume',
     ]),
     amount: z.number().finite().min(-1).max(1),
     bipolar: z.boolean(),
@@ -151,6 +166,7 @@ export const voiceStateSchema = z
     legato: z.boolean(),
     glideSeconds: seconds(5),
     velocitySensitivity: unitInterval,
+    transposeSemitones: z.number().int().min(-36).max(36),
   })
   .strict()
 
@@ -187,6 +203,29 @@ export const reverbStateSchema = z
     mix: unitInterval,
     decaySeconds: secondsRange(REVERB_DECAY_MIN_SECONDS, REVERB_DECAY_MAX_SECONDS),
     size: unitInterval,
+    predelay: seconds(REVERB_PREDELAY_MAX_SECONDS),
+    lowCut: unitInterval,
+    highCut: unitInterval,
+  })
+  .strict()
+
+export const distortionStateSchema = z
+  .object({
+    enabled: z.boolean(),
+    type: z.enum(['soft_clip', 'hard_clip', 'sine_fold', 'bit_crush']),
+    drive: unitInterval,
+    mix: unitInterval,
+  })
+  .strict()
+
+export const chorusStateSchema = z
+  .object({
+    enabled: z.boolean(),
+    voices: z.number().int().min(1).max(4),
+    rate: unitInterval,
+    depth: unitInterval,
+    feedback: unitInterval,
+    mix: unitInterval,
   })
   .strict()
 
@@ -206,7 +245,7 @@ export const wavetableStateSchema = z
 
 export const patchStateSchema = z
   .object({
-    version: z.literal(2),
+    version: z.literal(3),
     metadata: patchMetadataSchema,
     oscillators: z.tuple([oscillatorStateSchema, oscillatorStateSchema, oscillatorStateSchema]),
     ampEnvelope: envelopeStateSchema,
@@ -215,7 +254,7 @@ export const patchStateSchema = z
     lfo1: lfoStateSchema,
     modulations: z.array(modulationRouteSchema).max(16),
     voice: voiceStateSchema,
-    effects: z.object({ order: z.array(z.enum(EFFECT_IDS)).length(EFFECT_IDS.length), delay: delayStateSchema, reverb: reverbStateSchema }).strict().superRefine((effects, context) => {
+    effects: z.object({ order: z.array(z.enum(EFFECT_IDS)).length(EFFECT_IDS.length), distortion: distortionStateSchema, chorus: chorusStateSchema, delay: delayStateSchema, reverb: reverbStateSchema }).strict().superRefine((effects, context) => {
       if (new Set(effects.order).size !== EFFECT_IDS.length) {
         context.addIssue({ code: z.ZodIssueCode.custom, message: 'Effect order must contain each effect exactly once', path: ['order'] })
       }

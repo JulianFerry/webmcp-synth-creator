@@ -156,11 +156,15 @@ export const CALIBRATION_C_PATCH = createNextStage(
   },
   (patch) => {
     patch.ampEnvelope = {
+      delaySeconds: 0,
       attackSeconds: 0.12,
       holdSeconds: 0,
       decaySeconds: 0.55,
       sustainLevel: 0.55,
       releaseSeconds: 0.8,
+      attackCurve: 0,
+      decayCurve: -0.1,
+      releaseCurve: -0.1,
     }
   },
 )

@@ -17,6 +17,7 @@ export interface OscillatorReflection {
   unisonVoices: number
   unisonDetune: number
   stereoSpread: number
+  pan: number
 }
 
 export interface AudioPatchReflection {
@@ -40,6 +41,7 @@ export function oscillatorReflection(oscillator: OscillatorState): OscillatorRef
     unisonVoices: oscillator.unisonVoices,
     unisonDetune: oscillator.unisonDetune,
     stereoSpread: oscillator.stereoSpread,
+    pan: oscillator.pan,
   }
 }
 

@@ -30,14 +30,19 @@ export interface OscillatorState {
   unisonDetune: number
   stereoSpread: number
   randomPhase: number
+  pan: number
 }
 
 export interface EnvelopeState {
+  delaySeconds: number
   attackSeconds: number
   holdSeconds: number
   decaySeconds: number
   sustainLevel: number
   releaseSeconds: number
+  attackCurve: number
+  decayCurve: number
+  releaseCurve: number
 }
 
 export type FilterType = 'lowpass' | 'highpass' | 'bandpass' | 'notch'
@@ -47,6 +52,9 @@ export interface FilterState {
   type: FilterType
   cutoffHz: number
   resonance: number
+  slope: 12 | 24
+  drive: number
+  keytrack: number
 }
 
 export interface LfoPoint {
@@ -71,21 +79,26 @@ export interface LfoState {
   rate: LfoRate
   phase: number
   smooth: boolean
+  smoothing: number
 }
 
-export type ModulationSource = 'lfo1' | 'modEnvelope'
+export type ModulationSource = 'lfo1' | 'modEnvelope' | 'velocity'
 
 export type ModulationDestination =
   | 'oscillator1.level'
   | 'oscillator1.wavetablePosition'
   | 'oscillator1.pitch'
+  | 'oscillator1.pan'
   | 'oscillator2.level'
   | 'oscillator2.wavetablePosition'
   | 'oscillator2.pitch'
+  | 'oscillator2.pan'
   | 'oscillator3.level'
   | 'oscillator3.wavetablePosition'
   | 'oscillator3.pitch'
+  | 'oscillator3.pan'
   | 'filter.cutoff'
+  | 'volume'
 
 export interface ModulationRoute {
   id: string
@@ -100,6 +113,25 @@ export interface VoiceState {
   legato: boolean
   glideSeconds: number
   velocitySensitivity: number
+  transposeSemitones: number
+}
+
+export type DistortionType = 'soft_clip' | 'hard_clip' | 'sine_fold' | 'bit_crush'
+
+export interface DistortionState {
+  enabled: boolean
+  type: DistortionType
+  drive: number
+  mix: number
+}
+
+export interface ChorusState {
+  enabled: boolean
+  voices: number
+  rate: number
+  depth: number
+  feedback: number
+  mix: number
 }
 
 export interface DelayState {
@@ -116,6 +148,9 @@ export interface ReverbState {
   mix: number
   decaySeconds: number
   size: number
+  predelay: number
+  lowCut: number
+  highCut: number
 }
 
 export interface WavetableFrameState {
@@ -129,7 +164,7 @@ export interface WavetableState {
 }
 
 export interface PatchState {
-  version: 2
+  version: 3
   metadata: PatchMetadata
   oscillators: [OscillatorState, OscillatorState, OscillatorState]
   ampEnvelope: EnvelopeState
@@ -140,6 +175,8 @@ export interface PatchState {
   voice: VoiceState
   effects: {
     order: EffectId[]
+    distortion: DistortionState
+    chorus: ChorusState
     delay: DelayState
     reverb: ReverbState
   }
@@ -176,6 +213,7 @@ export interface PatchSummary {
     fineTuneCents: number
     unisonVoices: number
     stereoSpread: number
+    pan: number
   }>
   ampEnvelope: EnvelopeState
   modEnvelope: EnvelopeState
@@ -187,6 +225,7 @@ export interface PatchSummary {
     rate: LfoRate
     phase: number
     smooth: boolean
+    smoothing: number
   }
   modulations: ModulationRoute[]
   voice: VoiceState

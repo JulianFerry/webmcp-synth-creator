@@ -96,6 +96,7 @@ describe('point LFO evaluation', () => {
       rate: { mode: 'free', hz: 1 },
       phase: 0.75,
       smooth: false,
+      smoothing: 1.5 / 14,
     }
     expect(evaluateLfo(lfo, 0.5)).toBeCloseTo(0.25)
   })
@@ -103,11 +104,15 @@ describe('point LFO evaluation', () => {
 
 describe('modulation envelope evaluation', () => {
   const envelope: EnvelopeState = {
+    delaySeconds: 0,
     attackSeconds: 0.2,
     holdSeconds: 0.1,
     decaySeconds: 0.4,
     sustainLevel: 0.25,
     releaseSeconds: 0.5,
+    attackCurve: 0,
+    decayCurve: -0.1,
+    releaseCurve: -0.1,
   }
 
   it('evaluates attack, hold, decay, sustain, and release phases', () => {

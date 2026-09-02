@@ -25,4 +25,11 @@ describe('closed patch paths', () => {
     expect(patch.filter.cutoffHz).toBe(3800)
     expect(patch.oscillators[0].wavetablePosition).toBe(0.62)
   })
+
+  it('keeps every supported path paired with a value schema', () => {
+    const patch = createDefaultPatch()
+    for (const path of SUPPORTED_PATCH_PATHS) {
+      expect(() => parsePatchPathValue(path, getPatchPathValue(patch, path))).not.toThrow()
+    }
+  })
 })

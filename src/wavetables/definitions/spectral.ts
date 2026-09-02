@@ -2,6 +2,11 @@ import type { WavetableState } from '../../patch/types'
 import { gaussian, generatedWavetable, harmonicFrame } from './helpers'
 
 export const SPECTRAL_WAVETABLES: readonly WavetableState[] = [
+  generatedWavetable('harsh', 'Harsh Sync', [
+    harmonicFrame(64, (harmonic) => (harmonic % 2 === 1 ? 1.25 : 0.7) / harmonic ** 0.5),
+    harmonicFrame(64, (harmonic) => (harmonic % 3 === 1 ? 1.4 : 0.55) / harmonic ** 0.48),
+    harmonicFrame(64, (harmonic) => (harmonic % 4 < 2 ? 1.3 : 0.45) / harmonic ** 0.44),
+  ]),
   generatedWavetable('airy', 'Air Spectrum', [
     harmonicFrame(48, (harmonic) => 1 / harmonic ** 1.05),
     harmonicFrame(48, (harmonic) => {

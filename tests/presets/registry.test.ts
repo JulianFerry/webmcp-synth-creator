@@ -76,6 +76,7 @@ describe('curated preset and generated wavetable registries', () => {
       'soft-square',
       'warm-saw',
       'hollow',
+      'harsh',
       'airy',
       'glass',
       'metallic',

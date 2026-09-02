@@ -533,11 +533,15 @@ function parseWavetable(value: unknown, slot: number, version: string): Wavetabl
 
 function parseEnvelope(settings: Record<string, unknown>, prefix: 'env_1' | 'env_2'): EnvelopeState {
   return {
+    delaySeconds: 0,
     attackSeconds: decodeVitalEnvelopeSeconds(setting(settings, `${prefix}_attack`)),
     holdSeconds: decodeVitalEnvelopeSeconds(setting(settings, `${prefix}_hold`)),
     decaySeconds: decodeVitalEnvelopeSeconds(setting(settings, `${prefix}_decay`)),
     sustainLevel: setting(settings, `${prefix}_sustain`),
     releaseSeconds: decodeVitalEnvelopeSeconds(setting(settings, `${prefix}_release`)),
+    attackCurve: 0,
+    decayCurve: -0.1,
+    releaseCurve: -0.1,
   }
 }
 
@@ -566,6 +570,7 @@ function parseOscillator(
     ),
     stereoSpread: setting(settings, `${prefix}_stereo_spread`),
     randomPhase: setting(settings, `${prefix}_random_phase`),
+    pan: 0.5,
   }
 }
 
@@ -618,6 +623,7 @@ function parseLfo(
     rate: parseRate(settings),
     phase: setting(settings, 'lfo_1_phase'),
     smooth: lfo.smooth,
+    smoothing: lfo.smooth ? 5 / 14 : 1.5 / 14,
   }
 }
 
@@ -1161,6 +1167,7 @@ function parseLossyEnvelope(
     return clamp(seconds, 0, maximum)
   }
   return {
+    delaySeconds: 0,
     attackSeconds: decode('attack', 10),
     holdSeconds: decode('hold', ENVELOPE_HOLD_MAX_SECONDS),
     decaySeconds: decode('decay', 10),
@@ -1170,6 +1177,9 @@ function parseLossyEnvelope(
       1,
     ),
     releaseSeconds: decode('release', 20),
+    attackCurve: 0,
+    decayCurve: -0.1,
+    releaseCurve: -0.1,
   }
 }
 
@@ -1252,6 +1262,7 @@ function parseLossyOscillator(
       0,
       1,
     ),
+    pan: 0.5,
   }
 }
 
@@ -1381,6 +1392,7 @@ function parseLossyLfo(
     rate,
     phase: clamp(lossySetting(settings, templateSettings, 'lfo_1_phase', warnings), 0, 1),
     smooth: lfo.smooth === true,
+    smoothing: lfo.smooth === true ? 5 / 14 : 1.5 / 14,
   }
 }
 

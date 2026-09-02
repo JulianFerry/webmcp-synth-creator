@@ -24,7 +24,7 @@ describe('closed modulation matrix', () => {
         count += 1
       }
     }
-    expect(count).toBe(20)
+    expect(count).toBe(30)
   })
 
   it('rejects unknown route members and duplicate route pairs', () => {
