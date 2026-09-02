@@ -100,4 +100,8 @@ describe('operation schema registry parity', () => {
     const layer = OPERATION_DEFINITIONS.find(({ name }) => name === 'layer')!
     expect(layer.mapping).toContain("otherwise the role's default level is written")
   })
+
+  it('keeps compressor precision on raw paths without adding a competing operation', () => {
+    expect(OPERATION_DEFINITIONS.map(({ name }) => name)).not.toContain('compressor')
+  })
 })
