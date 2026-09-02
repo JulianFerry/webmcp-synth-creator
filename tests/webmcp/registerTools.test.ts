@@ -723,10 +723,14 @@ describe('WebMCP tool registration', () => {
       error: { code: 'VITAL_NOT_READY', message: 'Vital export is not ready' },
     })
 
+    const downloads: unknown[][] = []
     const adapter = {
       exportPatch: () => ({ document: { valid: true }, filename: 'default.vital', json: '{}' }),
       importPatchStrict: () => ({ patch: session.getPatch(), warnings: [], sourceVersion: '1.0.7' }),
-      downloadPatch: (_patch: unknown, filename?: string) => `${filename}.vital`,
+      downloadPatch: (...args: unknown[]) => {
+        downloads.push(args)
+        return `${args[2]}.vital`
+      },
     } as unknown as VitalPresetAdapter
     const gateway = new CapturingGateway()
     await registerTools(gateway, session, commands, {
@@ -737,6 +741,7 @@ describe('WebMCP tool registration', () => {
       filename: 'agent-export.vital',
       validation: { valid: true, mode: 'strict', warnings: [] },
     })
+    expect(downloads).toEqual([[session.getPatch(), null, 'agent-export']])
   })
 
   it('returns one normalized write error for duplicate B, empty undo, and empty redo', async () => {

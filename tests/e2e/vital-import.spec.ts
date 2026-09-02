@@ -221,6 +221,7 @@ test('responsive top patch controls expose keyboard and screen-reader semantics'
 test('native-feature imports stay intact, warn above the workbench, and preserve opaque state', async ({
   page,
 }) => {
+  await installWebMcpDouble(page)
   await page.goto('/')
   await expect(page.getByTestId('vital-status')).toContainText('ready')
 
@@ -239,11 +240,11 @@ test('native-feature imports stay intact, warn above the workbench, and preserve
   nativeDocument.settings.sample_on = 1
   nativeDocument.settings.distortion_on = 1
   ;(nativeDocument.settings.sample as Record<string, unknown>).name = 'Preserved sample layer'
-  ;(nativeDocument.settings.modulations as Array<Record<string, unknown>>)[3] = {
+  ;(nativeDocument.settings.modulations as Array<Record<string, unknown>>)[10] = {
     source: 'macro_control_1',
     destination: 'osc_1_level',
   }
-  nativeDocument.settings.modulation_4_amount = 0.4
+  nativeDocument.settings.modulation_11_amount = 0.4
   nativeDocument.settings.macro_control_1 = 0.75
   const originalJson = `\n${JSON.stringify(nativeDocument, null, 2)}\n`
 
@@ -272,9 +273,37 @@ test('native-feature imports stay intact, warn above the workbench, and preserve
   await expect(page.getByTestId('active-voice-count')).toHaveText('0')
 
   const untouchedDownloadPromise = page.waitForEvent('download')
-  await page.getByTestId('export-vital').click()
+  const toolExport = await page.evaluate(async () => {
+    const tool = (await document.modelContext!.getTools()).find(({ name }) => name === 'export_patch')
+    if (!tool) throw new Error('export_patch was not registered')
+    return JSON.parse(await document.modelContext!.executeTool(tool)) as {
+      filename: string
+      validation: {
+        valid: boolean
+        mode: string
+        preservedFeatures: {
+          affectedControls: Array<{ control: string; sources: string[] }>
+          hiddenEffects: string[]
+          preservesUnsupportedFeatures: boolean
+          warnings: string[]
+        }
+      }
+    }
+  })
   const untouchedDownload = await untouchedDownloadPromise
   expect(await readFile((await untouchedDownload.path()) as string, 'utf8')).toBe(originalJson)
+  expect(toolExport).toMatchObject({
+    filename: 'preserved-native-features.vital',
+    validation: {
+      valid: true,
+      mode: 'retained',
+      preservedFeatures: {
+        affectedControls: [{ control: 'OSC 1 level', sources: ['Macro 1'] }],
+        hiddenEffects: ['Distortion'],
+        preservesUnsupportedFeatures: true,
+      },
+    },
+  })
 
   await page.locator('.darken-control').evaluate((button: HTMLButtonElement) => button.click())
   await expect(notice).toBeVisible()

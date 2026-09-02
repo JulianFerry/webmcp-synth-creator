@@ -14,7 +14,10 @@ export interface ExportPatchAccess {
 
 const inputSchema = z.object({ filename: z.string().trim().min(1).optional() }).strict()
 
-export function createExportPatchTool(session: SessionService, access: ExportPatchAccess): WebMcpToolDefinition {
+export function createExportPatchTool(
+  session: SessionService,
+  access: ExportPatchAccess,
+): WebMcpToolDefinition {
   return {
     name: 'export_patch', title: 'Export current patch to Vital',
     description: 'Validate, serialize, and download the current patch as a .vital preset.',
@@ -29,11 +32,22 @@ export function createExportPatchTool(session: SessionService, access: ExportPat
       const { filename } = inputSchema.parse(input)
       const adapter = snapshot.adapter
       const patch = session.getPatch()
-      const exported = adapter.exportPatch(patch)
-      const validation = adapter.importPatchStrict(exported.document)
+      const backing = session.getVitalBacking()
+      const validation =
+        backing === null
+          ? (() => {
+              const exported = adapter.exportPatch(patch)
+              const imported = adapter.importPatchStrict(exported.document)
+              return { valid: true, mode: 'strict', warnings: imported.warnings }
+            })()
+          : {
+              valid: true,
+              mode: 'retained',
+              preservedFeatures: session.getVitalBackingInfo(),
+            }
       return {
-        filename: adapter.downloadPatch(patch, filename),
-        validation: { valid: true, mode: 'strict', warnings: validation.warnings },
+        filename: adapter.downloadPatch(patch, backing, filename),
+        validation,
       }
     },
   }
