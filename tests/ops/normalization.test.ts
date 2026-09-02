@@ -53,8 +53,8 @@ describe('normalized unit bridge', () => {
     const indices = SAMPLES.map((value) => TEMPO_SYNC_DIVISIONS.indexOf(normalizedToLfoDivision(value)))
     expectMonotonic(indices)
     expect(normalizedToLfoDivision(0)).toBe('1/1')
-    expect(normalizedToLfoDivision(0.25)).toBe('1/1')
-    expect(lfoDivisionToNormalized('1/1')).toBe(0.25)
+    expect(normalizedToLfoDivision(0.25)).toBe('1/4')
+    expect(lfoDivisionToNormalized('1/1')).toBe(0)
     for (const division of TEMPO_SYNC_DIVISIONS) {
       expect(normalizedToLfoDivision(lfoDivisionToNormalized(division))).toBe(division)
     }

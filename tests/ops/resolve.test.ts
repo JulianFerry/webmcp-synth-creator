@@ -56,7 +56,7 @@ describe('Phase 5 operation resolver exact emitted paths', () => {
 
   it('space emits reverb paths and delay paths only when delay_amount is given', () => {
     expect(paths({ op: 'space', amount: 0.4 })).toEqual([
-      'effects.reverb.enabled', 'effects.reverb.mix', 'effects.reverb.decaySeconds', 'effects.reverb.predelay',
+      'effects.reverb.enabled', 'effects.reverb.mix', 'effects.reverb.size', 'effects.reverb.decaySeconds', 'effects.reverb.predelay',
     ])
     expect(resolveOps(patch(), [{ op: 'space', amount: 0.4, size: 0.8, predelay: 0.2, delay_amount: 0.5 }])).toEqual([
       { path: 'effects.reverb.enabled', value: true }, { path: 'effects.reverb.mix', value: 0.4 * 0.75 },
@@ -115,13 +115,14 @@ describe('Phase 5 operation resolver exact emitted paths', () => {
   it('layer emits exactly its oscillator-2 block, with a minimal none block', () => {
     expect(paths({ op: 'layer', role: 'sub' })).toEqual([
       'oscillators.1.enabled', 'oscillators.1.transposeSemitones',
-      'oscillators.1.unisonVoices', 'oscillators.1.unisonDetune', 'oscillators.1.wavetableId',
+      'oscillators.1.unisonVoices', 'oscillators.1.unisonDetune', 'oscillators.1.wavetableId', 'oscillators.1.level',
     ])
     expect(paths({ op: 'layer', role: 'sub', level: 0.2 })).toEqual([
       'oscillators.1.enabled', 'oscillators.1.transposeSemitones', 'oscillators.1.unisonVoices',
       'oscillators.1.unisonDetune', 'oscillators.1.wavetableId', 'oscillators.1.level',
     ])
     expect(paths({ op: 'layer', role: 'none' })).toEqual(['oscillators.1.level', 'oscillators.1.enabled'])
+    expect(resolveOps(patch(), [{ op: 'layer', role: 'sub' }])).toContainEqual({ path: 'oscillators.1.level', value: 0.35 })
   })
 
   it('pitch emits exactly the four specified voice paths', () => {

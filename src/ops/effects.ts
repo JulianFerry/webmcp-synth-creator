@@ -24,10 +24,10 @@ export function resolveSpace(op: Extract<Operation, { op: 'space' }>): RawChange
   const changes: RawChange[] = [
     { path: 'effects.reverb.enabled', value: op.amount > 0.02 },
     { path: 'effects.reverb.mix', value: op.amount * 0.75 },
+    { path: 'effects.reverb.size', value: op.size ?? (0.3 + op.amount * 0.5) },
     { path: 'effects.reverb.decaySeconds', value: normalizedToReverbDecaySeconds(0.3 + op.amount * 0.5) },
     { path: 'effects.reverb.predelay', value: op.predelay ?? 0.1 },
   ]
-  if (op.size !== undefined) changes.splice(2, 0, { path: 'effects.reverb.size', value: op.size })
   if (op.delay_amount !== undefined) changes.push(
     { path: 'effects.delay.enabled', value: op.delay_amount > 0.02 },
     { path: 'effects.delay.mix', value: op.delay_amount * 0.6 },

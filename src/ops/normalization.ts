@@ -12,7 +12,6 @@ const CUTOFF_MIN_MIDI_NOTE = 8
 const CUTOFF_MAX_MIDI_NOTE = 136
 const LFO_MIN_HZ = 0.01
 const LFO_MAX_HZ = 40
-const LFO_SYNC_LADDER_START = 0.25
 const GLIDE_MAX_SECONDS = 5
 const GLIDE_MIN_EXPONENT = -10
 
@@ -77,21 +76,14 @@ export function glideSecondsToNormalized(seconds: number): number {
 
 export function normalizedToLfoDivision(normalized: number): TempoSyncDivision {
   assertNormalized(normalized, 'Normalized LFO rate')
-  const ladderPosition = Math.max(
-    0,
-    (normalized - LFO_SYNC_LADDER_START) / (1 - LFO_SYNC_LADDER_START),
-  )
-  const index = Math.round(ladderPosition * (TEMPO_SYNC_DIVISIONS.length - 1))
+  const index = Math.round(normalized * (TEMPO_SYNC_DIVISIONS.length - 1))
   return TEMPO_SYNC_DIVISIONS[index]
 }
 
 export function lfoDivisionToNormalized(division: TempoSyncDivision): number {
   const index = TEMPO_SYNC_DIVISIONS.indexOf(division)
   if (index < 0) throw new RangeError(`Unsupported LFO division: ${division}`)
-  return (
-    LFO_SYNC_LADDER_START +
-    (index / (TEMPO_SYNC_DIVISIONS.length - 1)) * (1 - LFO_SYNC_LADDER_START)
-  )
+  return index / (TEMPO_SYNC_DIVISIONS.length - 1)
 }
 
 export function normalizedToLfoHz(normalized: number): number {

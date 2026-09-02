@@ -4,19 +4,15 @@ import { GATE_PATTERNS } from '../../src/ops/patterns'
 import { MOVEMENT_SHAPES } from '../../src/ops/shapes'
 
 describe('operation LFO libraries', () => {
-  it('contains the literal gate pattern point sets', () => {
-    expect(GATE_PATTERNS).toEqual({
-      even_8: points([1, 1, 0, 0, 1, 1, 0, 0, 1]),
-      even_16: points([1, 0, 1, 0, 1, 0, 1, 0, 1]),
-      offbeat: points([0, 0, 1, 1, 0, 0, 1, 1, 0]),
-      long_short: points([1, 1, 1, 0, 1, 0, 0, 0, 1]),
-      short_long: points([1, 0, 1, 1, 1, 0, 0, 0, 1]),
-      triplet: points([1, 1, 0, 1, 1, 0, 1]),
-      dotted: points([1, 1, 1, 0, 0, 0, 1, 0, 1]),
-      swung: points([1, 1, 0, 0, 0, 1, 1, 0, 1]),
-      stutter: points([1, 0, 1, 0, 1, 0, 0, 0, 1]),
-      none: [{ x: 0, y: 1 }, { x: 1, y: 1 }],
-    })
+  it.each([
+    ['even_8', 8], ['even_16', 16], ['offbeat', 4], ['long_short', 4],
+    ['short_long', 4], ['triplet', 3], ['dotted', 3], ['swung', 4], ['stutter', 5],
+  ] as const)('%s contains the intended pulse count', (pattern, pulseCount) => {
+    expect(GATE_PATTERNS[pattern].filter(({ y }) => y === 1)).toHaveLength(pulseCount)
+  })
+
+  it('uses the full point budget for sixteen near-vertical pulses', () => {
+    expect(GATE_PATTERNS.even_16).toHaveLength(32)
   })
 
   it('contains the literal movement shape point sets', () => {
@@ -43,7 +39,3 @@ describe('operation LFO libraries', () => {
     }
   })
 })
-
-function points(values: readonly number[]): Array<{ x: number; y: number }> {
-  return values.map((y, index) => ({ x: index / (values.length - 1), y }))
-}

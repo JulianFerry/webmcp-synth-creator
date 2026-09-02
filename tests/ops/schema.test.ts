@@ -96,8 +96,8 @@ describe('operation schema registry parity', () => {
     })
   })
 
-  it('documents layer level as an omitted partial write', () => {
+  it('documents the layer role level default and override', () => {
     const layer = OPERATION_DEFINITIONS.find(({ name }) => name === 'layer')!
-    expect(layer.mapping).toContain('when level is omitted, oscillators.1.level is left untouched')
+    expect(layer.mapping).toContain("otherwise the role's default level is written")
   })
 })

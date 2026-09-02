@@ -583,7 +583,7 @@ describe('WebMCP tool registration', () => {
       expect(patch.filter).toMatchObject({ enabled: true, type: 'lowpass', slope: 24, cutoffHz: normalizedToCutoffHz(0.76) })
     }],
     ['movement', { movement: 0.4 }, (patch: ReturnType<typeof getTemplatePatch>) => {
-      expect(patch.lfo2).toMatchObject({ enabled: true, rate: { mode: 'sync', division: '1/1' }, smoothing: 0.4, target: 'position', scope: 'all', depth: 0.4 })
+      expect(patch.lfo2).toMatchObject({ enabled: true, rate: { mode: 'sync', division: '1/4' }, smoothing: 0.4, target: 'position', scope: 'all', depth: 0.4 })
       expect(patch.modulations).toEqual(expect.arrayContaining([expect.objectContaining({ source: 'lfo2', destination: 'oscillator1.wavetablePosition', amount: 0.4, bipolar: true })]))
     }],
     ['width', { width: 0.7 }, (patch: ReturnType<typeof getTemplatePatch>) => {

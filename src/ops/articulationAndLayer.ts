@@ -39,6 +39,6 @@ export function resolveLayer(patch: PatchState, op: Extract<Operation, { op: 'la
     { path: 'oscillators.1.unisonVoices', value: layer.unisonVoices },
     { path: 'oscillators.1.unisonDetune', value: layer.unisonDetune },
     { path: 'oscillators.1.wavetableId', value: op.wavetable ?? ('wavetableId' in layer ? layer.wavetableId : patch.oscillators[0].wavetableId) },
-    ...(op.level === undefined ? [] : [{ path: 'oscillators.1.level' as const, value: op.level }]),
+    { path: 'oscillators.1.level', value: op.level ?? layer.level },
   ]
 }

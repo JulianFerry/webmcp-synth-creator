@@ -103,7 +103,7 @@ delay.time_right offset is dropped in V1.`,
     fields: { amount: normalized(), size: optional(normalized()), delay_amount: optional(normalized()), predelay: optional(normalized()) },
     mapping: `effects.reverb.enabled = amount > 0.02
 effects.reverb.mix = amount*0.75
-if size given: effects.reverb.size = size
+effects.reverb.size = size ?? (0.3 + amount*0.5)
 effects.reverb.decaySeconds = revDecay(0.3 + amount*0.5)
 effects.reverb.predelay = predelay ?? 0.1
 if delay_amount given: effects.delay.enabled = delay_amount > 0.02; effects.delay.mix = delay_amount*0.6; effects.delay.mode = "sync"; effects.delay.division = "1/8"; effects.delay.feedback = 0.2 + delay_amount*0.4`,
@@ -159,7 +159,7 @@ oscillators.N.enabled = value > 0 for osc2/osc3.`,
       level: optional(normalized()), wavetable: optional(text()),
     },
     mapping: `Role table (transpose, default level, voices, detune, wavetableId): sub (-12, 0.35, 1, 0, sine); octave_up (+12, 0.22, 1, 0, inherit); fifth (+7, 0.18, 1, 0, inherit); unison_detune (0, 0.45, 3, 0.4, inherit); none disables oscillator 2 at level 0.
-wavetable overrides the role table. level is a partial-write override: when level is omitted, oscillators.1.level is left untouched.`,
+wavetable and level override the role table; otherwise the role's default level is written.`,
   },
   {
     name: 'pitch',

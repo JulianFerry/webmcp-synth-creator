@@ -71,6 +71,7 @@ describe('literal section 6 operation mapping table', () => {
     })
     expect(asRecord({ op: 'space', amount: 0.4 })).toEqual({
       'effects.reverb.enabled': true, 'effects.reverb.mix': 0.4 * 0.75,
+      'effects.reverb.size': 0.3 + 0.4 * 0.5,
       'effects.reverb.decaySeconds': normalizedToReverbDecaySeconds(0.5), 'effects.reverb.predelay': 0.1,
     })
     expect(asRecord({ op: 'space', amount: 0.4, delay_amount: 0.5 })).toMatchObject({
@@ -110,14 +111,14 @@ describe('literal section 6 operation mapping table', () => {
   })
 
   it.each([
-    ['sub', -12, 1, 0, 'sine'], ['octave_up', 12, 1, 0, createDefaultPatch().oscillators[0].wavetableId],
-    ['fifth', 7, 1, 0, createDefaultPatch().oscillators[0].wavetableId],
-    ['unison_detune', 0, 3, 0.4, createDefaultPatch().oscillators[0].wavetableId],
-  ] as const)('maps layer role %s without an omitted level write', (role, transpose, voices, detune, wavetable) => {
+    ['sub', -12, 0.35, 1, 0, 'sine'], ['octave_up', 12, 0.22, 1, 0, createDefaultPatch().oscillators[0].wavetableId],
+    ['fifth', 7, 0.18, 1, 0, createDefaultPatch().oscillators[0].wavetableId],
+    ['unison_detune', 0, 0.45, 3, 0.4, createDefaultPatch().oscillators[0].wavetableId],
+  ] as const)('maps layer role %s with its default level', (role, transpose, level, voices, detune, wavetable) => {
     expect(asRecord({ op: 'layer', role })).toEqual({
       'oscillators.1.enabled': true, 'oscillators.1.transposeSemitones': transpose,
       'oscillators.1.unisonVoices': voices, 'oscillators.1.unisonDetune': detune,
-      'oscillators.1.wavetableId': wavetable,
+      'oscillators.1.wavetableId': wavetable, 'oscillators.1.level': level,
     })
   })
 
