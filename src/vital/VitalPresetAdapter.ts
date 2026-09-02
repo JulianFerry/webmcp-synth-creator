@@ -193,6 +193,7 @@ export class VitalPresetAdapter {
     const modulationSlots = getVitalSlots(output.settings, 'modulations')
     const modulationExport = buildVitalModulations(patch.modulations, modulationSlots.length, {
       lfo1: patch.lfo1.enabled,
+      lfo2: patch.lfo2.enabled,
       modEnvelope: true,
     })
     setVitalMetadata(output, {
@@ -221,6 +222,7 @@ export class VitalPresetAdapter {
 
     const lfos = getVitalSlots(output.settings, 'lfos')
     replaceVitalSlot(lfos, 0, buildVitalLfo(patch.lfo1), 'LFO')
+    replaceVitalSlot(lfos, 1, buildVitalLfo(patch.lfo2, 'Wavetable Workbench LFO 2'), 'LFO')
 
     replaceVitalSlots(output.settings, 'modulations', modulationExport.routes)
 
@@ -257,8 +259,8 @@ export class VitalPresetAdapter {
       })
     }
 
-    if (backing !== null && before.lfo1.enabled !== after.lfo1.enabled) {
-      operations.push(...retainedLfoBypassOperations(backing.document, after.lfo1.enabled))
+    if (backing !== null && (!valuesEqual(before.lfo1, after.lfo1) || !valuesEqual(before.lfo2, after.lfo2))) {
+      operations.push(...retainedLfoBypassOperations(backing.document, after))
     }
     return operations
   }
@@ -313,6 +315,7 @@ export class VitalPresetAdapter {
     const modulationSlotCount = getVitalSlots(this.template.settings, 'modulations').length
     const modulationValues = buildVitalModulations(patch.modulations, modulationSlotCount, {
       lfo1: patch.lfo1.enabled,
+      lfo2: patch.lfo2.enabled,
       modEnvelope: true,
     }).values
     return {
@@ -381,10 +384,20 @@ export class VitalPresetAdapter {
       ) {
         ;(outputLfos[0] as Record<string, unknown>).smooth = patch.lfo1.smooth
       }
+      if (outputLfos.length > 1 && !valuesEqual(patch.lfo2.points, baseline.lfo2.points)) {
+        outputLfos[1] = buildVitalLfo(patch.lfo2, 'Wavetable Workbench LFO 2')
+      } else if (
+        outputLfos.length > 1 &&
+        patch.lfo2.smooth !== baseline.lfo2.smooth &&
+        outputLfos[1] !== null &&
+        typeof outputLfos[1] === 'object'
+      ) {
+        ;(outputLfos[1] as Record<string, unknown>).smooth = patch.lfo2.smooth
+      }
     }
 
-    if (!valuesEqual(patch.lfo1, baseline.lfo1)) {
-      applyRetainedWorkbenchLfoRouting(output, patch.lfo1.enabled)
+    if (!valuesEqual(patch.lfo1, baseline.lfo1) || !valuesEqual(patch.lfo2, baseline.lfo2)) {
+      applyRetainedWorkbenchLfoRouting(output, patch)
     }
 
     return { document: output, filename, json: JSON.stringify(output) }
@@ -547,37 +560,39 @@ function retainedEffectOrder(value: unknown, modeledOrder: PatchState['effects']
 
 function retainedLfoBypassOperations(
   document: VitalPresetDocument,
-  enabled: boolean,
+  patch: PatchState,
 ): VitalControlOperation[] {
-  return retainedWorkbenchLfoSlots(document).map((index) => ({
+  const routes = withWorkbenchLfoRouting(patch).modulations
+  return retainedWorkbenchLfoSlots(document, routes.length).map((index, routeIndex) => ({
     name: `modulation_${index + 1}_bypass`,
-    value: Number(!enabled),
+    value: Number(!(routes[routeIndex].source === 'lfo1' ? patch.lfo1.enabled : patch.lfo2.enabled)),
   }))
 }
 
 function applyRetainedWorkbenchLfoRouting(
   document: VitalPresetDocument,
-  enabled: boolean,
+  patch: PatchState,
 ): void {
   const routes = document.settings.modulations
   if (!Array.isArray(routes)) throw new VitalExportError('Imported Vital preset has no modulation slots')
-  const slots = retainedWorkbenchLfoSlots(document)
+  const derivedRoutes = withWorkbenchLfoRouting(patch).modulations
+  const slots = retainedWorkbenchLfoSlots(document, derivedRoutes.length)
   slots.forEach((index, routeIndex) => {
-    const route = WORKBENCH_LFO_ROUTES[routeIndex]
+    const route = derivedRoutes[routeIndex]
     routes[index] = {
-      source: VITAL_MODULATION_SOURCES.lfo1,
+      source: VITAL_MODULATION_SOURCES[route.source],
       destination: VITAL_MODULATION_DESTINATIONS[route.destination],
     }
     const slot = index + 1
     document.settings[`modulation_${slot}_amount`] = route.amount
-    document.settings[`modulation_${slot}_bipolar`] = 0
+    document.settings[`modulation_${slot}_bipolar`] = Number(route.bipolar)
     document.settings[`modulation_${slot}_stereo`] = 0
     document.settings[`modulation_${slot}_power`] = 0
-    document.settings[`modulation_${slot}_bypass`] = Number(!enabled)
+    document.settings[`modulation_${slot}_bypass`] = Number(!(route.source === 'lfo1' ? patch.lfo1.enabled : patch.lfo2.enabled))
   })
 }
 
-function retainedWorkbenchLfoSlots(document: VitalPresetDocument): number[] {
+function retainedWorkbenchLfoSlots(document: VitalPresetDocument, requiredCount = WORKBENCH_LFO_ROUTES.length): number[] {
   const routes = document.settings.modulations
   if (!Array.isArray(routes)) return []
   const available = routes.flatMap((route, index) => {
@@ -591,10 +606,10 @@ function retainedWorkbenchLfoSlots(document: VitalPresetDocument): number[] {
     }
     return []
   })
-  if (available.length < WORKBENCH_LFO_ROUTES.length) {
+  if (available.length < requiredCount) {
     throw new VitalExportError(
-      `Imported Vital preset needs ${WORKBENCH_LFO_ROUTES.length} free modulation slots for the Workbench LFO`,
+      `Imported Vital preset needs ${requiredCount} free modulation slots for the Workbench LFOs`,
     )
   }
-  return available.slice(0, WORKBENCH_LFO_ROUTES.length)
+  return available.slice(0, requiredCount)
 }

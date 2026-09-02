@@ -61,6 +61,7 @@ interface PendingRevision {
 
 const FULL_STATE_PATHS = new Set([
   'lfo1.points',
+  'lfo2.points',
   'oscillators.0.wavetableId',
   'oscillators.1.wavetableId',
   'oscillators.2.wavetableId',

@@ -1,4 +1,4 @@
-import type { EnvelopeState, OscillatorState } from './types'
+import type { EnvelopeState, LfoState, OscillatorState } from './types'
 import { DEFAULT_EFFECT_ORDER } from './effects'
 import {
   LEGACY_ENVELOPE_ATTACK_CURVE,
@@ -29,6 +29,18 @@ const envelopeV3Defaults = {
   EnvelopeState,
   'delaySeconds' | 'attackCurve' | 'decayCurve' | 'releaseCurve'
 >
+
+const SECOND_LFO_DEFAULTS = {
+  enabled: false,
+  points: [{ x: 0, y: 0.5, power: 0 }, { x: 1, y: 0.5, power: 0 }],
+  rate: { mode: 'sync', division: '1/4' },
+  phase: 0,
+  smooth: false,
+  smoothing: LEGACY_LFO_SMOOTHING_OFF,
+  target: 'position',
+  scope: 'all',
+  depth: 0,
+} as const satisfies LfoState
 
 export function upgradePatchDocument(value: unknown): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value
@@ -101,6 +113,23 @@ export function upgradePatchDocument(value: unknown): unknown {
           highCut: 110 / 128,
         },
       },
+    }
+    changed = true
+  }
+
+  if (document.version === 3) {
+    const lfo1 = document.lfo1
+    if (!lfo1 || typeof lfo1 !== 'object' || Array.isArray(lfo1)) return value
+    document = {
+      ...document,
+      version: 4,
+      lfo1: {
+        ...(lfo1 as Record<string, unknown>),
+        target: 'level',
+        scope: 'all',
+        depth: 0.68,
+      },
+      lfo2: structuredClone(SECOND_LFO_DEFAULTS),
     }
     changed = true
   }

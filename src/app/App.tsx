@@ -33,7 +33,10 @@ export function App({ store, session = undefined }: AppProps) {
     resetKey: state.controlResetKey,
     wavetables,
   }))
-  const lfo = { lfo: patch.lfo1, onChange: state.applyPatchChange, resetKey: state.controlResetKey }
+  const lfos = [
+    { slot: 1 as const, lfo: patch.lfo1, onChange: state.applyPatchChange, resetKey: state.controlResetKey },
+    { slot: 2 as const, lfo: patch.lfo2, onChange: state.applyPatchChange, resetKey: state.controlResetKey },
+  ] as const
   const envelope = { envelope: patch.ampEnvelope, onCancelPreview: state.cancelPatchPreview, onChange: state.applyPatchChange, onPreview: state.previewPatchChange, previewEnvelope: audio.draft.ampEnvelope, resetKey: state.controlResetKey }
   const audition = { audio, onNoteOff: state.noteOff, onNoteOn: state.noteOn, onReleaseAll: state.releaseAllNotes }
 
@@ -55,7 +58,7 @@ export function App({ store, session = undefined }: AppProps) {
       history={history}
       onChange={setActiveTab}
     >
-      {activeTab === 'oscillators' ? <OscillatorsTab envelope={envelope} lfo={lfo} oscillators={oscillators} /> : null}
+      {activeTab === 'oscillators' ? <OscillatorsTab envelope={envelope} lfos={[...lfos]} oscillators={oscillators} /> : null}
       {activeTab === 'modulation-effects' ? <ModulationEffectsTab audio={audio} patch={patch} resetKey={state.controlResetKey} onCancelPreview={state.cancelPatchPreview} onChange={state.applyPatchChange} onPreview={state.previewPatchChange} /> : null}
     </WorkbenchTabs>
     <HelpSystem activeTab={activeTab} entryPoint={helpEntryPoint} onChangeTab={setActiveTab} onClose={() => setHelpEntryPoint(null)} />

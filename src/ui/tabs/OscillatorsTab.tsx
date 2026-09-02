@@ -6,16 +6,17 @@ import { OscillatorEditorDeck } from '../oscillators/OscillatorEditorDeck'
 
 interface OscillatorsTabProps {
   envelope: ComponentProps<typeof EnvelopePanel>
-  lfo: ComponentProps<typeof LfoPanel>
+  lfos: [ComponentProps<typeof LfoPanel>, ComponentProps<typeof LfoPanel>]
   oscillators: Array<ComponentProps<typeof DetailedOscillatorEditor>>
 }
 
-export function OscillatorsTab({ envelope, lfo, oscillators }: OscillatorsTabProps) {
+export function OscillatorsTab({ envelope, lfos, oscillators }: OscillatorsTabProps) {
   return <div className="oscillators-workspace">
     <OscillatorEditorDeck oscillators={oscillators} />
-    <div className="oscillator-modulator-row">
-      <EnvelopePanel {...envelope} />
-      <LfoPanel {...lfo} />
+    <div className="oscillator-modulator-row"><EnvelopePanel {...envelope} /></div>
+    <div className="oscillator-lfo-row">
+      <LfoPanel {...lfos[0]} />
+      <LfoPanel {...lfos[1]} />
     </div>
   </div>
 }

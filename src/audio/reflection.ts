@@ -26,6 +26,7 @@ export interface AudioPatchReflection {
   modEnvelope: EnvelopeState
   filter: FilterState
   lfo1: LfoState
+  lfo2: LfoState
   modulations: ModulationRoute[]
   voice: VoiceState
   effects: PatchState['effects']
@@ -56,6 +57,7 @@ export function patchReflection(patch: PatchState): AudioPatchReflection {
     modEnvelope: structuredClone(patch.modEnvelope),
     filter: structuredClone(patch.filter),
     lfo1: structuredClone(patch.lfo1),
+    lfo2: structuredClone(patch.lfo2),
     modulations: structuredClone(patch.modulations),
     voice: structuredClone(patch.voice),
     effects: structuredClone(patch.effects),

@@ -1,6 +1,18 @@
 import type { PatchState, PatchSummary } from './types'
 
 export function summarizePatch(patch: PatchState): PatchSummary {
+  const summarizeLfo = (lfo: PatchState['lfo1']) => ({
+    enabled: lfo.enabled,
+    pointCount: lfo.points.length,
+    points: structuredClone(lfo.points),
+    rate: structuredClone(lfo.rate),
+    phase: lfo.phase,
+    smooth: lfo.smooth,
+    smoothing: lfo.smoothing,
+    target: lfo.target,
+    scope: lfo.scope,
+    depth: lfo.depth,
+  })
   return {
     version: patch.version,
     name: patch.metadata.name,
@@ -23,15 +35,8 @@ export function summarizePatch(patch: PatchState): PatchSummary {
     ampEnvelope: structuredClone(patch.ampEnvelope),
     modEnvelope: structuredClone(patch.modEnvelope),
     filter: structuredClone(patch.filter),
-    lfo1: {
-      enabled: patch.lfo1.enabled,
-      pointCount: patch.lfo1.points.length,
-      points: structuredClone(patch.lfo1.points),
-      rate: structuredClone(patch.lfo1.rate),
-      phase: patch.lfo1.phase,
-      smooth: patch.lfo1.smooth,
-      smoothing: patch.lfo1.smoothing,
-    },
+    lfo1: summarizeLfo(patch.lfo1),
+    lfo2: summarizeLfo(patch.lfo2),
     voice: structuredClone(patch.voice),
     effects: structuredClone(patch.effects),
     wavetables: Object.values(patch.wavetableData).map((wavetable) => ({

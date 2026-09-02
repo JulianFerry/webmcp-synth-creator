@@ -1,39 +1,18 @@
 import { describe, expect, it } from 'vitest'
 
 import { createDefaultPatch } from '../../src/patch/defaults'
-import { parsePatchState } from '../../src/patch/schemas'
+import { routesFor } from '../../src/patch/modulation'
 
-describe('fixed Workbench modulation routing', () => {
-  it('normalizes valid preset-specific routes to the global oscillator-level LFO', () => {
+describe('declared Workbench LFO routing', () => {
+  it.each([
+    ['level', 'all', ['oscillator1.level', 'oscillator2.level', 'oscillator3.level'], -0.4, false],
+    ['position', 2, ['oscillator2.wavetablePosition'], 0.4, true],
+    ['pitch', 3, ['oscillator3.pitch'], 0.4, true],
+    ['cutoff', 'all', ['filter.cutoff'], 0.4, true],
+  ] as const)('derives %s / %s routing', (target, scope, destinations, amount, bipolar) => {
     const patch = createDefaultPatch()
-    patch.modulations = [
-      {
-        id: 'preset-specific-route',
-        source: 'lfo1',
-        destination: 'filter.cutoff',
-        amount: 0.25,
-        bipolar: true,
-      },
-    ]
-
-    expect(parsePatchState(patch).modulations.map(({ destination }) => destination)).toEqual([
-      'oscillator1.level',
-      'oscillator2.level',
-      'oscillator3.level',
-    ])
-  })
-
-  it('rejects unknown route members and duplicate route pairs', () => {
-    const unknownSource = createDefaultPatch() as any
-    unknownSource.modulations[0].source = 'macro1'
-    expect(() => parsePatchState(unknownSource)).toThrow()
-
-    const unknownDestination = createDefaultPatch() as any
-    unknownDestination.modulations[0].destination = 'filter.warmth'
-    expect(() => parsePatchState(unknownDestination)).toThrow()
-
-    const duplicate = createDefaultPatch()
-    duplicate.modulations.push({ ...duplicate.modulations[0], id: 'duplicate-id' })
-    expect(() => parsePatchState(duplicate)).toThrow(/Duplicate modulation route/)
+    const routes = routesFor({ ...patch.lfo1, target, scope, depth: 0.4 }, 'lfo1')
+    expect(routes.map((route) => route.destination)).toEqual(destinations)
+    expect(routes.every((route) => route.amount === amount && route.bipolar === bipolar)).toBe(true)
   })
 })

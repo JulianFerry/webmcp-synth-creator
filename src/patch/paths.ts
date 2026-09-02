@@ -18,6 +18,8 @@ import type { PatchState } from './types'
 export const FILTER_TYPES = ['lowpass', 'highpass', 'bandpass', 'notch'] as const
 export const FILTER_SLOPES = [12, 24] as const
 export const DISTORTION_TYPES = ['soft_clip', 'hard_clip', 'sine_fold', 'bit_crush'] as const
+export const LFO_TARGETS = ['level', 'position', 'pitch', 'cutoff'] as const
+export const LFO_SCOPES = ['all', 1, 2, 3] as const
 
 const unitInterval = z.number().finite().min(0).max(1)
 const seconds = (maximum: number) => z.number().finite().min(0).max(maximum)
@@ -140,6 +142,18 @@ export const PATCH_PATH_REGISTRY = {
   'lfo1.phase': metadata(unitInterval, 'normalized 0..1'),
   'lfo1.smooth': metadata(z.boolean(), 'boolean'),
   'lfo1.smoothing': metadata(unitInterval, 'normalized 0..1'),
+  'lfo1.target': metadata(z.enum(LFO_TARGETS), 'enum'),
+  'lfo1.scope': metadata(z.union([z.literal('all'), z.literal(1), z.literal(2), z.literal(3)]), 'all or oscillator number'),
+  'lfo1.depth': metadata(unitInterval, 'normalized 0..1'),
+  'lfo2.enabled': metadata(z.boolean(), 'boolean'),
+  'lfo2.points': metadata(lfoPoints, 'normalized point list'),
+  'lfo2.rate': metadata(lfoRate, 'tempo division or hertz'),
+  'lfo2.phase': metadata(unitInterval, 'normalized 0..1'),
+  'lfo2.smooth': metadata(z.boolean(), 'boolean'),
+  'lfo2.smoothing': metadata(unitInterval, 'normalized 0..1'),
+  'lfo2.target': metadata(z.enum(LFO_TARGETS), 'enum'),
+  'lfo2.scope': metadata(z.union([z.literal('all'), z.literal(1), z.literal(2), z.literal(3)]), 'all or oscillator number'),
+  'lfo2.depth': metadata(unitInterval, 'normalized 0..1'),
   'voice.polyphony': metadata(z.number().int().min(1).max(16), 'voice count'),
   'voice.legato': metadata(z.boolean(), 'boolean'),
   'voice.glideSeconds': metadata(seconds(5), 'seconds'),

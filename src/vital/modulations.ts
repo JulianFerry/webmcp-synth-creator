@@ -7,6 +7,7 @@ import { VitalExportError } from './parameterMap'
 
 export const VITAL_MODULATION_SOURCES: Record<ModulationSource, string> = {
   lfo1: 'lfo_1',
+  lfo2: 'lfo_2',
   modEnvelope: 'env_2',
   velocity: 'note_velocity',
 }

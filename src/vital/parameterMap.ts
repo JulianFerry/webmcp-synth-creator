@@ -31,7 +31,8 @@ const VITAL_DELAY_TEMPO_INDEX = {
 } as const satisfies Record<TempoSyncDivision, number>
 
 export function mapStructuredVitalParameters(patch: PatchState): Record<string, number> {
-  const lfoRate = mapVitalLfoRate(patch.lfo1.rate)
+  const lfo1Rate = mapVitalLfoRate(patch.lfo1.rate)
+  const lfo2Rate = mapVitalLfoRate(patch.lfo2.rate)
   const delay = patch.effects.delay
   const delayDivision = delay.division ?? '1/8'
   const delaySync = delay.mode === 'free' ? 0 : delayDivision.endsWith('T') ? 3 : 1
@@ -39,9 +40,12 @@ export function mapStructuredVitalParameters(patch: PatchState): Record<string, 
 
   return {
     effect_chain_order: encodeVitalEffectOrder(patch.effects.order),
-    lfo_1_sync: lfoRate.sync,
-    lfo_1_tempo: lfoRate.tempo,
-    lfo_1_frequency: lfoRate.frequency,
+    lfo_1_sync: lfo1Rate.sync,
+    lfo_1_tempo: lfo1Rate.tempo,
+    lfo_1_frequency: lfo1Rate.frequency,
+    lfo_2_sync: lfo2Rate.sync,
+    lfo_2_tempo: lfo2Rate.tempo,
+    lfo_2_frequency: lfo2Rate.frequency,
     delay_sync: delaySync,
     delay_aux_sync: delaySync,
     delay_tempo: VITAL_DELAY_TEMPO_INDEX[delayDivision],

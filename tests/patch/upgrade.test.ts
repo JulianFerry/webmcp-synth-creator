@@ -3,12 +3,13 @@ import { describe, expect, it } from 'vitest'
 import verticalSliceFixture from '../../fixtures/patches/vertical-slice.patch.json'
 import { parsePatchState } from '../../src/patch/schemas'
 import { upgradePatchDocument } from '../../src/patch/upgrade'
+import { WORKBENCH_LFO_ROUTES } from '../../src/patch/modulation'
 
 describe('patch document upgrade', () => {
   it('upgrades a version 1 document with a silent third oscillator', () => {
     const upgraded = parsePatchState(verticalSliceFixture)
 
-    expect(upgraded.version).toBe(3)
+    expect(upgraded.version).toBe(4)
     expect(upgraded.oscillators).toHaveLength(3)
     expect(upgraded.oscillators[2]).toEqual({
       enabled: false,
@@ -57,9 +58,13 @@ describe('patch document upgrade', () => {
     delete downgraded.effects.reverb.highCut
 
     const upgraded = parsePatchState(downgraded)
-    expect(upgraded.version).toBe(3)
+    expect(upgraded.version).toBe(4)
     expect(upgraded.oscillators.map(({ pan }) => pan)).toEqual([0.5, 0.5, 0.5])
     expect(upgraded.lfo1.smoothing).toBe(upgraded.lfo1.smooth ? 5 / 14 : 1.5 / 14)
+    expect(upgraded.lfo1).toMatchObject({ target: 'level', scope: 'all', depth: 0.68 })
+    expect(upgraded.lfo2).toMatchObject({ enabled: false, target: 'position', scope: 'all', depth: 0 })
+    expect(upgraded.modulations.slice(0, 3)).toEqual(WORKBENCH_LFO_ROUTES)
+    expect(upgraded.modulations.slice(3).every(({ amount }) => amount === 0)).toBe(true)
     expect(upgraded.effects.reverb).toMatchObject({ predelay: 0, lowCut: 0, highCut: 110 / 128 })
   })
 

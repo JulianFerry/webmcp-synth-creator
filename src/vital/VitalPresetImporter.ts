@@ -90,6 +90,9 @@ const SUPPORTED_SETTING_KEYS = new Set([
   'lfo_1_sync',
   'lfo_1_tempo',
   'lfo_1_frequency',
+  'lfo_2_sync',
+  'lfo_2_tempo',
+  'lfo_2_frequency',
   'delay_sync',
   'delay_aux_sync',
   'delay_tempo',
@@ -523,16 +526,17 @@ function parseOscillator(
   }
 }
 
-function parseRate(settings: Record<string, unknown>): LfoRate {
-  if (setting(settings, 'lfo_1_sync_type') !== 0) {
-    throw new VitalImportError('LFO 1 uses an unsupported sync type')
+function parseRate(settings: Record<string, unknown>, slot: 1 | 2): LfoRate {
+  const prefix = `lfo_${slot}`
+  if (setting(settings, `${prefix}_sync_type`) !== 0) {
+    throw new VitalImportError(`LFO ${slot} uses an unsupported sync type`)
   }
-  const sync = integer(setting(settings, 'lfo_1_sync'), 'lfo_1_sync')
-  if (sync === 0) return { mode: 'free', hz: 2 ** setting(settings, 'lfo_1_frequency') }
-  const tempo = integer(setting(settings, 'lfo_1_tempo'), 'lfo_1_tempo')
+  const sync = integer(setting(settings, `${prefix}_sync`), `${prefix}_sync`)
+  if (sync === 0) return { mode: 'free', hz: 2 ** setting(settings, `${prefix}_frequency`) }
+  const tempo = integer(setting(settings, `${prefix}_tempo`), `${prefix}_tempo`)
   const division = sync === 1 ? VITAL_TEMPO_DIVISIONS[tempo] : VITAL_TRIPLET_DIVISIONS[tempo]
   if ((sync !== 1 && sync !== 3) || !division) {
-    throw new VitalImportError('LFO 1 uses an unsupported synchronized rate')
+    throw new VitalImportError(`LFO ${slot} uses an unsupported synchronized rate`)
   }
   return { mode: 'sync', division }
 }
@@ -542,33 +546,37 @@ function parseLfo(
   settings: Record<string, unknown>,
   enabled: boolean,
   scalars: DecodedVitalScalars,
+  slot: 1 | 2,
+  routing: Pick<LfoState, 'target' | 'scope' | 'depth'>,
 ): LfoState {
-  const lfo = record(value, 'Vital LFO 1')
-  assertExactKeys(lfo, ['name', 'num_points', 'points', 'powers', 'smooth'], 'Vital LFO 1')
-  stringValue(lfo.name, 'Vital LFO 1 name')
-  const pointCount = integer(lfo.num_points, 'Vital LFO 1 num_points')
+  const label = `Vital LFO ${slot}`
+  const lfo = record(value, label)
+  assertExactKeys(lfo, ['name', 'num_points', 'points', 'powers', 'smooth'], label)
+  stringValue(lfo.name, `${label} name`)
+  const pointCount = integer(lfo.num_points, `${label} num_points`)
   if (pointCount < 2 || pointCount > 32) {
-    throw new VitalImportError('Vital LFO 1 must contain 2 to 32 points')
+    throw new VitalImportError(`${label} must contain 2 to 32 points`)
   }
-  const pointValues = array(lfo.points, 'Vital LFO 1 points')
-  const powers = array(lfo.powers, 'Vital LFO 1 powers')
+  const pointValues = array(lfo.points, `${label} points`)
+  const powers = array(lfo.powers, `${label} powers`)
   if (pointValues.length !== pointCount * 2 || powers.length !== pointCount) {
-    throw new VitalImportError('Vital LFO 1 point arrays do not match num_points')
+    throw new VitalImportError(`${label} point arrays do not match num_points`)
   }
-  if (typeof lfo.smooth !== 'boolean') throw new VitalImportError('Vital LFO 1 smooth must be boolean')
+  if (typeof lfo.smooth !== 'boolean') throw new VitalImportError(`${label} smooth must be boolean`)
   return {
     enabled,
     points: Array.from({ length: pointCount }, (_, index) => ({
-      x: finiteNumber(pointValues[index * 2], `Vital LFO 1 point ${index + 1} x`),
+      x: finiteNumber(pointValues[index * 2], `${label} point ${index + 1} x`),
       y: decodeVitalLfoPointValue(
-        finiteNumber(pointValues[index * 2 + 1], `Vital LFO 1 point ${index + 1} y`),
+        finiteNumber(pointValues[index * 2 + 1], `${label} point ${index + 1} y`),
       ),
-      power: finiteNumber(powers[index], `Vital LFO 1 point ${index + 1} power`),
+      power: finiteNumber(powers[index], `${label} point ${index + 1} power`),
     })),
-    rate: parseRate(settings),
-    phase: scalar(scalars, 'lfo1.phase'),
+    rate: parseRate(settings, slot),
+    phase: scalar(scalars, `lfo${slot}.phase`),
     smooth: lfo.smooth,
-    smoothing: scalar(scalars, 'lfo1.smoothing'),
+    smoothing: scalar(scalars, `lfo${slot}.smoothing`),
+    ...routing,
   }
 }
 
@@ -582,9 +590,9 @@ function reverseLookup<T extends string>(
 function parseModulations(
   settings: Record<string, unknown>,
   values: unknown[],
-): { routes: ModulationRoute[]; lfoEnabled: boolean } {
+): { routes: ModulationRoute[]; lfoEnabled: Record<'lfo1' | 'lfo2', boolean> } {
   const routes: ModulationRoute[] = []
-  const lfoBypasses: boolean[] = []
+  const lfoBypasses: Record<'lfo1' | 'lfo2', boolean[]> = { lfo1: [], lfo2: [] }
 
   values.forEach((value, index) => {
     const slot = index + 1
@@ -634,7 +642,7 @@ function parseModulations(
     if (source === 'modEnvelope' && bypass) {
       throw new VitalImportError(`ENV 2 route ${slot} is bypassed and cannot be represented`)
     }
-    if (source === 'lfo1') lfoBypasses.push(bypass)
+    if (source === 'lfo1' || source === 'lfo2') lfoBypasses[source].push(bypass)
     routes.push({
       id: `vital-route-${slot}`,
       source,
@@ -644,13 +652,51 @@ function parseModulations(
     })
   })
 
-  if (new Set(lfoBypasses).size > 1) {
-    throw new VitalImportError('LFO 1 routes mix enabled and bypassed state')
+  for (const source of ['lfo1', 'lfo2'] as const) {
+    if (new Set(lfoBypasses[source]).size > 1) {
+      throw new VitalImportError(`${source.toUpperCase()} routes mix enabled and bypassed state`)
+    }
   }
   return {
     routes,
-    lfoEnabled: lfoBypasses.length > 0 ? !lfoBypasses[0] : false,
+    lfoEnabled: {
+      lfo1: lfoBypasses.lfo1.length > 0 ? !lfoBypasses.lfo1[0] : false,
+      lfo2: lfoBypasses.lfo2.length > 0 ? !lfoBypasses.lfo2[0] : false,
+    },
   }
+}
+
+function decodeLfoRouting(
+  routes: readonly ModulationRoute[],
+  source: 'lfo1' | 'lfo2',
+): Pick<LfoState, 'target' | 'scope' | 'depth'> {
+  const owned = routes.filter((route) => route.source === source)
+  if (owned.length === 0) {
+    return { target: source === 'lfo1' ? 'level' : 'position', scope: 'all', depth: 0 }
+  }
+  const first = owned[0]
+  if (first.destination === 'filter.cutoff') {
+    if (owned.length !== 1 || !first.bipolar || first.amount < 0) {
+      throw new VitalImportError(`${source.toUpperCase()} cutoff routing is not representable`)
+    }
+    return { target: 'cutoff', scope: 'all', depth: first.amount }
+  }
+  const match = /^oscillator([1-3])\.(level|wavetablePosition|pitch)$/.exec(first.destination)
+  if (!match) throw new VitalImportError(`${source.toUpperCase()} routing is not representable`)
+  const target = match[2] === 'wavetablePosition' ? 'position' : match[2] as 'level' | 'pitch'
+  const expectedAmount = target === 'level' ? -Math.abs(first.amount) : Math.abs(first.amount)
+  const oscillatorNumbers = owned.map((route) => {
+    const routeMatch = /^oscillator([1-3])\.(level|wavetablePosition|pitch)$/.exec(route.destination)
+    if (!routeMatch || (routeMatch[2] === 'wavetablePosition' ? 'position' : routeMatch[2]) !== target || route.amount !== expectedAmount || route.bipolar !== (target !== 'level')) {
+      throw new VitalImportError(`${source.toUpperCase()} routes do not share one declared target and depth`)
+    }
+    return Number(routeMatch[1]) as 1 | 2 | 3
+  })
+  const scope = oscillatorNumbers.length === 3 && oscillatorNumbers.join(',') === '1,2,3'
+    ? 'all'
+    : oscillatorNumbers.length === 1 ? oscillatorNumbers[0] : null
+  if (scope === null) throw new VitalImportError(`${source.toUpperCase()} oscillator scope is not representable`)
+  return { target, scope, depth: Math.abs(first.amount) }
 }
 
 function decodeFilterCutoff(value: number): number {
@@ -728,10 +774,10 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
 
   const importedLfos = array(settings.lfos, 'Vital LFO slots')
   const templateLfos = array(templateSettings.lfos, 'Template Vital LFO slots')
-  if (importedLfos.length !== templateLfos.length || importedLfos.length < 1) {
+  if (importedLfos.length !== templateLfos.length || importedLfos.length < 2) {
     throw new VitalImportError('Vital preset must retain the pinned LFO slot count')
   }
-  for (let index = 1; index < importedLfos.length; index += 1) {
+  for (let index = 2; index < importedLfos.length; index += 1) {
     if (!valuesEqual(importedLfos[index], templateLfos[index])) {
       throw new VitalImportError(`Unsupported Vital LFO slot ${index + 1} contains material`)
     }
@@ -758,7 +804,7 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
 
   const delayMode = delaySync === 0 ? 'free' : 'sync'
   const patchCandidate = {
-    version: 3,
+    version: 4,
     metadata: {
       name,
       category,
@@ -780,7 +826,8 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
       drive: scalar(scalars, 'filter.drive'),
       keytrack: scalar(scalars, 'filter.keytrack'),
     },
-    lfo1: parseLfo(importedLfos[0], settings, modulation.lfoEnabled, scalars),
+    lfo1: parseLfo(importedLfos[0], settings, modulation.lfoEnabled.lfo1, scalars, 1, decodeLfoRouting(modulation.routes, 'lfo1')),
+    lfo2: parseLfo(importedLfos[1], settings, modulation.lfoEnabled.lfo2, scalars, 2, decodeLfoRouting(modulation.routes, 'lfo2')),
     modulations: modulation.routes,
     voice: {
       polyphony: scalar(scalars, 'voice.polyphony'),
@@ -1359,6 +1406,9 @@ function parseLossyLfo(
     phase: clamp(lossySetting(settings, templateSettings, 'lfo_1_phase', warnings), 0, 1),
     smooth: lfo.smooth === true,
     smoothing: lfo.smooth === true ? 5 / 14 : 1.5 / 14,
+    target: 'level',
+    scope: 'all',
+    depth: 0.68,
   }
 }
 

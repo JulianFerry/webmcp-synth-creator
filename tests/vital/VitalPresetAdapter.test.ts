@@ -39,7 +39,7 @@ export function createSyntheticVitalInit() {
       ...modulationValues,
       untouched_fixture_value: 99,
       wavetables: [{ original: 1 }, { original: 2 }, { original: 3 }],
-      lfos: [{ original: 'lfo-1' }],
+      lfos: [{ original: 'lfo-1' }, { original: 'lfo-2' }],
       modulations: Array.from({ length: 16 }, () => ({ source: '', destination: '' })),
     },
   }
@@ -97,14 +97,14 @@ describe('VitalPresetAdapter', () => {
     )
     const exported = adapter.exportPatch(createDefaultPatch())
     expect(adapter.importPatchStrict(JSON.parse(exported.json))).toMatchObject({
-      patch: { version: 3 },
+      patch: { version: 4 },
       sourceVersion: '1.0.7',
     })
 
     const unsupported = structuredClone(exported.document)
     unsupported.settings.sample_on = 1
     expect(() => adapter.importPatchStrict(unsupported)).toThrow(/Unsupported Vital setting changed/)
-    expect(adapter.importPatch(unsupported).warnings[0]).toContain('Imported with losses')
+    expect(adapter.importPatch(unsupported).warnings[0]).toContain('editable projection is approximate')
   })
 
   it('requires versioned fixture metadata and three oscillator slots', () => {

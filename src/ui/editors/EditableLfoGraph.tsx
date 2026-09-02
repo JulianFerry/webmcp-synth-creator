@@ -4,7 +4,7 @@ import { deleteLfoPoint, insertLfoPoint, moveLfoCurvePoint, moveLfoPoint, setLfo
 import type { LfoPoint } from '../../patch/types'
 import { clientPointToSvg } from './svgCoordinates'
 
-interface Props { points: LfoPoint[]; smooth: boolean; resetKey: number; onCommit: (points: LfoPoint[]) => boolean }
+interface Props { points: LfoPoint[]; smooth: boolean; resetKey: number; testIdPrefix: string; onCommit: (points: LfoPoint[]) => boolean }
 type ActiveHandle = { kind: 'position' | 'curve'; index: number }
 
 const shapePath = (points: LfoPoint[], smooth: boolean) => Array.from({ length: 129 }, (_, index) => {
@@ -13,7 +13,7 @@ const shapePath = (points: LfoPoint[], smooth: boolean) => Array.from({ length: 
   return `${index ? 'L' : 'M'}${(4 + phase * 92).toFixed(3)} ${(29 - value * 26).toFixed(3)}`
 }).join(' ')
 
-export function EditableLfoGraph({ points, smooth, resetKey, onCommit }: Props) {
+export function EditableLfoGraph({ points, smooth, resetKey, testIdPrefix, onCommit }: Props) {
   const fillGradientId = `lfo-fill-${useId().replaceAll(':', '')}`
   const [draft, setDraft] = useState(points)
   const draftRef = useRef(points)
@@ -72,7 +72,7 @@ export function EditableLfoGraph({ points, smooth, resetKey, onCommit }: Props) 
       cx={4 + point.x * 92}
       cy={29 - point.y * 26}
       data-handle-kind="position"
-      data-testid={`lfo-point-${index}`}
+      data-testid={`${testIdPrefix}-point-${index}`}
       onKeyDown={(event) => keyDown(event, { kind: 'position', index })}
       onKeyUp={(event) => { if (event.key.startsWith('Arrow')) finish() }}
       onPointerDown={(event) => { event.preventDefault(); activeRef.current = { kind: 'position', index }; svgRef.current?.setPointerCapture(event.pointerId) }}
@@ -99,7 +99,7 @@ export function EditableLfoGraph({ points, smooth, resetKey, onCommit }: Props) 
       cx={4 + phase * 92}
       cy={29 - level * 26}
       data-handle-kind="curve"
-      data-testid={`lfo-curve-${index}`}
+      data-testid={`${testIdPrefix}-curve-${index}`}
       onKeyDown={(event) => keyDown(event, { kind: 'curve', index })}
       onKeyUp={(event) => { if (event.key.startsWith('Arrow')) finish() }}
       onPointerDown={(event) => { event.preventDefault(); activeRef.current = { kind: 'curve', index }; svgRef.current?.setPointerCapture(event.pointerId) }}
@@ -121,7 +121,7 @@ export function EditableLfoGraph({ points, smooth, resetKey, onCommit }: Props) 
     <defs><linearGradient id={fillGradientId} x1="0" x2="0" y1="0" y2="1"><stop className="plot-area-stop-top" offset="0" /><stop className="plot-area-stop-bottom" offset="1" /></linearGradient></defs>
     <path className="plot-grid" d="M2 8H98M2 16H98M2 24H98M25 2V30M50 2V30M75 2V30" />
     <path aria-hidden="true" className="plot-area" d={`${path} L96 29 L4 29 Z`} fill={`url(#${fillGradientId})`} />
-    <path className="plot-line lfo-shape-line" d={path} data-testid="lfo-shape-path" />
+    <path className="plot-line lfo-shape-line" d={path} data-testid={`${testIdPrefix}-shape-path`} />
     {handles}
   </svg>
 }

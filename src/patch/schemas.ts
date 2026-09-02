@@ -142,13 +142,25 @@ export const lfoStateSchema = z
     phase: unitInterval,
     smooth: z.boolean(),
     smoothing: unitInterval,
+    target: z.enum(['level', 'position', 'pitch', 'cutoff']),
+    scope: z.union([z.literal('all'), z.literal(1), z.literal(2), z.literal(3)]),
+    depth: unitInterval,
   })
   .strict()
+  .superRefine((lfo, context) => {
+    if (lfo.target === 'cutoff' && lfo.scope !== 'all') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'LFO cutoff target requires scope all',
+        path: ['scope'],
+      })
+    }
+  })
 
 export const modulationRouteSchema = z
   .object({
     id: z.string().trim().min(1).max(64),
-    source: z.enum(['lfo1', 'modEnvelope', 'velocity']),
+    source: z.enum(['lfo1', 'lfo2', 'modEnvelope', 'velocity']),
     destination: z.enum([
       'oscillator1.level',
       'oscillator1.wavetablePosition',
@@ -264,13 +276,14 @@ export const wavetableStateSchema = z
 
 export const patchStateSchema = z
   .object({
-    version: z.literal(3),
+    version: z.literal(4),
     metadata: patchMetadataSchema,
     oscillators: z.tuple([oscillatorStateSchema, oscillatorStateSchema, oscillatorStateSchema]),
     ampEnvelope: envelopeStateSchema,
     modEnvelope: envelopeStateSchema,
     filter: filterStateSchema,
     lfo1: lfoStateSchema,
+    lfo2: lfoStateSchema,
     modulations: z.array(modulationRouteSchema).max(16),
     voice: voiceStateSchema,
     effects: z.object({ order: z.array(z.enum(EFFECT_IDS)).length(EFFECT_IDS.length), distortion: distortionStateSchema, chorus: chorusStateSchema, delay: delayStateSchema, reverb: reverbStateSchema }).strict().superRefine((effects, context) => {

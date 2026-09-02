@@ -73,6 +73,9 @@ export type LfoRate =
       hz: number
     }
 
+export type LfoTarget = 'level' | 'position' | 'pitch' | 'cutoff'
+export type LfoScope = 'all' | 1 | 2 | 3
+
 export interface LfoState {
   enabled: boolean
   points: LfoPoint[]
@@ -80,9 +83,12 @@ export interface LfoState {
   phase: number
   smooth: boolean
   smoothing: number
+  target: LfoTarget
+  scope: LfoScope
+  depth: number
 }
 
-export type ModulationSource = 'lfo1' | 'modEnvelope' | 'velocity'
+export type ModulationSource = 'lfo1' | 'lfo2' | 'modEnvelope' | 'velocity'
 
 export type ModulationDestination =
   | 'oscillator1.level'
@@ -164,13 +170,14 @@ export interface WavetableState {
 }
 
 export interface PatchState {
-  version: 3
+  version: 4
   metadata: PatchMetadata
   oscillators: [OscillatorState, OscillatorState, OscillatorState]
   ampEnvelope: EnvelopeState
   modEnvelope: EnvelopeState
   filter: FilterState
   lfo1: LfoState
+  lfo2: LfoState
   modulations: ModulationRoute[]
   voice: VoiceState
   effects: {
@@ -238,7 +245,11 @@ export interface PatchSummary {
     phase: number
     smooth: boolean
     smoothing: number
+    target: LfoTarget
+    scope: LfoScope
+    depth: number
   }
+  lfo2: PatchSummary['lfo1']
   voice: VoiceState
   effects: PatchState['effects']
   wavetables: Array<{

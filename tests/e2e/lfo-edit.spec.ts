@@ -55,7 +55,7 @@ test('LFO edit updates one transaction, SVG, audio scheduling, and Vital structu
   await page.getByTestId('preview-note').click()
   await expect(page.getByTestId('active-voice-count')).toHaveText('1')
 
-  const shape = page.getByTestId('lfo-shape-path')
+  const shape = page.getByTestId('lfo-1-shape-path')
   const initialShape = await shape.getAttribute('d')
   const adapter = page.getByTestId('audio-adapter-state')
   const initialScheduleVersion = Number(
@@ -90,8 +90,8 @@ test('LFO edit updates one transaction, SVG, audio scheduling, and Vital structu
   expect(Object.keys(result.changed)).toEqual(['lfo1.points'])
   expect(result.current.lfo.rate).toEqual({ mode: 'sync', division: '1/8' })
   expect(await shape.getAttribute('d')).not.toBe(initialShape)
-  await expect(page.getByTestId('lfo-point-count')).toHaveText('10 points')
-  await expect(page.getByTestId('lfo-rate-readout')).toHaveText('1/8')
+  await expect(page.getByTestId('lfo-1-point-count')).toHaveText('10 points')
+  await expect(page.getByTestId('lfo-1-rate-readout')).toHaveText('1/8')
   await page.getByRole('tab', { name: 'Effects' }).click()
   await expect(page.getByTestId('modulation-route-count')).toHaveCount(0)
   await expect(page.getByTestId('effects-grid')).toBeVisible()
@@ -150,7 +150,7 @@ test('LFO edit heading toggle and shape mode remain independent and preserve con
     })
 
   const before = await readPatch()
-  const panel = page.locator('.lfo-panel')
+  const panel = page.locator('.lfo-panel').first()
   const heading = panel.locator('.panel-heading')
   const enableToggle = heading.getByRole('switch', { name: 'LFO' })
   const shapeMode = panel.getByRole('combobox', { name: 'Shape mode' })
@@ -201,6 +201,24 @@ test('LFO edit heading toggle and shape mode remain independent and preserve con
   expect(reenabled.lfo1).toEqual({ ...before.lfo1, smooth: true })
 })
 
+test('desktop drag edits a point in LFO 2', async ({ page }) => {
+  await page.setViewportSize({ width: 1160, height: 1000 })
+  await page.goto('/')
+  const handle = page.getByTestId('lfo-2-point-1')
+  const graph = page.getByTestId('lfo-2-shape')
+  const before = await page.getByTestId('lfo-2-shape-path').getAttribute('d')
+  const handleBox = await handle.boundingBox()
+  const graphBox = await graph.boundingBox()
+  expect(handleBox).not.toBeNull()
+  expect(graphBox).not.toBeNull()
+  await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(handleBox!.x + graphBox!.width * 0.08, handleBox!.y - 18)
+  await page.mouse.up()
+  await expect(page.getByTestId('lfo-2-shape-path')).not.toHaveAttribute('d', before!)
+  await expect(page.getByTestId('latest-diff')).toContainText('lfo2.points')
+})
+
 test('LFO edit delay exposes all mapped divisions', async ({ page }) => {
   await installWebMcpDouble(page)
   await page.goto('/')
@@ -239,10 +257,10 @@ test('the global LFO is routed for every starting patch', async ({ page }) => {
 
   for (const presetId of ['warm-mono-bass', 'calibration-b-custom-wavetable']) {
     await selector.selectOption(presetId)
-    const toggle = page.locator('.lfo-panel').getByRole('switch', { name: 'LFO' })
+    const toggle = page.locator('.lfo-panel').first().getByRole('switch', { name: 'LFO 1' })
     await expect(toggle).toHaveAttribute('aria-checked', 'false')
     await toggle.click()
-    await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-route-count', '3')
+    await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-route-count', '6')
 
     const downloadPromise = page.waitForEvent('download')
     await page.getByTestId('export-vital').click()

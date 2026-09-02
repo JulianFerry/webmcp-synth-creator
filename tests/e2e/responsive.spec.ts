@@ -35,11 +35,12 @@ test('desktop keeps oscillators, permanent sidebar, and footer in one workstatio
   expect(oscillators).toHaveLength(3)
   expect(new Set(oscillators.map((box) => Math.round(box.y))).size).toBe(1)
 
-  const modulators = await boxes(page.locator('.oscillator-modulator-row > article'))
+  const modulators = await boxes(page.locator('.oscillator-lfo-row > article'))
   expect(modulators).toHaveLength(2)
+  expect(modulators[0].x).toBeLessThan(modulators[1].x)
   expect(modulators[0].y).toBe(modulators[1].y)
   expect(modulators[0].y).toBeGreaterThan(oscillators[0].y + oscillators[0].height)
-  expect(Math.max(...modulators.map((box) => box.y + box.height))).toBeLessThanOrEqual(1000)
+  await expect(page.locator('.oscillator-lfo-row h2')).toHaveText(['LFO 1 · Gate', 'LFO 2 · Movement'])
 
   const variantButtons = await boxes(page.locator('.variant-comparison-card > .variant-button'))
   const spectrograms = await boxes(page.locator('.variant-spectrum'))
@@ -67,8 +68,8 @@ test('desktop keeps oscillators, permanent sidebar, and footer in one workstatio
   expect(preset!.y + preset!.height).toBeLessThanOrEqual(transferButtons[0].y)
   await expect(page.getByTestId('variant-a-spectrogram')).toHaveCSS('height', '118px')
 
-  const lfoControlLabels = await page.locator('.lfo-controls > label > span:first-child').allTextContents()
-  expect(lfoControlLabels).toEqual(['Division', 'Shape mode', 'Phase'])
+  const lfoControlLabels = await page.locator('.lfo-panel').first().locator('.lfo-controls > label > span:first-child').allTextContents()
+  expect(lfoControlLabels).toEqual(['Division', 'Shape mode', 'Phase', 'Target', 'Scope', 'Depth'])
 
   await expect(page.getByTestId('keyboard-surface').getByRole('button')).toHaveCount(25)
   await expect(page.getByTestId('preview-note')).toBeVisible()
@@ -226,7 +227,8 @@ test('mobile stacks the workspace and keeps the two-octave keyboard scrollable',
     }
   }
 
-  const modulators = await boxes(page.locator('.oscillator-modulator-row > article'))
+  const modulators = await boxes(page.locator('.oscillator-lfo-row > article'))
+  expect(modulators).toHaveLength(2)
   expect(modulators[1].y).toBeGreaterThan(modulators[0].y + modulators[0].height)
 
   const keyboard = page.getByTestId('keyboard-surface')

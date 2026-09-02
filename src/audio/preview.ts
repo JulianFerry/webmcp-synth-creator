@@ -76,6 +76,7 @@ export const AUDIO_PREVIEW_BEHAVIORS: Partial<
   'filter.drive': ACTIVE,
   'filter.keytrack': ACTIVE,
   'lfo1.smoothing': ACTIVE,
+  'lfo2.smoothing': ACTIVE,
   'voice.polyphony': {
     scope: 'commit-only',
     semantics: 'Commits before trimming voices because a preview steal cannot be reversed safely.',

@@ -36,7 +36,16 @@ export type StructuralPath =
   | 'lfo1.points'
   | 'lfo1.rate'
   | 'lfo1.smooth'
-  | 'modulations'
+  | 'lfo1.target'
+  | 'lfo1.scope'
+  | 'lfo1.depth'
+  | 'lfo2.enabled'
+  | 'lfo2.points'
+  | 'lfo2.rate'
+  | 'lfo2.smooth'
+  | 'lfo2.target'
+  | 'lfo2.scope'
+  | 'lfo2.depth'
   | 'effects.order'
   | 'effects.delay.mode'
   | 'effects.delay.division'
@@ -187,6 +196,13 @@ export const VITAL_SCALAR_BINDINGS: Record<VitalScalarPath, VitalScalarBinding> 
       encodeVitalLfoSmoothing(patch.lfo1.smoothing ?? (patch.lfo1.smooth ? 5 / 14 : 1.5 / 14)),
     decode: (settings) => decodeVitalLfoSmoothing(setting(settings, 'lfo_1_smooth_time')),
   },
+  'lfo2.phase': bind('lfo2.phase', 'lfo_2_phase'),
+  'lfo2.smoothing': {
+    key: 'lfo_2_smooth_time',
+    ownership: 'workbench',
+    encode: (patch) => encodeVitalLfoSmoothing(patch.lfo2.smoothing),
+    decode: (settings) => decodeVitalLfoSmoothing(setting(settings, 'lfo_2_smooth_time')),
+  },
   'voice.polyphony': bind('voice.polyphony', 'polyphony'),
   'voice.legato': bind('voice.legato', 'legato', booleanCodec),
   'voice.glideSeconds': bind('voice.glideSeconds', 'portamento_time', scaled(encodeVitalGlideSeconds, decodeVitalGlideSeconds)),
@@ -225,6 +241,7 @@ export const FORCED_VITAL_BINDINGS = [
   { key: 'flanger_on', value: 0, ownership: 'forced', justification: 'Disables the unmodeled flanger.' },
   { key: 'phaser_on', value: 0, ownership: 'forced', justification: 'Disables the unmodeled phaser.' },
   { key: 'lfo_1_sync_type', value: 0, ownership: 'forced', justification: 'The modeled LFO is always looping.' },
+  { key: 'lfo_2_sync_type', value: 0, ownership: 'forced', justification: 'The modeled LFO is always looping.' },
 ] as const satisfies readonly ForcedVitalBinding[]
 
 export function mapVitalScalarValues(patch: PatchState): Record<string, number> {

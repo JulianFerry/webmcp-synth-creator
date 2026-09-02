@@ -97,6 +97,9 @@ describe('point LFO evaluation', () => {
       phase: 0.75,
       smooth: false,
       smoothing: 1.5 / 14,
+      target: 'position',
+      scope: 'all',
+      depth: 0.5,
     }
     expect(evaluateLfo(lfo, 0.5)).toBeCloseTo(0.25)
   })
