@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import type { SessionService } from '../session/SessionService'
 import { AuditionPanel } from '../ui/AuditionPanel'
@@ -8,6 +8,7 @@ import { VariantComparisonSidebar } from '../ui/shell/VariantComparisonSidebar'
 import { WorkbenchTabs } from '../ui/shell/WorkbenchTabs'
 import { ModulationEffectsTab } from '../ui/tabs/ModulationEffectsTab'
 import { OscillatorsTab } from '../ui/tabs/OscillatorsTab'
+import type { NotePlayback } from '../ui/useVisualElapsedSeconds'
 import { HelpSystem, HelpToolbar, type HelpEntryPoint } from '../ui/help/HelpSystem'
 import type { AppStore } from './appStore'
 import type { WorkbenchTab } from './uiState'
@@ -17,15 +18,31 @@ interface AppProps {
   session?: SessionService
 }
 
+function useNotePlayback(activeNotes: readonly number[]): NotePlayback {
+  const isNotePlaying = activeNotes.length > 0
+  const noteSignature = activeNotes.join(',')
+  const playbackRef = useRef({ noteSignature: '', triggerTimeMs: 0 })
+  if (playbackRef.current.noteSignature !== noteSignature) {
+    playbackRef.current = {
+      noteSignature,
+      triggerTimeMs: isNotePlaying ? performance.now() : 0,
+    }
+  }
+  return { isNotePlaying, triggerTimeMs: playbackRef.current.triggerTimeMs }
+}
+
 export function App({ store, session = undefined }: AppProps) {
   const [activeTab, setActiveTab] = useState<WorkbenchTab>('oscillators')
   const [helpEntryPoint, setHelpEntryPoint] = useState<HelpEntryPoint>(null)
   const state = store()
   const { patch, audio } = state
+  const notePlayback = useNotePlayback(audio.activeNotes)
   const wavetables = Object.values(patch.wavetableData)
   const oscillators = patch.oscillators.map((oscillator, index) => ({
     index: index as 0 | 1 | 2,
     oscillator,
+    notePlayback,
+    lfos: [patch.lfo1, patch.lfo2] as const,
     onCancelPreview: state.cancelPatchPreview,
     onChange: state.applyPatchChange,
     onPreview: state.previewPatchChange,
@@ -34,8 +51,8 @@ export function App({ store, session = undefined }: AppProps) {
     wavetables,
   }))
   const lfos = [
-    { slot: 1 as const, lfo: patch.lfo1, onChange: state.applyPatchChange, resetKey: state.controlResetKey },
-    { slot: 2 as const, lfo: patch.lfo2, onChange: state.applyPatchChange, resetKey: state.controlResetKey },
+    { slot: 1 as const, lfo: patch.lfo1, notePlayback, onChange: state.applyPatchChange, resetKey: state.controlResetKey },
+    { slot: 2 as const, lfo: patch.lfo2, notePlayback, onChange: state.applyPatchChange, resetKey: state.controlResetKey },
   ] as const
   const envelope = { envelope: patch.ampEnvelope, onCancelPreview: state.cancelPatchPreview, onChange: state.applyPatchChange, onPreview: state.previewPatchChange, previewEnvelope: audio.draft.ampEnvelope, resetKey: state.controlResetKey }
   const audition = { audio, onNoteOff: state.noteOff, onNoteOn: state.noteOn, onReleaseAll: state.releaseAllNotes }

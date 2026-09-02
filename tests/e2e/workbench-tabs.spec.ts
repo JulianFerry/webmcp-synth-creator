@@ -63,8 +63,8 @@ test('workbench tabs expose keyboard navigation and mount only the active panel'
   await expect(page.getByTestId('keyboard-surface')).toBeVisible()
   await expect(page.getByRole('complementary', { name: 'Variant comparison' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Amplitude envelope' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'LFO 1 · Gate' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'LFO 2 · Movement' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'LFO 1', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'LFO 2', exact: true })).toBeVisible()
 
   const envelopeTypeBounds = await page.locator('.envelope-type-chip').boundingBox()
   const lfoToggleBounds = await page.getByRole('switch', { name: 'LFO 1' }).boundingBox()

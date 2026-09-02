@@ -1,3 +1,4 @@
+import { evaluateLfoCycle } from '../audio/lfo'
 import { TEMPO_SYNC_DIVISIONS } from '../patch/limits'
 import type { SupportedPatchPath } from '../patch/paths'
 import type { LfoRate, LfoState } from '../patch/types'
@@ -5,10 +6,12 @@ import { ParameterSelect } from './controls/ParameterSelect'
 import { ParameterSlider } from './controls/ParameterSlider'
 import { ToggleControl } from './controls/ToggleControl'
 import { EditableLfoGraph } from './editors/EditableLfoGraph'
+import { type NotePlayback, useVisualElapsedSeconds } from './useVisualElapsedSeconds'
 
 interface LfoPanelProps {
   slot: 1 | 2
   lfo: LfoState
+  notePlayback: NotePlayback
   resetKey: number
   onChange: (path: SupportedPatchPath, value: unknown, reason: string) => boolean
 }
@@ -22,22 +25,24 @@ function rateLabel(rate: LfoRate): string {
   return rate.mode === 'sync' ? rate.division : `${rate.hz.toFixed(2)} Hz`
 }
 
-export function LfoPanel({ slot, lfo, resetKey, onChange }: LfoPanelProps) {
+export function LfoPanel({ slot, lfo, notePlayback, resetKey, onChange }: LfoPanelProps) {
   const prefix = `lfo${slot}` as const
   const testId = `lfo-${slot}`
-  const label = slot === 1 ? 'LFO 1 · Gate' : 'LFO 2 · Movement'
   const path = (field: keyof LfoState) => `${prefix}.${field}` as SupportedPatchPath
   const commitRate = (rate: LfoRate) => onChange(path('rate'), rate, `Set LFO ${slot} rate`)
   const commitTarget = (target: LfoState['target']) => {
     if (target === 'cutoff' && lfo.scope !== 'all') onChange(path('scope'), 'all', `Set LFO ${slot} scope`)
     return onChange(path('target'), target, `Set LFO ${slot} target`)
   }
+  const showLevelPlayhead = notePlayback.isNotePlaying && lfo.enabled && lfo.target === 'level'
+  const visualElapsedSeconds = useVisualElapsedSeconds(showLevelPlayhead, notePlayback)
+  const cycle = showLevelPlayhead ? evaluateLfoCycle(lfo, visualElapsedSeconds) : null
 
   return (
     <article className={`panel lfo-panel${lfo.enabled ? '' : ' is-disabled'}`}>
       <div className="panel-heading">
         <div>
-          <h2>{label}</h2>
+          <h2>LFO {slot}</h2>
         </div>
         <ToggleControl
           checked={lfo.enabled}
@@ -51,6 +56,8 @@ export function LfoPanel({ slot, lfo, resetKey, onChange }: LfoPanelProps) {
         <EditableLfoGraph
           onCommit={(points) => onChange(path('points'), points, `Edit LFO ${slot} shape`)}
           points={lfo.points}
+          playheadPhase={cycle?.phase}
+          visitedStartPhase={cycle?.visitedStartPhase}
           resetKey={resetKey}
           smooth={lfo.smooth}
           testIdPrefix={testId}

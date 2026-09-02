@@ -67,8 +67,29 @@ export function evaluateLfo(
   elapsedSeconds: number,
   bpm = DEFAULT_TEMPO_BPM,
 ): number {
-  const phase = wrapPhase(lfo.phase + Math.max(0, elapsedSeconds) * lfoRateHz(lfo.rate, bpm))
+  const phase = lfoPhaseAtTime(lfo, elapsedSeconds, bpm)
   return evaluateLfoPoints(lfo.points, phase, lfo.smooth)
+}
+
+export function lfoPhaseAtTime(
+  lfo: Pick<LfoState, 'phase' | 'rate'>,
+  elapsedSeconds: number,
+  bpm = DEFAULT_TEMPO_BPM,
+): number {
+  return wrapPhase(lfo.phase + Math.max(0, elapsedSeconds) * lfoRateHz(lfo.rate, bpm))
+}
+
+export function evaluateLfoCycle(
+  lfo: Pick<LfoState, 'phase' | 'rate'>,
+  elapsedSeconds: number,
+  bpm = DEFAULT_TEMPO_BPM,
+): { phase: number; visitedStartPhase: number } {
+  const startPhase = wrapPhase(lfo.phase)
+  const unwrappedPhase = startPhase + Math.max(0, elapsedSeconds) * lfoRateHz(lfo.rate, bpm)
+  return {
+    phase: wrapPhase(unwrappedPhase),
+    visitedStartPhase: unwrappedPhase < 1 ? startPhase : 0,
+  }
 }
 
 export interface EnvelopeReleaseState {

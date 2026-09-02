@@ -110,10 +110,10 @@ test('dragging time and LFO handles left decreases values without snapping right
   await expect(history).toHaveText('1')
 })
 
-test('envelope keeps hold in the graph and shares its curve point style with the LFO', async ({ page }) => {
+test('amp envelope hides hold and shares its curve point style with the LFO', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('amp-hold')).toHaveCount(0)
-  await expect(page.getByTestId('amp-hold-handle')).toBeVisible()
+  await expect(page.getByTestId('amp-hold-handle')).toHaveCount(0)
   await expect(page.getByTestId('amp-decay-handle')).toHaveCount(0)
   await expect(page.getByTestId('amp-sustain-handle')).toHaveCount(0)
 
@@ -125,11 +125,11 @@ test('envelope keeps hold in the graph and shares its curve point style with the
   const lfoHandle = await page.getByTestId('lfo-1-point-0').boundingBox()
   expect(Math.abs(adsrHandle!.width - lfoHandle!.width)).toBeLessThan(1)
   const envelopeGraph = page.locator('.oscillator-modulator-row .envelope-plot')
-  const lfoGraph = page.locator('.oscillator-lfo-row .lfo-plot').first()
+  const lfoGraph = page.locator('.oscillator-modulator-row .lfo-plot').first()
   const [envelopeBox, lfoBox, envelopePanel, lfoPanel] = await Promise.all([
     envelopeGraph.boundingBox(), lfoGraph.boundingBox(),
     page.locator('.oscillator-modulator-row .envelope-panel').boundingBox(),
-    page.locator('.oscillator-lfo-row .lfo-panel').first().boundingBox(),
+    page.locator('.oscillator-modulator-row .lfo-panel').first().boundingBox(),
   ])
   expect(Math.abs(envelopeBox!.height - lfoBox!.height)).toBeLessThanOrEqual(3)
   expect(envelopeBox!.height).toBeGreaterThanOrEqual(96)

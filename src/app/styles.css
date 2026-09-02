@@ -1597,10 +1597,12 @@ h2 {
 
 .workbench-main-column { min-width: 0; }
 .oscillators-workspace { display: grid; gap: 8px; }
-.oscillator-modulator-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.oscillator-modulator-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .oscillator-lfo-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .lfo-routing-readout { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; padding: 4px 6px 0; color: var(--muted); font: 7px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
 .lfo-routing-readout strong { color: var(--analysis); font-weight: 500; text-align: right; }
+.lfo-level-playhead { stroke: var(--analysis); stroke-width: 1.15; vector-effect: non-scaling-stroke; pointer-events: none; }
+.lfo-visited-trace { fill: none; stroke: #fff; stroke-width: 1.35; filter: drop-shadow(0 0 1.5px var(--analysis)); vector-effect: non-scaling-stroke; pointer-events: none; }
 .oscillator-modulator-row > .panel { padding: 7px 8px; }
 .oscillator-modulator-row > .panel { display: flex; flex-direction: column; }
 .oscillator-modulator-row .panel-heading { min-height: 24px; margin-bottom: 4px; }
@@ -2212,7 +2214,7 @@ body.is-choosing-help-target .workbench-assistance * {
   .help-route-grid { grid-template-columns: 1fr; }
   .help-choice-dialog { max-height: calc(100vh - 24px); overflow-y: auto; }
   .overview-analysis-row, .oscillator-overview-deck, .overview-tab-grid { grid-template-columns: 1fr; }
-  .audition-footer, .oscillator-modulator-row, .oscillator-lfo-row { grid-template-columns: 1fr; }
+  .audition-footer, .oscillator-modulator-row { grid-template-columns: 1fr; }
   .audition-footer .footer-preview-controls, .audition-footer .keyboard-column { grid-column: 1; grid-row: auto; }
   .audition-footer .note-keyboard { grid-template-columns: repeat(25, minmax(27px, 1fr)); }
   .audition-footer .note-key { min-width: 27px; }

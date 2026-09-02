@@ -38,7 +38,7 @@ export function EnvelopePanel({
         <div>
           <h2>Amplitude envelope</h2>
         </div>
-        <span className="version-chip envelope-type-chip">AHDSR</span>
+        <span className="version-chip envelope-type-chip">ADSR</span>
       </div>
 
       <EditableEnvelopeGraph
@@ -48,6 +48,7 @@ export function EnvelopePanel({
         onPreview={(handle, value) => onPreview(path(ENVELOPE_HANDLE_FIELDS[handle]), value)}
         previewEnvelope={previewEnvelope}
         resetKey={resetKey}
+        showHoldControl={false}
       />
 
       <div className="control-grid envelope-controls">

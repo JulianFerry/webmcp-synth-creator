@@ -13,8 +13,8 @@ interface OscillatorsTabProps {
 export function OscillatorsTab({ envelope, lfos, oscillators }: OscillatorsTabProps) {
   return <div className="oscillators-workspace">
     <OscillatorEditorDeck oscillators={oscillators} />
-    <div className="oscillator-modulator-row"><EnvelopePanel {...envelope} /></div>
-    <div className="oscillator-lfo-row">
+    <div className="oscillator-modulator-row">
+      <EnvelopePanel {...envelope} />
       <LfoPanel {...lfos[0]} />
       <LfoPanel {...lfos[1]} />
     </div>

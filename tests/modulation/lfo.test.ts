@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   evaluateEnvelope,
   evaluateLfo,
+  evaluateLfoCycle,
   evaluateLfoPoints,
   lfoRateHz,
   syncDivisionSeconds,
@@ -102,6 +103,16 @@ describe('point LFO evaluation', () => {
       depth: 0.5,
     }
     expect(evaluateLfo(lfo, 0.5)).toBeCloseTo(0.25)
+  })
+
+  it('tracks only the visited portion of the current cycle from configured phase', () => {
+    const configured = { phase: 0.25, rate: { mode: 'free' as const, hz: 1 } }
+    const beforeWrap = evaluateLfoCycle(configured, 0.2)
+    expect(beforeWrap.phase).toBeCloseTo(0.45)
+    expect(beforeWrap.visitedStartPhase).toBe(0.25)
+    const afterWrap = evaluateLfoCycle(configured, 0.8)
+    expect(afterWrap.phase).toBeCloseTo(0.05)
+    expect(afterWrap.visitedStartPhase).toBe(0)
   })
 })
 

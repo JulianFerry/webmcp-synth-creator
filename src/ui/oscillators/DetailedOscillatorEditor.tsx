@@ -1,7 +1,7 @@
 import { useState, type ComponentProps } from 'react'
 
 import type { SupportedPatchPath } from '../../patch/paths'
-import type { OscillatorState, WavetableState } from '../../patch/types'
+import type { LfoState, OscillatorState, WavetableState } from '../../patch/types'
 import { renderWavetablePosition, wavetableSupportsMorphing } from '../../wavetables/render'
 import { ParameterSelect } from '../controls/ParameterSelect'
 import { ParameterSlider } from '../controls/ParameterSlider'
@@ -9,10 +9,14 @@ import { ToggleControl } from '../controls/ToggleControl'
 import { WavetableWaterfall } from '../overview/WavetableWaterfall'
 import { buildWaveformPath } from '../visualizations'
 import { OSCILLATOR_PLOT_INSET_RATIO } from '../visualizations/wavetableWaterfall'
+import { type NotePlayback, useVisualElapsedSeconds } from '../useVisualElapsedSeconds'
+import { evaluateOscillatorVisualModulation } from './visualLfoModulation'
 
 export interface DetailedOscillatorEditorProps {
   index: 0 | 1 | 2
   oscillator: OscillatorState
+  notePlayback: NotePlayback
+  lfos: readonly [LfoState, LfoState]
   previewPosition: number
   resetKey: number
   wavetables: WavetableState[]
@@ -29,6 +33,8 @@ const sourceName = (name: string) => name.replace(/^Generated\s*(?:—|-)??\s*/i
 export function DetailedOscillatorEditor({
   index,
   oscillator,
+  notePlayback,
+  lfos,
   previewPosition,
   resetKey,
   wavetables,
@@ -41,7 +47,12 @@ export function DetailedOscillatorEditor({
   const path = (field: OscillatorField) => `oscillators.${index}.${field}` as SupportedPatchPath
   const wavetable = wavetables.find(({ id }) => id === oscillator.wavetableId) as WavetableState
   const canMorph = wavetableSupportsMorphing(wavetable)
-  const displayedPosition = canMorph ? previewPosition : 0
+  const shouldAnimatePosition = notePlayback.isNotePlaying && canMorph && lfos.some((lfo) =>
+    lfo.enabled && lfo.target === 'position' && (lfo.scope === 'all' || lfo.scope === number),
+  )
+  const visualElapsedSeconds = useVisualElapsedSeconds(shouldAnimatePosition, notePlayback)
+  const visualModulation = evaluateOscillatorVisualModulation(lfos, number as 1 | 2 | 3, visualElapsedSeconds)
+  const displayedPosition = canMorph ? Math.max(0, Math.min(1, previewPosition + (notePlayback.isNotePlaying ? visualModulation.positionOffset : 0))) : 0
   const plotInset = OSCILLATOR_PLOT_INSET_RATIO * 100
   const waveformPath = buildWaveformPath(renderWavetablePosition(wavetable, displayedPosition, 96), 100 - plotInset * 2)
   const commit = (field: OscillatorField, value: unknown, label: string) =>
@@ -68,7 +79,7 @@ export function DetailedOscillatorEditor({
         <div className="oscillator-position-control">
           <ParameterSlider id={`oscillator-${number}-position`} label="Position" min={0} max={1} step={0.01} value={oscillator.wavetablePosition} disabled={!canMorph} describedBy={!canMorph ? staticExplanationId : undefined} formatValue={canMorph ? percent : () => 'Static'} onCommit={(value) => commit('wavetablePosition', value, 'wavetable position')} orientation="vertical" testId={`oscillator-${number}-position`} {...preview('wavetablePosition')} />
         </div>
-        <div className={`wavetable-display detailed-oscillator-waveform view-${viewMode}`}>
+        <div className={`wavetable-display detailed-oscillator-waveform view-${viewMode}`} data-position={displayedPosition.toFixed(4)}>
           <div className="oscillator-waveform-toolbar">
             <strong className="oscillator-position-readout">{canMorph ? percent(displayedPosition) : 'Static'}</strong>
             <small>{canMorph ? `${wavetable.frames.length} morph frames` : 'One frame - position unavailable'}</small>

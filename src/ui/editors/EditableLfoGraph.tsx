@@ -4,7 +4,7 @@ import { deleteLfoPoint, insertLfoPoint, moveLfoCurvePoint, moveLfoPoint, setLfo
 import type { LfoPoint } from '../../patch/types'
 import { clientPointToSvg } from './svgCoordinates'
 
-interface Props { points: LfoPoint[]; smooth: boolean; resetKey: number; testIdPrefix: string; onCommit: (points: LfoPoint[]) => boolean }
+interface Props { points: LfoPoint[]; smooth: boolean; resetKey: number; testIdPrefix: string; playheadPhase?: number | null; visitedStartPhase?: number; onCommit: (points: LfoPoint[]) => boolean }
 type ActiveHandle = { kind: 'position' | 'curve'; index: number }
 
 const shapePath = (points: LfoPoint[], smooth: boolean) => Array.from({ length: 129 }, (_, index) => {
@@ -13,7 +13,16 @@ const shapePath = (points: LfoPoint[], smooth: boolean) => Array.from({ length: 
   return `${index ? 'L' : 'M'}${(4 + phase * 92).toFixed(3)} ${(29 - value * 26).toFixed(3)}`
 }).join(' ')
 
-export function EditableLfoGraph({ points, smooth, resetKey, testIdPrefix, onCommit }: Props) {
+const visitedPath = (points: LfoPoint[], smooth: boolean, startPhase: number, phase: number) => {
+  const sampleCount = Math.max(1, Math.ceil((phase - startPhase) * 128))
+  return Array.from({ length: sampleCount + 1 }, (_, index) => {
+    const samplePhase = startPhase + (phase - startPhase) * index / sampleCount
+    const value = evaluateLfoPoints(points, samplePhase, smooth)
+    return `${index ? 'L' : 'M'}${(4 + samplePhase * 92).toFixed(3)} ${(29 - value * 26).toFixed(3)}`
+  }).join(' ')
+}
+
+export function EditableLfoGraph({ points, smooth, resetKey, testIdPrefix, playheadPhase = null, visitedStartPhase = 0, onCommit }: Props) {
   const fillGradientId = `lfo-fill-${useId().replaceAll(':', '')}`
   const [draft, setDraft] = useState(points)
   const draftRef = useRef(points)
@@ -112,6 +121,7 @@ export function EditableLfoGraph({ points, smooth, resetKey, testIdPrefix, onCom
     return [position, curve]
   })
   const path = shapePath(draft, smooth)
+  const playheadValue = playheadPhase === null ? null : evaluateLfoPoints(draft, playheadPhase, smooth)
 
   return <svg ref={svgRef} aria-label={`Editable LFO shape with ${draft.length} position points and ${Math.max(0, draft.length - 1)} curve points`} className="editable-graph" data-plot-inset="4" role="group" viewBox="0 0 100 32"
     onDoubleClick={(event) => { const next = insertLfoPoint(draftRef.current, coordinates(event as unknown as PointerEvent)); if (next !== draftRef.current && onCommit(next)) update(next) }}
@@ -122,6 +132,10 @@ export function EditableLfoGraph({ points, smooth, resetKey, testIdPrefix, onCom
     <path className="plot-grid" d="M2 8H98M2 16H98M2 24H98M25 2V30M50 2V30M75 2V30" />
     <path aria-hidden="true" className="plot-area" d={`${path} L96 29 L4 29 Z`} fill={`url(#${fillGradientId})`} />
     <path className="plot-line lfo-shape-line" d={path} data-testid={`${testIdPrefix}-shape-path`} />
+    {playheadPhase !== null && playheadValue !== null ? <>
+      <path aria-hidden="true" className="lfo-visited-trace" d={visitedPath(draft, smooth, visitedStartPhase, playheadPhase)} data-progress={playheadPhase.toFixed(4)} data-start-phase={visitedStartPhase.toFixed(4)} data-testid={`${testIdPrefix}-visited-trace`} />
+      <line aria-hidden="true" className="lfo-level-playhead" data-phase={playheadPhase.toFixed(4)} data-testid={`${testIdPrefix}-level-playhead`} x1={4 + playheadPhase * 92} x2={4 + playheadPhase * 92} y1={29 - playheadValue * 26} y2="29" />
+    </> : null}
     {handles}
   </svg>
 }

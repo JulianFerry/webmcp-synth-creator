@@ -12,6 +12,7 @@ interface Props {
   onPreview: (handle: EnvelopeHandle, value: number) => void
   onCancel: (handle: EnvelopeHandle) => void
   testIdPrefix?: string
+  showHoldControl?: boolean
 }
 
 type GraphHandle = EnvelopeHandle | 'decaySustain'
@@ -19,7 +20,7 @@ type GraphHandle = EnvelopeHandle | 'decaySustain'
 const label = (handle: EnvelopeHandle) => `${handle[0].toUpperCase()}${handle.slice(1).replace('Curve', ' curve')}`
 const valueText = (handle: EnvelopeHandle, value: number) => handle.endsWith('Curve') ? `${value.toFixed(2)} curve` : handle === 'sustain' ? `${Math.round(value * 100)} percent` : value < 1 ? `${Math.round(value * 1000)} milliseconds` : `${value.toFixed(2)} seconds`
 
-export function EditableEnvelopeGraph({ envelope, previewEnvelope, resetKey, onCommit, onPreview, onCancel, testIdPrefix = 'amp' }: Props) {
+export function EditableEnvelopeGraph({ envelope, previewEnvelope, resetKey, onCommit, onPreview, onCancel, testIdPrefix = 'amp', showHoldControl = true }: Props) {
   const fillGradientId = `envelope-fill-${useId().replaceAll(':', '')}`
   const [draft, setDraft] = useState(previewEnvelope)
   const draftRef = useRef(draft)
@@ -112,7 +113,7 @@ export function EditableEnvelopeGraph({ envelope, previewEnvelope, resetKey, onC
   const handles: Array<{ handle: GraphHandle; x: number; y: number }> = [
     { handle: 'delay', ...points.delay },
     { handle: 'attack', ...points.attack },
-    { handle: 'hold', ...points.hold },
+    ...(showHoldControl ? [{ handle: 'hold' as const, ...points.hold }] : []),
     { handle: 'decaySustain', ...points.decay },
     { handle: 'release', ...points.release },
     { handle: 'attackCurve', ...points.attackCurve },
@@ -120,7 +121,7 @@ export function EditableEnvelopeGraph({ envelope, previewEnvelope, resetKey, onC
     { handle: 'releaseCurve', ...points.releaseCurve },
   ]
 
-  return <svg ref={svgRef} aria-label="Editable AHDSR amplitude envelope" className="envelope-plot editable-graph" data-plot-inset="4" role="group" viewBox="0 0 100 32"
+  return <svg ref={svgRef} aria-label={`Editable ${showHoldControl ? 'AHDSR' : 'ADSR'} amplitude envelope`} className="envelope-plot editable-graph" data-plot-inset="4" role="group" viewBox="0 0 100 32"
     onPointerCancel={cancel}
     onPointerMove={fromPointer}
     onPointerUp={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); finish() }}>
