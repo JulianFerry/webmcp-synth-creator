@@ -17,18 +17,17 @@ consume the same adapter-generated Vital document.
 From the repository root:
 
 ```bash
-npm ci
-source /path/to/emsdk/emsdk_env.sh
-bash wasm/vital/fetch-source.sh
-bash wasm/vital/build.sh
+npm run setup:first-run
 npm run dev -- --strictPort
 ```
 
-Install and activate emsdk `3.1.64` before sourcing `emsdk_env.sh`; exact commands
-and native-reference details are in [`wasm/vital/README.md`](wasm/vital/README.md).
-The fetched checkout and generated artifacts are intentionally ignored, so a
-fresh clone must run the two Vital build commands before starting the app or
-creating a production distribution.
+The first-run script installs missing CMake, Ninja, and Python packages with
+Homebrew on macOS, installs and activates emsdk `3.1.64` under the user cache,
+installs npm dependencies, fetches the pinned Vital source, builds the ignored
+WASM artifacts, and verifies the production application build. Node.js, npm,
+Git, gzip, and Homebrew (when packages are missing) remain host prerequisites.
+Set `EMSDK_DIR` to choose another SDK location. Manual commands and
+native-reference details are in [`wasm/vital/README.md`](wasm/vital/README.md).
 
 Open the URL printed by Vite. The checked-in development configuration currently
 uses `http://127.0.0.1:4173`.
@@ -173,7 +172,7 @@ pinned fetch/build commands aligned.
 ## Troubleshooting
 
 - **The server does not start:** use a supported Node.js version, rerun `npm ci`, and inspect Vite's terminal output. With `--strictPort`, a busy configured port is an error; without it, use the alternate URL Vite prints.
-- **Vital WASM is unavailable:** activate emsdk `3.1.64`, confirm CMake and Ninja are on `PATH`, then rerun `bash wasm/vital/fetch-source.sh` and `bash wasm/vital/build.sh`.
+- **Vital WASM is unavailable:** run `npm run setup:first-run`. For a manual rebuild, activate emsdk `3.1.64`, confirm CMake and Ninja are on `PATH`, then rerun `bash wasm/vital/fetch-source.sh` and `bash wasm/vital/build.sh`.
 - **Audio is suspended or silent:** click **Hold C2** directly, check the tab mute state and output device, then reload and try the gesture again.
 - **WebMCP is unavailable or no tools appear:** confirm the testing flag is enabled, relaunch Chrome, keep the workbench as the active top-level tab, reload it, and reopen the Inspector. Browser flags and extension UI can change, so consult the current [Chrome WebMCP documentation][webmcp-docs] if the named controls have moved.
 - **Vital export is disabled:** confirm `fixtures/vital/init.vital` exists and the app reports **Vital fixture ready**; check the browser console and network panel for fixture loading errors.
