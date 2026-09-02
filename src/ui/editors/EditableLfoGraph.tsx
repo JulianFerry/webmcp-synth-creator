@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { evaluateLfoPoints } from '../../audio/lfo'
+import { deleteLfoPoint, insertLfoPoint, moveLfoCurvePoint, moveLfoPoint, setLfoCurvePower } from '../../patch/lfoPoints'
 import type { LfoPoint } from '../../patch/types'
-import { deleteLfoPoint, insertLfoPoint, moveLfoCurvePoint, moveLfoPoint, setLfoCurvePower } from './lfoPoints'
 import { clientPointToSvg } from './svgCoordinates'
 
 interface Props { points: LfoPoint[]; smooth: boolean; resetKey: number; onCommit: (points: LfoPoint[]) => boolean }

@@ -199,6 +199,15 @@ export interface SetLfoShapeCommand {
   smooth?: boolean
 }
 
+export interface SetLfoPointCommand {
+  type: 'set_lfo_point'
+  reason: string
+  index: number
+  x?: number
+  y?: number
+  power?: number
+}
+
 export interface PatchSummary {
   name: string
   category: PatchCategory | null

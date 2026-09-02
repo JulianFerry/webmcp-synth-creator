@@ -74,15 +74,14 @@ test('LFO edit updates one transaction, SVG, audio scheduling, and Vital structu
     { x: 1, y: 0 },
   ]
 
-  const rawResult = await page.evaluate(async (nextPoints) => {
+  const rawResult = await page.evaluate(async () => {
     const tools = await document.modelContext!.getTools()
-    const tool = tools.find((candidate) => candidate.name === 'set_lfo_shape')
-    if (!tool) throw new Error('set_lfo_shape was not registered')
+    const tool = tools.find((candidate) => candidate.name === 'set_lfo_point')
+    if (!tool) throw new Error('set_lfo_point was not registered')
     return document.modelContext!.executeTool(tool, {
-      reason: 'Shorten the second pulse and preserve the gate rate and routes',
-      points: nextPoints,
+      reason: 'Shorten the second pulse and preserve the gate rate and routes', index: 4, x: 0.35,
     })
-  }, points)
+  })
   const result = JSON.parse(rawResult) as {
     changed: Record<string, { before: unknown; after: unknown }>
     summary: { lfo1: { rate: unknown }; modulations: unknown[] }

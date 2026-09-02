@@ -42,7 +42,7 @@ export function createSetLfoShapeTool(commandService: CommandService): WebMcpToo
     name: 'set_lfo_shape',
     title: 'Edit the point-based LFO shape',
     description:
-      'Edit LFO 1 points for a focused rhythmic change. Preserve its enabled state, rate, and modulation routes unless the request explicitly requires apply_patch.',
+      'Edit LFO 1 points for a focused rhythmic change. Preserve its enabled state, rate, and modulation routes unless the request explicitly requires apply_patch. The optional boolean smooth setting controls interpolation between shape points; output slew is the separate lfo1.smoothing path edited by gate, movement, or apply_patch.',
     inputSchema: {
       type: 'object',
       examples: [documentedSetLfoShapeInput],
@@ -57,7 +57,7 @@ export function createSetLfoShapeTool(commandService: CommandService): WebMcpToo
           type: 'array',
           minItems: 2,
           maxItems: 32,
-          description: 'Normalized LFO points sorted by x from 0 to 1.',
+          description: 'Normalized LFO points sorted by x, with the first pinned at x=0 and the last pinned at x=1.',
           items: {
             type: 'object',
             properties: {
@@ -71,7 +71,7 @@ export function createSetLfoShapeTool(commandService: CommandService): WebMcpToo
         },
         smooth: {
           type: 'boolean',
-          description: 'Optional curve smoothing change. Omit to preserve the current setting.',
+          description: 'Optional boolean shape interpolation change, not continuous output slew. Omit to preserve it.',
         },
       },
       required: ['reason', 'points'],

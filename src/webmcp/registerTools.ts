@@ -11,6 +11,7 @@ import { createLoadPresetTool } from './loadPresetTool'
 import { createRedoTool } from './redoTool'
 import { createSelectVariantTool } from './selectVariantTool'
 import { createSetLfoShapeTool } from './setLfoShapeTool'
+import { createSetLfoPointTool } from './setLfoPointTool'
 import { createUndoTool } from './undoTool'
 
 export interface ToolRegistration {
@@ -41,6 +42,7 @@ export async function registerTools(
     createGetPatchTool(session),
     createApplyPatchTool(commandService),
     createSetLfoShapeTool(commandService),
+    createSetLfoPointTool(commandService),
     createGetSessionStateTool(session),
     createCreateVariantTool(commandService),
     createSelectVariantTool(commandService),

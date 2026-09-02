@@ -7,6 +7,7 @@ import type {
   ApplyPatchCommand,
   PatchSummary,
   PatchState,
+  SetLfoPointCommand,
   SetLfoShapeCommand,
 } from '../patch/types'
 import {
@@ -25,6 +26,7 @@ import { createPatchTransaction, type CreatePatchCommand } from './createPatch'
 import { diffCompletePatch, diffSupportedPaths, type PatchDiff } from './diff'
 import { PatchHistory } from './history'
 import { createLoadPresetTransaction, type LoadPresetCommand } from './loadPreset'
+import { createSetLfoPointTransaction } from './setLfoPoint'
 import { createSetLfoShapeTransaction } from './setLfoShape'
 
 export class CommandError extends Error {}
@@ -79,6 +81,13 @@ export class CommandService {
   setLfoShape(commandInput: SetLfoShapeCommand, context: CommandContext = {}): CommandResult {
     return this.applyPatch(
       createSetLfoShapeTransaction(commandInput, this.session.getPatch()),
+      context,
+    )
+  }
+
+  setLfoPoint(commandInput: SetLfoPointCommand, context: CommandContext = {}): CommandResult {
+    return this.applyPatch(
+      createSetLfoPointTransaction(commandInput, this.session.getPatch()),
       context,
     )
   }

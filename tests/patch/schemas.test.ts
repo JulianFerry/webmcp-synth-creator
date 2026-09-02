@@ -21,6 +21,8 @@ describe('PatchState schema', () => {
     ['filter', (patch: any) => (patch.filter.cutoffHz = 20_001)],
     ['fractional filter cutoff', (patch: any) => (patch.filter.cutoffHz = 632.5)],
     ['LFO ordering', (patch: any) => (patch.lfo1.points[2].x = 0.01)],
+    ['LFO first endpoint', (patch: any) => (patch.lfo1.points[0].x = 0.01)],
+    ['LFO last endpoint', (patch: any) => (patch.lfo1.points.at(-1).x = 0.99)],
     ['modulation vocabulary', (patch: any) => (patch.modulations[0].destination = 'brightness')],
     ['voice', (patch: any) => (patch.voice.polyphony = 17)],
     ['delay', (patch: any) => (patch.effects.delay.feedback = 2)],

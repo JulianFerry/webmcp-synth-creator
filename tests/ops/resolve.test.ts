@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { createDefaultPatch } from '../../src/patch/defaults'
 import { normalizedToCutoffHz, normalizedToGlideSeconds, normalizedToReverbDecaySeconds } from '../../src/ops/normalization'
 import { resolveOps, type Change } from '../../src/ops/resolve'
+import { FLAT_GATE_PATTERN, GATE_PATTERNS } from '../../src/ops/patterns'
+import { MOVEMENT_SHAPES } from '../../src/ops/shapes'
 
 const patch = () => createDefaultPatch()
 const paths = (change: Change) => resolveOps(patch(), [change]).map(({ path }) => path)
@@ -77,6 +79,7 @@ describe('Phase 5 operation resolver exact emitted paths', () => {
       'lfo1.enabled', 'lfo1.points', 'lfo1.rate', 'lfo1.smoothing', 'modulations',
     ])
     const result = resolveOps(patch(), [{ op: 'movement', amount: 0.5, target: 'pan', shape: 'triangle', sync: false, rate: 0.5 }])
+    expect(result.find(({ path }) => path === 'lfo1.points')?.value).toEqual(MOVEMENT_SHAPES.triangle)
     expect(result.at(-1)?.value).toContainEqual(expect.objectContaining({ source: 'lfo1', destination: 'oscillator1.pan', amount: 0.3, bipolar: true }))
   })
 
@@ -87,6 +90,16 @@ describe('Phase 5 operation resolver exact emitted paths', () => {
     expect(paths({ op: 'gate', pattern: 'none' })).toEqual([
       'lfo1.enabled', 'lfo1.points', 'lfo1.rate', 'lfo1.smoothing', 'modulations',
     ])
+    expect(resolveOps(patch(), [{ op: 'gate', pattern: 'swung' }])
+      .find(({ path }) => path === 'lfo1.points')?.value).toEqual(GATE_PATTERNS.swung)
+    const none = resolveOps(patch(), [{ op: 'gate', pattern: 'none' }])
+    expect(none.find(({ path }) => path === 'lfo1.points')?.value).toEqual(FLAT_GATE_PATTERN)
+    expect(none.find(({ path }) => path === 'modulations')?.value).not.toContainEqual(
+      expect.objectContaining({ source: 'lfo1', destination: 'volume' }),
+    )
+    expect(none.find(({ path }) => path === 'modulations')?.value).not.toContainEqual(
+      expect.objectContaining({ source: 'lfo1', destination: 'filter.cutoff' }),
+    )
   })
 
   it('balance emits only arguments supplied and enable writes only for osc2/osc3', () => {

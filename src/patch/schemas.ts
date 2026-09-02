@@ -19,7 +19,7 @@ import {
 import { isAllowedModulationRoute } from './modulation'
 import { EFFECT_IDS } from './effects'
 import { isSupportedPatchPath, parsePatchPathValue } from './paths'
-import type { ApplyPatchCommand, PatchState, SetLfoShapeCommand } from './types'
+import type { ApplyPatchCommand, PatchState, SetLfoPointCommand, SetLfoShapeCommand } from './types'
 import { upgradePatchDocument } from './upgrade'
 
 const unitInterval = z.number().finite().min(0).max(1)
@@ -98,6 +98,20 @@ export const lfoPointsSchema = z
   .min(2)
   .max(32)
   .superRefine((points, context) => {
+    if (points[0]?.x !== 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'The first LFO point must be pinned to x=0',
+        path: [0, 'x'],
+      })
+    }
+    if (points[points.length - 1]?.x !== 1) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'The last LFO point must be pinned to x=1',
+        path: [points.length - 1, 'x'],
+      })
+    }
     for (let index = 1; index < points.length; index += 1) {
       if (points[index].x < points[index - 1].x) {
         context.addIssue({
@@ -336,6 +350,20 @@ const setLfoShapeCommandSchema = z
   })
   .strict()
 
+const setLfoPointCommandSchema = z
+  .object({
+    type: z.literal('set_lfo_point'),
+    reason: z.string().trim().min(1).max(500),
+    index: z.number().int().min(0).max(31),
+    x: unitInterval.optional(),
+    y: unitInterval.optional(),
+    power: z.number().finite().min(-1).max(1).optional(),
+  })
+  .strict()
+  .refine((command) => command.x !== undefined || command.y !== undefined || command.power !== undefined, {
+    message: 'At least one of x, y, or power must be supplied',
+  })
+
 export function parsePatchState(value: unknown): PatchState {
   return patchStateSchema.parse(upgradePatchDocument(value)) as PatchState
 }
@@ -393,4 +421,8 @@ export function parseApplyPatchCommand(value: unknown, patch?: PatchState): Appl
 
 export function parseSetLfoShapeCommand(value: unknown): SetLfoShapeCommand {
   return setLfoShapeCommandSchema.parse(value) as SetLfoShapeCommand
+}
+
+export function parseSetLfoPointCommand(value: unknown): SetLfoPointCommand {
+  return setLfoPointCommandSchema.parse(value) as SetLfoPointCommand
 }

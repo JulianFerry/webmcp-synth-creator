@@ -1,5 +1,5 @@
-import type { LfoPoint } from '../../patch/types'
-import { vitalPowerScale } from '../../audio/units'
+import { vitalPowerScale } from '../audio/units'
+import type { LfoPoint } from './types'
 
 export const MIN_LFO_POINTS = 2
 export const MAX_LFO_POINTS = 32
@@ -9,8 +9,9 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 
 export function moveLfoPoint(points: LfoPoint[], index: number, point: LfoPoint): LfoPoint[] {
   if (!points[index]) return points
-  const minX = index === 0 ? 0 : points[index - 1].x + LFO_POINT_GAP
-  const maxX = index === points.length - 1 ? 1 : points[index + 1].x - LFO_POINT_GAP
+  const endpointX = index === 0 ? 0 : index === points.length - 1 ? 1 : undefined
+  const minX = endpointX ?? points[index - 1].x + LFO_POINT_GAP
+  const maxX = endpointX ?? points[index + 1].x - LFO_POINT_GAP
   return points.map((current, candidate) => candidate === index
     ? { ...current, x: clamp(point.x, minX, maxX), y: clamp(point.y, 0, 1) }
     : current)

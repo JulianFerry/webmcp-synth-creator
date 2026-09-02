@@ -50,6 +50,7 @@ describe('WebMCP tool registration', () => {
       'get_patch',
       'apply_patch',
       'set_lfo_shape',
+      'set_lfo_point',
       'get_session_state',
       'create_variant',
       'select_variant',
@@ -63,9 +64,14 @@ describe('WebMCP tool registration', () => {
     const getPatch = gateway.registrations[0].tool
     const applyPatch = gateway.registrations[1].tool
     const setLfoShape = gateway.registrations[2].tool
+    const setLfoPoint = gateway.registrations[3].tool
     expect(getPatch.annotations).toEqual({ readOnlyHint: true, untrustedContentHint: false })
     expect(applyPatch.annotations).toEqual({ readOnlyHint: false, untrustedContentHint: false })
     expect(setLfoShape.annotations).toEqual({
+      readOnlyHint: false,
+      untrustedContentHint: false,
+    })
+    expect(setLfoPoint.annotations).toEqual({
       readOnlyHint: false,
       untrustedContentHint: false,
     })
@@ -117,6 +123,13 @@ describe('WebMCP tool registration', () => {
     expect(setLfoShape.inputSchema).toMatchObject({
       type: 'object',
       required: ['reason', 'points'],
+      additionalProperties: false,
+    })
+    expect(setLfoShape.description).toContain('boolean smooth')
+    expect(setLfoShape.description).toContain('output slew')
+    expect(setLfoPoint.inputSchema).toMatchObject({
+      type: 'object',
+      required: ['reason', 'index'],
       additionalProperties: false,
     })
   })
@@ -302,6 +315,55 @@ describe('WebMCP tool registration', () => {
     expect(commands.historySize).toBe(1)
     expect(result).not.toHaveProperty('content')
     expectAffectedSections(result, ['lfo'], 1)
+  })
+
+  it('edits one LFO point through the focused tool', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const setLfoPoint = gateway.registrations.find(
+      ({ tool }) => tool.name === 'set_lfo_point',
+    )!.tool
+    const before = session.getPatch()
+
+    const result = await setLfoPoint.execute({
+      reason: 'Shorten the second pulse', index: 4, x: 0.35,
+    })
+
+    expect(result).toMatchObject({
+      changed: { 'lfo1.points': { before: before.lfo1.points } },
+      current: { lfo: { points: expect.arrayContaining([{ x: 0.35, y: 0 }]) } },
+      undo_step: 1,
+    })
+    expect(session.getPatch().lfo1.points[4].x).toBe(0.35)
+    expect(session.getPatch().modulations).toEqual(before.modulations)
+    expectAffectedSections(result, ['lfo'], 1)
+  })
+
+  it('rejects a combined final-point coordinate and power edit atomically', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const setLfoPoint = gateway.registrations.find(
+      ({ tool }) => tool.name === 'set_lfo_point',
+    )!.tool
+    const before = session.getPatch()
+
+    await expect(setLfoPoint.execute({
+      reason: 'Move and curve the final point',
+      index: before.lfo1.points.length - 1,
+      x: 0.75,
+      y: 0.5,
+      power: 0.5,
+    })).resolves.toEqual({
+      ok: false,
+      error: {
+        code: 'LFO_POINT_NOT_CHANGED',
+        message: 'Curve power cannot be set on the final LFO point',
+      },
+    })
+    expect(session.getPatch()).toEqual(before)
+    expect(commands.historySize).toBe(0)
   })
 
   it('reports LFO enablement and preserves retained configuration through apply_patch', async () => {
@@ -522,6 +584,11 @@ describe('WebMCP tool registration', () => {
           { x: 0, y: 0 },
           { x: 1, y: 1 },
         ],
+      },
+      set_lfo_point: {
+        reason: 'This point transaction must be cancelled',
+        index: 1,
+        y: 0.5,
       },
       get_session_state: {},
       create_variant: {
