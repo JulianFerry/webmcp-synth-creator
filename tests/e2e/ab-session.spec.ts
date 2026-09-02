@@ -67,6 +67,7 @@ test('A/B session creates and auditions wider B, undoes only B, then exports sel
     return JSON.parse(
       await document.modelContext!.executeTool(tool, {
         description: 'Create a wider B while preserving the current tone',
+        comparisonAxis: 'stereo width',
         changes: [
           { path: 'metadata.name', value: 'Ethereal Gate Wide B' },
           { path: 'oscillators.0.unisonVoices', value: 7 },
@@ -174,6 +175,7 @@ test('WebMCP creates two warm-bass proposals that are auditionable from the A/B 
       await document.modelContext!.executeTool(tool, {
         description: 'Warm bass: sub-heavy sine foundation',
         attributes: { category: 'bass', brightness: 0.2 },
+        comparisonAxis: 'harmonic profile',
         alternative: {
           description: 'Warm bass: saturated analog saw harmonics',
           attributes: { category: 'lead', brightness: 0.55, drive: 0.7 },

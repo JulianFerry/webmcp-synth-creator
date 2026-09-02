@@ -18,6 +18,7 @@ function createWideVariant(commands: CommandService, replaceExisting = false) {
   return commands.createVariant({
     type: 'create_variant',
     reason: 'Create a wider B alternative',
+    comparisonAxis: 'stereo width',
     changes: [
       { path: 'metadata.name', value: 'Ethereal Gate Wide B' },
       { path: 'oscillators.0.unisonVoices', value: 7 },
@@ -45,6 +46,7 @@ describe('variant-local session state', () => {
       hasVariantB: true,
       canUndo: true,
       canRedo: false,
+      comparisonAxis: 'stereo width',
     })
     expect(state.variants.A.present).toEqual(originalA)
     expect(state.variants.B?.past).toHaveLength(1)
@@ -159,6 +161,7 @@ describe('variant-local session state', () => {
       commands.createVariant({
         type: 'create_variant',
         reason: 'Invalid atomic B edit',
+        comparisonAxis: 'timbre',
         changes: [
           { path: 'filter.cutoffHz', value: 3000 },
           { path: 'oscillators.0.wavetableId', value: 'missing-table' },
@@ -180,7 +183,7 @@ describe('variant-local session state', () => {
     commands.selectVariant('A')
 
     const replacement = createWideVariant(commands, true)
-    expect(replacement.session).toMatchObject({ currentVariant: 'B', hasVariantB: true })
+    expect(replacement.session).toMatchObject({ currentVariant: 'B', hasVariantB: true, comparisonAxis: 'stereo width' })
     expect(session.getState().variants.B?.past).toHaveLength(1)
 
     const discarded = commands.discardVariantB()
@@ -192,6 +195,22 @@ describe('variant-local session state', () => {
     })
     expect(discarded.patch).toEqual(originalA)
     expect(session.getState().variants.B).toBeUndefined()
+    expect(discarded.session).not.toHaveProperty('comparisonAxis')
+  })
+
+  it('preserves the comparison axis across selection and edits', () => {
+    const { commands, session } = createHarness()
+    createWideVariant(commands)
+    commands.selectVariant('A')
+    commands.applyPatch({
+      type: 'apply_patch',
+      reason: 'Precisely lower A cutoff',
+      changes: [{ path: 'filter.cutoffHz', value: 5000 }],
+    })
+    commands.selectVariant('B')
+
+    expect(session.getState().comparisonAxis).toBe('stereo width')
+    expect(session.getSummary().comparisonAxis).toBe('stereo width')
   })
 
   it('keeps imported Vital backing variant-local and restores it across replacement history', () => {

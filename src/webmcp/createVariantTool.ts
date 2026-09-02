@@ -10,12 +10,20 @@ import { writeToolResult } from './writeResult'
 
 const documentedCreateVariantInput = {
   description: 'Create a wider B alternative while preserving the tone',
+  comparisonAxis: 'stereo width',
   changes: [
     { path: 'metadata.name', value: 'Ethereal Gate Wide B' },
     { path: 'oscillators.0.stereoSpread', value: 1 },
     { path: 'oscillators.0.unisonVoices', value: 7 },
   ],
 }
+
+const createVariantInputSchema = z.object({
+  description: z.string().trim().min(1).max(500),
+  comparisonAxis: z.string().trim().min(1).max(200),
+  changes: z.array(z.unknown()).min(1).max(32),
+  replaceExisting: z.boolean().optional(),
+}).strict()
 
 function createVariantError(error: z.ZodError | CommandError | SessionError) {
   if (error instanceof z.ZodError) {
@@ -52,7 +60,7 @@ export function createCreateVariantTool(commandService: CommandService): WebMcpT
     name: 'create_variant',
     title: 'Create one B alternative',
     description:
-      'Clone the selected patch to B and apply one coherent alternative atomically. Variant A remains unchanged, and variant B becomes the active variant for immediate audition.',
+      'Default comparison and refinement path when musical judgment is unresolved: clone the selected patch to B and contrast one named comparisonAxis while preserving A for simultaneous audition. Use direct apply_patch edits instead for settled, precise changes, even when they are high-impact. Replacing B starts a new comparison on the supplied axis; this is not undo.',
     inputSchema: {
       type: 'object',
       examples: [documentedCreateVariantInput],
@@ -61,7 +69,13 @@ export function createCreateVariantTool(commandService: CommandService): WebMcpT
           type: 'string',
           minLength: 1,
           maxLength: 500,
-          description: 'Concise intent for the alternative.',
+          description: 'Concise intent for B, framed as a useful alternative to A.',
+        },
+        comparisonAxis: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 200,
+          description: 'Required musical dimension being judged, such as harmonic profile, motion character, or stereo width.',
         },
         changes: {
           type: 'array',
@@ -74,7 +88,7 @@ export function createCreateVariantTool(commandService: CommandService): WebMcpT
           description: 'Set true only when explicitly replacing an existing B alternative.',
         },
       },
-      required: ['description', 'changes'],
+      required: ['description', 'comparisonAxis', 'changes'],
       additionalProperties: false,
     },
     annotations: {
@@ -83,7 +97,13 @@ export function createCreateVariantTool(commandService: CommandService): WebMcpT
     },
     async execute(input, context) {
       context?.signal.throwIfAborted()
-      const changes = Array.isArray(input.changes) ? input.changes : []
+      let parsed: z.infer<typeof createVariantInputSchema>
+      try {
+        parsed = createVariantInputSchema.parse(input)
+      } catch (error) {
+        return createVariantError(error as z.ZodError)
+      }
+      const changes = parsed.changes
       if (
         changes.some(
           (change) =>
@@ -105,11 +125,12 @@ export function createCreateVariantTool(commandService: CommandService): WebMcpT
         const result = commandService.createVariant(
           {
             type: 'create_variant',
-            reason: input.description as string,
+            reason: parsed.description,
+            comparisonAxis: parsed.comparisonAxis,
             changes: changes as CreateVariantCommand['changes'],
-            ...(input.replaceExisting === undefined
+            ...(parsed.replaceExisting === undefined
               ? {}
-              : { replaceExisting: input.replaceExisting as boolean }),
+              : { replaceExisting: parsed.replaceExisting }),
           },
           { source: 'webmcp' },
         )

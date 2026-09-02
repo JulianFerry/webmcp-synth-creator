@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { CommandService } from '../../src/commands/CommandService'
 import { PatchHistory } from '../../src/commands/history'
@@ -13,7 +13,10 @@ import type {
   ModelContextGateway,
   WebMcpToolDefinition,
 } from '../../src/webmcp/ModelContextGateway'
-import { UnavailableModelContextGateway } from '../../src/webmcp/ModelContextGateway'
+import {
+  UnavailableModelContextGateway,
+  withCompatibleExecutionContext,
+} from '../../src/webmcp/ModelContextGateway'
 import { registerTools } from '../../src/webmcp/registerTools'
 import type { VitalPresetAdapter } from '../../src/vital/VitalPresetAdapter'
 
@@ -43,6 +46,45 @@ function expectAffectedSections(result: unknown, sections: string[], undoStep: n
 }
 
 describe('WebMCP tool registration', () => {
+  it.each([
+    ['absent context', undefined],
+    ['empty context', {}],
+    ['live signal', { signal: new AbortController().signal }],
+  ] as const)('tolerates %s at the native execution boundary', async (_name, context) => {
+    const execute = vi.fn(async () => 'ok')
+    const tool = withCompatibleExecutionContext({
+      name: 'test_tool',
+      description: 'Test the native execution boundary',
+      inputSchema: { type: 'object' },
+      annotations: { readOnlyHint: true, untrustedContentHint: false },
+      execute,
+    })
+
+    await expect(tool.execute({}, context)).resolves.toBe('ok')
+    expect(execute).toHaveBeenCalledWith(
+      {},
+      context && 'signal' in context ? context : undefined,
+    )
+  })
+
+  it('throws for an aborted signal at the native execution boundary', async () => {
+    const controller = new AbortController()
+    controller.abort(new DOMException('Cancelled', 'AbortError'))
+    const execute = vi.fn(async () => 'unreachable')
+    const tool = withCompatibleExecutionContext({
+      name: 'test_tool',
+      description: 'Test the native execution boundary',
+      inputSchema: { type: 'object' },
+      annotations: { readOnlyHint: true, untrustedContentHint: false },
+      execute,
+    })
+
+    await expect(tool.execute({}, { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
   it('asynchronously registers patch and session tools with current annotations and schemas', async () => {
     const gateway = new CapturingGateway()
     const { commands, session } = createHarness()
@@ -121,16 +163,40 @@ describe('WebMCP tool registration', () => {
     const createPatch = tool('create_patch')
     const variantChangeUnion = (createVariant.inputSchema.properties as any).changes.items.oneOf
     expect(variantChangeUnion).toEqual(applyChangeUnion)
-    expect(createVariant.description).toContain('variant B becomes the active variant')
-    expect(createPatch.description).toContain('genuinely under-determined')
-    expect(createPatch.description).toContain('Do not propose an alternative for a specific request')
-    expect(createPatch.inputSchema.properties).toHaveProperty('alternative')
+    expect(createVariant.description).toContain('Default comparison and refinement path')
+    expect(createVariant.description).toContain('settled, precise changes')
+    expect(createVariant.inputSchema.required).toEqual(['description', 'comparisonAxis', 'changes'])
+    expect(createPatch.title).toBe('Create contrasting A/B proposals or one explicit patch')
+    expect(createPatch.description).toContain('subjective, exploratory, or character-choice')
+    expect(createPatch.description).toContain('high-impact but unambiguous replacement')
+    const createPatchUnion = createPatch.inputSchema.oneOf as any[]
+    expect(createPatchUnion).toHaveLength(2)
+    expect(createPatchUnion[0].required).toEqual(['description', 'comparisonAxis', 'alternative'])
+    expect(createPatchUnion[1].required).toEqual(['description', 'singleProposal'])
+    expect(createPatchUnion[1].properties.singleProposal.const).toBe(true)
+    expect(createPatch.inputSchema.examples).toEqual([
+      {
+        description: 'Warm bass A - harmonic profile: rounded sub-heavy sine',
+        attributes: { category: 'bass', brightness: 0.2, drive: 0.1 },
+        comparisonAxis: 'harmonic profile',
+        alternative: {
+          description: 'Warm bass B - harmonic profile: saturated analog saw',
+          attributes: { category: 'lead', brightness: 0.55, drive: 0.75 },
+        },
+      },
+      {
+        description: 'One pluck with a short attack and medium release',
+        attributes: { category: 'pluck', attack: 0.05, release: 0.5 },
+        singleProposal: true,
+      },
+    ])
     expect(applyPatch.description).toContain('filter.cutoffHz = cutoffHz(0.12 + brightness*0.80')
     expect(applyPatch.description).toContain("t' = t * (0.25 + speed*1.5)")
     expect(applyPatch.description).toContain('voice.transposeSemitones = clamp(')
     expect(applyPatch.description).toContain('Routing is derived from filter.velocityToCutoff')
     expect(applyPatch.description).toContain('movement is continuous modulation; gate is stepped and rhythmic')
-    expect(applyPatch.description).toMatch(/Prefer operations over raw paths[\s\S]*call to this tool\.$/)
+    expect(applyPatch.description).toContain('high-impact replacement')
+    expect(applyPatch.description).toContain('create_variant to compare B')
     expect(setLfoShape.inputSchema).toMatchObject({
       type: 'object',
       required: ['reason', 'points'],
@@ -200,6 +266,7 @@ describe('WebMCP tool registration', () => {
 
     const result = await createVariant.execute({
       description: 'Create a darker B alternative',
+      comparisonAxis: 'brightness',
       changes: [{ op: 'tone', brightness: 0.15, keep_air: false }],
     })
 
@@ -223,6 +290,7 @@ describe('WebMCP tool registration', () => {
 
     await tool('create_variant').execute({
       description: 'Prior B that paired creation must replace',
+      comparisonAxis: 'patch identity',
       changes: [{ path: 'metadata.name', value: 'Obsolete B' }],
     })
     expect(session.getSummary().currentVariant).toBe('B')
@@ -230,6 +298,7 @@ describe('WebMCP tool registration', () => {
     const result = await tool('create_patch').execute({
       description: 'Warm bass: sub-heavy sine foundation',
       attributes: { category: 'bass', brightness: 0.2 },
+      comparisonAxis: 'harmonic profile',
       alternative: {
         description: 'Warm bass: saturated analog saw harmonics',
         attributes: { category: 'lead', brightness: 0.55, drive: 0.7 },
@@ -240,9 +309,11 @@ describe('WebMCP tool registration', () => {
     }
 
     expect(result.session).toEqual(expect.objectContaining({ currentVariant: 'A', hasVariantB: true }))
+    expect(result.session).toMatchObject({ comparisonAxis: 'harmonic profile' })
     expect(result.variants.A.name).toBe('Warm bass: sub-heavy sine foundation')
     expect(result.variants.B.name).toBe('Warm bass: saturated analog saw harmonics')
     expect(result.variants.A.description).not.toBe(result.variants.B.description)
+    expect(result).not.toHaveProperty('suggested_next_action')
     expect(session.getVitalBacking('A')).toBeNull()
     expect(session.getVitalBacking('B')).toBeNull()
 
@@ -508,6 +579,7 @@ describe('WebMCP tool registration', () => {
 
     const created = await tool('create_variant').execute({
       description: 'Create a wider B alternative',
+      comparisonAxis: 'stereo width',
       changes: [
         { path: 'metadata.name', value: 'Ethereal Gate Wide B' },
         { path: 'oscillators.0.stereoSpread', value: 1 },
@@ -528,7 +600,7 @@ describe('WebMCP tool registration', () => {
     expect(session.getPatch('A').metadata.name).toBe('Ethereal Gate')
     await expect(tool('get_patch').execute({})).resolves.toMatchObject({
       name: 'Ethereal Gate Wide B',
-      session: { currentVariant: 'B', hasVariantB: true, canUndo: true, canRedo: false },
+      session: { currentVariant: 'B', hasVariantB: true, canUndo: true, canRedo: false, comparisonAxis: 'stereo width' },
     })
 
     const undone = await tool('undo').execute({})
@@ -589,12 +661,18 @@ describe('WebMCP tool registration', () => {
     const created = await tool('create_patch').execute({
       description: 'Create a bright, wide percussion patch',
       attributes: { category: 'percussion', brightness: 0.8, width: 0.7, attack: 0.1 },
+      singleProposal: true,
     })
     expect(created).toMatchObject({
       current: { metadata: { name: 'Create a bright, wide percussion patch', category: 'rhythmic' } },
       session: { currentVariant: 'A', canUndo: true },
       description: expect.any(String),
+      variants: {
+        A: { name: 'Create a bright, wide percussion patch', description: expect.any(String) },
+        B: null,
+      },
     })
+    expect(created).not.toHaveProperty('suggested_next_action')
     expect(commands.historySize).toBe(2)
     expect((created as { undo_step: number }).undo_step).toBe(2)
     expect(session.getPatch().metadata.description).toBe('Create a bright, wide percussion patch')
@@ -610,6 +688,7 @@ describe('WebMCP tool registration', () => {
       const result = await createPatch.execute({
         description: `${category} attribute coverage`,
         attributes: { category, brightness: 0.8, movement: 0.4, width: 0.7, space: 0.6, drive: 0.5, attack: 0.2, release: 0.8 },
+        singleProposal: true,
       }) as { undo_step: number }
 
       expect(result.undo_step).toBe(1)
@@ -645,7 +724,7 @@ describe('WebMCP tool registration', () => {
     await registerTools(gateway, session, commands)
     const createPatch = gateway.registrations.find(({ tool }) => tool.name === 'create_patch')!.tool
 
-    const result = await createPatch.execute({ description: `${_name} only`, attributes: { category: 'pad', ...attribute } }) as { undo_step: number }
+    const result = await createPatch.execute({ description: `${_name} only`, attributes: { category: 'pad', ...attribute }, singleProposal: true }) as { undo_step: number }
     assertPatch(session.getPatch())
     expect(result.undo_step).toBe(1)
     expect(commands.historySize).toBe(1)
@@ -660,7 +739,7 @@ describe('WebMCP tool registration', () => {
     await registerTools(gateway, session, commands)
     const createPatch = gateway.registrations.find(({ tool }) => tool.name === 'create_patch')!.tool
 
-    const result = await createPatch.execute({ description: _name, attributes: attribute }) as { undo_step: number }
+    const result = await createPatch.execute({ description: _name, attributes: attribute, singleProposal: true }) as { undo_step: number }
     expect(session.getPatch().ampEnvelope).toEqual(envelope)
     expect(result.undo_step).toBe(1)
     expect(commands.historySize).toBe(1)
@@ -672,7 +751,7 @@ describe('WebMCP tool registration', () => {
     await registerTools(gateway, session, commands)
     const createPatch = gateway.registrations.find(({ tool }) => tool.name === 'create_patch')!.tool
 
-    const result = await createPatch.execute({ description: 'Default category' }) as { undo_step: number }
+    const result = await createPatch.execute({ description: 'Default category', singleProposal: true }) as { undo_step: number }
     expect(session.getPatch()).toEqual({
       ...getTemplatePatch('pad'),
       metadata: { ...getTemplatePatch('pad').metadata, name: 'Default category', description: 'Default category' },
@@ -691,6 +770,10 @@ describe('WebMCP tool registration', () => {
     for (const input of [
       {},
       { description: '' },
+      { description: 'Implicit A-only is rejected' },
+      { description: 'Pair without axis', alternative: { description: 'B' } },
+      { description: 'Pair with empty axis', comparisonAxis: '  ', alternative: { description: 'B' } },
+      { description: 'Single false', singleProposal: false },
       { description: 'bad category', attributes: { category: 'drums' } },
       { description: 'bad amount', attributes: { brightness: 2 } },
       { description: 'unknown attribute', attributes: { mystery: 0.5 } },
@@ -808,6 +891,7 @@ describe('WebMCP tool registration', () => {
 
     const input = {
       description: 'Create B',
+      comparisonAxis: 'patch identity',
       changes: [{ path: 'metadata.name', value: 'Variant B' }],
     }
     await tool('create_variant').execute(input)
@@ -823,13 +907,20 @@ describe('WebMCP tool registration', () => {
     await expect(
       tool('create_variant').execute({
         description: 'Explicitly replace B',
+        comparisonAxis: 'filter brightness',
         changes: [{ path: 'filter.cutoffHz', value: 4100 }],
         replaceExisting: true,
       }),
     ).resolves.toMatchObject({
       current: { filter: { cutoffHz: 4100 } },
-      session: { currentVariant: 'B', hasVariantB: true, canUndo: true, canRedo: false },
+      session: { currentVariant: 'B', hasVariantB: true, canUndo: true, canRedo: false, comparisonAxis: 'filter brightness' },
     })
+
+    await expect(tool('create_variant').execute({
+      description: 'Missing axis',
+      changes: [{ path: 'filter.cutoffHz', value: 3900 }],
+      replaceExisting: true,
+    })).resolves.toMatchObject({ ok: false, error: { code: 'INVALID_CREATE_VARIANT_INPUT' } })
   })
 
   it('uses one AbortSignal to clean up all registrations', async () => {

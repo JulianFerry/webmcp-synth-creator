@@ -237,6 +237,7 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
           {
             type: 'create_variant',
             reason: 'Create a wider B alternative from the selected patch',
+            comparisonAxis: 'stereo width',
             changes,
           },
           { source: 'ui' },

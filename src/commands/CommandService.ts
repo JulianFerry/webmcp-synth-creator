@@ -99,6 +99,20 @@ export class CommandService {
     vitalBacking?: ImportedVitalBacking | null,
   ): CommandResult {
     const { correlationId, source } = this.beginRequest(context, 'ui')
+    if (this.session.hasVariant('B')) {
+      const activePatch = this.session.getPatch()
+      const variantA = this.session.getPatch('A')
+      this.session.discardVariantB(
+        this.commitInput(
+          variantA,
+          diffCompletePatch(activePatch, variantA),
+          correlationId,
+          'Replace variants with patch',
+          source,
+          'variant_discard',
+        ),
+      )
+    }
     const before = this.session.getPatch()
     const transaction = createPatchTransaction(before, commandInput)
     this.commitReplacement(transaction, correlationId, source, 'patch_create', vitalBacking)
@@ -108,6 +122,7 @@ export class CommandService {
   createPatchPair(
     primaryInput: CreatePatchCommand,
     alternativeInput: CreatePatchCommand,
+    comparisonAxis: string,
     context: CommandContext = {},
   ): CommandResult {
     const { correlationId, source } = this.beginRequest(context, 'ui')
@@ -147,6 +162,7 @@ export class CommandService {
       () => this.trace.record(correlationId, 'patch_committed', source),
       false,
       null,
+      comparisonAxis,
     )
 
     return this.commandResult(primary.patch, primary.changed, correlationId)
@@ -185,6 +201,9 @@ export class CommandService {
       transaction.historyEntry,
       transaction.replaceExisting,
       () => this.trace.record(correlationId, 'patch_committed', source),
+      true,
+      undefined,
+      transaction.comparisonAxis,
     )
 
     return this.commandResult(transaction.patch, transaction.changed, correlationId)

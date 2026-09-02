@@ -7,6 +7,10 @@ export interface ToolExecutionContext {
   signal: AbortSignal
 }
 
+export interface RuntimeToolExecutionContext {
+  signal?: AbortSignal
+}
+
 export interface WebMcpToolDefinition {
   name: string
   title?: string
@@ -22,6 +26,20 @@ export interface ModelContextGateway {
   registerTool(tool: WebMcpToolDefinition, options: { signal: AbortSignal }): Promise<void>
 }
 
+export function withCompatibleExecutionContext(tool: WebMcpToolDefinition) {
+  return {
+    ...tool,
+    async execute(
+      input: Record<string, unknown>,
+      context?: RuntimeToolExecutionContext,
+    ): Promise<unknown> {
+      const signal = context?.signal
+      signal?.throwIfAborted()
+      return tool.execute(input, signal ? { signal } : undefined)
+    },
+  }
+}
+
 export class NativeModelContextGateway implements ModelContextGateway {
   readonly available = true
 
@@ -31,7 +49,7 @@ export class NativeModelContextGateway implements ModelContextGateway {
     tool: WebMcpToolDefinition,
     options: { signal: AbortSignal },
   ): Promise<void> {
-    await this.context.registerTool(tool, options)
+    await this.context.registerTool(withCompatibleExecutionContext(tool), options)
   }
 }
 

@@ -4,7 +4,7 @@ interface ModelContextToolAnnotations {
 }
 
 interface ModelContextToolExecutionContext {
-  signal: AbortSignal
+  signal?: AbortSignal
 }
 
 interface ModelContextTool {
@@ -15,7 +15,7 @@ interface ModelContextTool {
   annotations?: ModelContextToolAnnotations
   execute: (
     input: Record<string, unknown>,
-    context: ModelContextToolExecutionContext,
+    context?: ModelContextToolExecutionContext,
   ) => Promise<unknown>
 }
 

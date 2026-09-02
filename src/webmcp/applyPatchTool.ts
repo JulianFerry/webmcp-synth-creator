@@ -36,7 +36,7 @@ export function createApplyPatchTool(commandService: CommandService): WebMcpTool
   return {
     name: 'apply_patch',
     title: 'Apply one patch transaction',
-    description: `${OPERATION_TABLE}\n\nPrefer operations over raw paths. Use a path only for a precise correction or for a parameter no operation covers. One user instruction should normally produce one call to this tool.`,
+    description: `${OPERATION_TABLE}\n\nPrefer operations over raw paths. Use a path only for a precise correction or for a parameter no operation covers. Use this direct-edit path for settled, unambiguous intent, including a high-impact replacement. When a subjective, exploratory, or character-choice direction leaves judgment unresolved, preserve A and use create_variant to compare B instead. Comparison is simultaneous judgment; undo reverses an already committed transaction.`,
     inputSchema: {
       type: 'object',
       examples: [documentedApplyPatchInput],

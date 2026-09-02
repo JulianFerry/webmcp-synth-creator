@@ -170,6 +170,7 @@ describe('CommandService', () => {
     const result = commands.createPatchPair(
       { type: 'create_patch', reason: 'Warm bass with sub weight', patch: primary },
       { type: 'create_patch', reason: 'Warm bass with saw harmonics', patch: alternative },
+      'harmonic profile',
       { source: 'webmcp', correlationId: 'patch-pair-1' },
     )
 

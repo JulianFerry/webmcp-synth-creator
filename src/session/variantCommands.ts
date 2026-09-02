@@ -11,6 +11,7 @@ import type { VariantId } from './SessionService'
 export interface CreateVariantCommand {
   type: 'create_variant'
   reason: string
+  comparisonAxis: string
   changes: Change[]
   replaceExisting?: boolean
 }
@@ -25,6 +26,7 @@ export interface VariantCreationTransaction {
   changed: PatchDiff
   historyEntry: HistoryEntry
   replaceExisting: boolean
+  comparisonAxis: string
 }
 
 export function createVariantTransaction(
@@ -32,6 +34,7 @@ export function createVariantTransaction(
   commandInput: CreateVariantCommand,
 ): VariantCreationTransaction {
   const replaceExisting = z.boolean().optional().parse(commandInput.replaceExisting) ?? false
+  const comparisonAxis = z.string().trim().min(1).max(200).parse(commandInput.comparisonAxis)
   const command = parseApplyPatchCommand({
     type: 'apply_patch',
     reason: commandInput.reason,
@@ -54,6 +57,7 @@ export function createVariantTransaction(
       reason: command.reason,
     },
     replaceExisting,
+    comparisonAxis,
   }
 }
 

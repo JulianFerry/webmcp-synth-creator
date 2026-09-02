@@ -26,9 +26,15 @@ const patchProposalSchema = z.object({
   attributes: attributesSchema.optional(),
 }).strict()
 
-const createPatchInputSchema = patchProposalSchema.extend({
-  alternative: patchProposalSchema.optional(),
-}).strict()
+const createPatchInputSchema = z.union([
+  patchProposalSchema.extend({
+    comparisonAxis: z.string().trim().min(1).max(200),
+    alternative: patchProposalSchema,
+  }).strict(),
+  patchProposalSchema.extend({
+    singleProposal: z.literal(true),
+  }).strict(),
+])
 
 type PatchProposal = z.infer<typeof patchProposalSchema>
 
@@ -67,6 +73,23 @@ const attributesJsonSchema = {
   additionalProperties: false,
 } as const
 
+const documentedCreatePatchInputs = [
+  {
+    description: 'Warm bass A - harmonic profile: rounded sub-heavy sine',
+    attributes: { category: 'bass', brightness: 0.2, drive: 0.1 },
+    comparisonAxis: 'harmonic profile',
+    alternative: {
+      description: 'Warm bass B - harmonic profile: saturated analog saw',
+      attributes: { category: 'lead', brightness: 0.55, drive: 0.75 },
+    },
+  },
+  {
+    description: 'One pluck with a short attack and medium release',
+    attributes: { category: 'pluck', attack: 0.05, release: 0.5 },
+    singleProposal: true,
+  },
+] as const
+
 function createPatchError(error: z.ZodError | CommandError) {
   if (error instanceof z.ZodError) {
     const issues = error.issues.map((issue) => ({
@@ -92,31 +115,42 @@ export function createCreatePatchTool(
 ): WebMcpToolDefinition {
   return {
     name: 'create_patch',
-    title: 'Create a patch from a validated template',
+    title: 'Create contrasting A/B proposals or one explicit patch',
     description:
-      'Start from a known-valid category template and commit the result as one undoable transaction. Propose an alternative when the request is genuinely under-determined along a musical axis, such as sub-heavy sine versus saturated analog saw for "warm bass", and name that axis in both descriptions. Do not propose an alternative for a specific request; an unneeded second variant adds audition noise. Paired creation replaces any prior B and leaves variant A active.',
+      'Create contrasting A/B proposals by default so unresolved, subjective, exploratory, or character-choice directions can be auditioned simultaneously rather than guessed. Examples include warm bass harmonic profile (rounded sub-heavy sine versus saturated analog saw) and dreamy pad motion (slow strings versus gated ambient). A high-impact but unambiguous replacement may be direct: set singleProposal to true only for an exact, settled, or explicitly single request. Paired creation requires a named comparisonAxis, replaces any prior B, and leaves A active. This is comparison, not undo; use undo only to reverse an already committed transaction.',
     inputSchema: {
-      type: 'object',
-      properties: {
-        description: {
-          type: 'string',
-          minLength: 1,
-          maxLength: 500,
-          description: 'Concise musical intent, stored as the patch description and undo reason.',
-        },
-        attributes: attributesJsonSchema,
-        alternative: {
+      examples: documentedCreatePatchInputs,
+      oneOf: [
+        {
           type: 'object',
+          description: 'Default paired contract for subjective or exploratory musical judgment.',
           properties: {
-            description: { type: 'string', minLength: 1, maxLength: 500 },
+            description: { type: 'string', minLength: 1, maxLength: 500, description: 'Proposal A intent.' },
             attributes: attributesJsonSchema,
+            comparisonAxis: { type: 'string', minLength: 1, maxLength: 200, description: 'The concise musical dimension A and B deliberately contrast, such as harmonic profile or motion character.' },
+            alternative: {
+              type: 'object',
+              description: 'Required B proposal for comparison. Give subjective, exploratory, and character-choice requests two musically useful interpretations.',
+              properties: { description: { type: 'string', minLength: 1, maxLength: 500 }, attributes: attributesJsonSchema },
+              required: ['description'],
+              additionalProperties: false,
+            },
           },
-          required: ['description'],
+          required: ['description', 'comparisonAxis', 'alternative'],
           additionalProperties: false,
         },
-      },
-      required: ['description'],
-      additionalProperties: false,
+        {
+          type: 'object',
+          description: 'A-only contract for an exact, settled, or explicitly single request.',
+          properties: {
+            description: { type: 'string', minLength: 1, maxLength: 500, description: 'Exact single proposal intent.' },
+            attributes: attributesJsonSchema,
+            singleProposal: { type: 'boolean', const: true, description: 'Explicitly confirms that only A should be created.' },
+          },
+          required: ['description', 'singleProposal'],
+          additionalProperties: false,
+        },
+      ],
     },
     annotations: { readOnlyHint: false, untrustedContentHint: false },
     async execute(input, context) {
@@ -124,13 +158,20 @@ export function createCreatePatchTool(
       try {
         const parsed = createPatchInputSchema.parse(input)
         const primaryPatch = buildPatch(parsed)
-        if (!parsed.alternative) {
+        if ('singleProposal' in parsed) {
           const result = commandService.createPatch(
             { type: 'create_patch', reason: parsed.description, patch: primaryPatch },
             { source: 'webmcp' },
             null,
           )
-          return { ...writeToolResult(result), description: describePatch(result.patch) }
+          return {
+            ...writeToolResult(result),
+            description: describePatch(result.patch),
+            variants: {
+              A: { name: primaryPatch.metadata.name, description: describePatch(primaryPatch) },
+              B: null,
+            },
+          }
         }
 
         const alternativePatch = buildPatch(parsed.alternative)
@@ -141,6 +182,7 @@ export function createCreatePatchTool(
             reason: parsed.alternative.description,
             patch: alternativePatch,
           },
+          parsed.comparisonAxis,
           { source: 'webmcp' },
         )
         return {

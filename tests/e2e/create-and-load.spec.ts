@@ -104,6 +104,7 @@ test('create and load complete patches through WebMCP and curated UI paths', asy
   }>(page, 'create_patch', {
     description: 'Create one complete playable lead patch',
     attributes: { category: 'lead' },
+    singleProposal: true,
   })
   expect(created.current.metadata).toMatchObject({
     name: 'Create one complete playable lead patch',

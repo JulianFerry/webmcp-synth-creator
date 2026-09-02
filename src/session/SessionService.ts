@@ -16,6 +16,7 @@ export interface VariantState {
 export interface SessionState {
   variants: { A: VariantState; B?: VariantState }
   currentVariant: VariantId
+  comparisonAxis?: string
 }
 
 export interface SessionSummary {
@@ -23,6 +24,7 @@ export interface SessionSummary {
   hasVariantB: boolean
   canUndo: boolean
   canRedo: boolean
+  comparisonAxis?: string
 }
 
 export interface SessionCommitInput {
@@ -80,6 +82,7 @@ export class SessionError extends Error {
 export class SessionService {
   private readonly variants: { A: StoredVariantState; B?: StoredVariantState }
   private currentVariant: VariantId = 'A'
+  private comparisonAxis: string | undefined
   private historyLimit: number
   private vitalBackingRevision = 0
   private readonly subscribers = new Set<SessionSubscriber>()
@@ -124,6 +127,7 @@ export class SessionService {
         A: this.toVariantState(this.variants.A),
       },
       currentVariant: this.currentVariant,
+      ...(this.comparisonAxis === undefined ? {} : { comparisonAxis: this.comparisonAxis }),
     }
     if (this.variants.B) state.variants.B = this.toVariantState(this.variants.B)
     return state
@@ -158,6 +162,7 @@ export class SessionService {
       hasVariantB: this.variants.B !== undefined,
       canUndo: history.canUndo,
       canRedo: history.canRedo,
+      ...(this.comparisonAxis === undefined ? {} : { comparisonAxis: this.comparisonAxis }),
     }
   }
 
@@ -270,7 +275,15 @@ export class SessionService {
     afterStateUpdate: () => void = () => undefined,
     activate = true,
     vitalBacking?: ImportedVitalBacking | null,
+    comparisonAxis?: string,
   ): void {
+    const normalizedComparisonAxis = comparisonAxis?.trim()
+    if (!normalizedComparisonAxis) {
+      throw new SessionError(
+        'INVALID_SESSION_TRANSITION',
+        'Variant B requires a non-empty comparison axis',
+      )
+    }
     if (this.variants.B && !replaceExisting) {
       throw new SessionError(
         'VARIANT_B_EXISTS',
@@ -304,6 +317,7 @@ export class SessionService {
           ? this.getVariant(this.currentVariant).vitalBacking
           : structuredClone(vitalBacking),
     }
+    this.comparisonAxis = normalizedComparisonAxis
     if (activate) this.currentVariant = 'B'
     this.publish(event, afterStateUpdate)
   }
@@ -344,6 +358,7 @@ export class SessionService {
     }
     const previousBacking = this.variants.B.vitalBacking
     delete this.variants.B
+    this.comparisonAxis = undefined
     this.currentVariant = 'A'
     if (this.variants.A.vitalBacking !== previousBacking) this.vitalBackingRevision += 1
     this.publish(event, afterStateUpdate)

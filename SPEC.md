@@ -1169,8 +1169,10 @@ All pure reads must use the appropriate read-only hint.
 
 ### `create_patch`
 
-Creates an editable patch projection from a structured proposal while applying the fixed
-global LFO routing and retaining any imported native backing state.
+Creates one editable patch or contrasting A/B proposals from validated category templates.
+The default paired contract requires `comparisonAxis` and `alternative`. It creates both variants
+and leaves A active. A-only creation requires explicit `singleProposal: true` for an exact,
+settled, or explicitly single request.
 
 ### `load_preset`
 
@@ -1187,6 +1189,9 @@ Specialized LFO operation.
 ### `create_variant`
 
 Creates B from the current patch and applies requested edits.
+
+V2/out of scope: `refine_patch(strategy: direct|compare)` may unify settled direct edits and
+unresolved comparison workflows. It is not part of V1.
 
 ### `select_variant`
 
