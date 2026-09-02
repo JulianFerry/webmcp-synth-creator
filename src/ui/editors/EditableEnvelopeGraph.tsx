@@ -144,7 +144,7 @@ export function EditableEnvelopeGraph({ envelope, previewEnvelope, resetKey, onC
         aria-valuemin={field?.endsWith('Curve') ? -1 : 0}
         aria-valuenow={combined ? draft.decaySeconds : draft[ENVELOPE_HANDLE_FIELDS[field!]]}
         aria-valuetext={ariaValueText}
-        className={`graph-handle envelope-${handle}-handle${handle.endsWith('Curve') ? ' envelope-curve-handle' : ''}`}
+        className={`graph-handle envelope-${handle}-handle${handle.endsWith('Curve') ? ' graph-curve-handle' : ''}`}
         cx={x}
         cy={y}
         data-testid={testId}

@@ -109,6 +109,47 @@ test('WebMCP changes stay independent of the compact toolbar and tab navigation'
   await expect(page.getByTestId('history-size')).toHaveText(String(Number(beforeHistory) + 1))
 })
 
+test('WebMCP hydrates a bright timbre table for a dry bass listening patch', async ({ page }) => {
+  await installWebMcpDouble(page)
+  await page.goto('/')
+
+  const rawResult = await page.evaluate(async () => {
+    const tools = await document.modelContext!.getTools()
+    const createPatch = tools.find((tool) => tool.name === 'create_patch')
+    const applyPatch = tools.find((tool) => tool.name === 'apply_patch')
+    if (!createPatch || !applyPatch) throw new Error('Required WebMCP tools were not registered')
+    await document.modelContext!.executeTool(createPatch, {
+      description: 'Start from the bass template',
+      attributes: { category: 'bass' },
+    })
+    return document.modelContext!.executeTool(applyPatch, {
+      reason: 'Prepare a dry source for listening tests',
+      changes: [
+        { op: 'timbre', character: 'bright', position: 0.7, target: 1 },
+        { op: 'balance', osc1: 0.8, osc2: 0, osc3: 0 },
+        { path: 'filter.enabled', value: false },
+        { path: 'effects.distortion.enabled', value: false },
+        { path: 'effects.chorus.enabled', value: false },
+        { path: 'effects.delay.enabled', value: false },
+        { path: 'effects.reverb.enabled', value: false },
+      ],
+    })
+  })
+  const result = JSON.parse(rawResult) as {
+    ok?: boolean
+    changed?: Record<string, { before: unknown; after: unknown }>
+    current?: { osc1?: { wavetableId: string; wavetablePosition: number; level: number } }
+  }
+
+  expect(result.ok).not.toBe(false)
+  expect(result.changed?.['oscillators.0.wavetableId']?.after).toBe('airy')
+  expect(result.current?.osc1).toMatchObject({
+    wavetableId: 'airy',
+    wavetablePosition: 0.7,
+    level: 0.8,
+  })
+})
+
 test('permanent footer previews sustain until Stop and switches modes cleanly', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('preview-note').click()
@@ -186,15 +227,25 @@ test('bypassed effects are greyed while their enable switches remain available',
   }
 })
 
+test('envelope keeps curve editing in the graph without duplicate curve or hold sliders', async ({ page }) => {
+  await page.goto('/')
+
+  await expect(page.getByTestId('amp-hold')).toHaveCount(0)
+  await expect(page.getByTestId('amp-attack-curve')).toHaveCount(0)
+  await expect(page.getByTestId('amp-decay-curve')).toHaveCount(0)
+  await expect(page.getByTestId('amp-release-curve')).toHaveCount(0)
+  await expect(page.getByTestId('amp-attack-curve-handle')).toBeVisible()
+  await expect(page.getByTestId('amp-decay-curve-handle')).toBeVisible()
+  await expect(page.getByTestId('amp-release-curve-handle')).toBeVisible()
+  await expect(page.getByTestId('lfo-curve-0')).toHaveClass(/graph-curve-handle/)
+})
+
 test('operation-written effect, filter, and envelope fields have real editors', async ({ page }) => {
   await page.goto('/')
 
   const initialGraph = await page.getByTestId('amp-envelope-path').getAttribute('d')
   await expect(page.getByTestId('amp-delay')).toBeVisible()
   await setRange(page, 'amp-delay', .3)
-  await setRange(page, 'amp-attack-curve', .2)
-  await setRange(page, 'amp-decay-curve', -.35)
-  await setRange(page, 'amp-release-curve', .4)
   for (const phase of ['attack', 'decay', 'release']) {
     const handle = page.getByTestId(`amp-${phase}-curve-handle`)
     await expect(handle).toHaveAccessibleName(`${phase[0].toUpperCase()}${phase.slice(1)} curve handle`)
@@ -208,14 +259,14 @@ test('operation-written effect, filter, and envelope fields have real editors', 
   const handleBounds = await attackCurveHandle.boundingBox()
   expect(handleBounds).not.toBeNull()
   const beforeDragPath = await page.getByTestId('amp-envelope-path').getAttribute('d')
-  const beforeDragCurve = Number(await page.getByTestId('amp-attack-curve').getAttribute('data-parameter-value'))
+  const beforeDragCurve = Number(await attackCurveHandle.getAttribute('aria-valuenow'))
   await page.mouse.move(handleBounds!.x + handleBounds!.width / 2, handleBounds!.y + handleBounds!.height / 2)
   await page.mouse.down()
   await page.mouse.move(handleBounds!.x + handleBounds!.width / 2, handleBounds!.y + handleBounds!.height / 2 + 9, { steps: 6 })
   await page.mouse.up()
-  await expect.poll(async () => Number(await page.getByTestId('amp-attack-curve').getAttribute('data-parameter-value'))).not.toBeCloseTo(beforeDragCurve)
+  await expect.poll(async () => Number(await attackCurveHandle.getAttribute('aria-valuenow'))).not.toBeCloseTo(beforeDragCurve)
   await expect(page.getByTestId('amp-envelope-path')).not.toHaveAttribute('d', beforeDragPath!)
-  const draggedAttackCurve = Number(await page.getByTestId('amp-attack-curve').getAttribute('data-parameter-value'))
+  const draggedAttackCurve = Number(await attackCurveHandle.getAttribute('aria-valuenow'))
 
   await page.getByRole('tab', { name: 'Effects' }).click()
   await expect(page.getByTestId('effect-card-distortion').getByRole('heading', { name: 'Distortion' })).toBeVisible()
@@ -251,9 +302,9 @@ test('operation-written effect, filter, and envelope fields have real editors', 
 
   await page.getByRole('tab', { name: 'Oscillators' }).click()
   await expect(page.getByTestId('amp-delay')).toHaveAttribute('data-parameter-value', '0.3')
-  await expectParameter(page, 'amp-attack-curve', draggedAttackCurve)
-  await expectParameter(page, 'amp-decay-curve', -.25)
-  await expectParameter(page, 'amp-release-curve', .5)
+  await expect.poll(async () => Number(await page.getByTestId('amp-attack-curve-handle').getAttribute('aria-valuenow'))).toBeCloseTo(draggedAttackCurve)
+  await expect.poll(async () => Number(await page.getByTestId('amp-decay-curve-handle').getAttribute('aria-valuenow'))).toBeCloseTo(0)
+  await expect.poll(async () => Number(await page.getByTestId('amp-release-curve-handle').getAttribute('aria-valuenow'))).toBeCloseTo(0)
   await page.getByRole('tab', { name: 'Effects' }).click()
   await expect(page.getByTestId('distortion-enabled')).toHaveAttribute('aria-checked', 'true')
   await expect(page.getByTestId('distortion-type')).toHaveValue('sine_fold')

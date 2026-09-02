@@ -55,6 +55,15 @@ export function createWavetableData(ids: readonly string[]): Record<string, Wave
   )
 }
 
+export function includeGeneratedWavetables(
+  data: Record<string, WavetableState>,
+  ids: readonly string[],
+): Record<string, WavetableState> {
+  const missingIds = [...new Set(ids)].filter((id) => !(id in data) && id in WAVETABLE_REGISTRY)
+  if (missingIds.length === 0) return data
+  return { ...data, ...createWavetableData(missingIds) }
+}
+
 export function resolveWavetable(
   data: Record<string, WavetableState>,
   id: string,

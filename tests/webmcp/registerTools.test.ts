@@ -163,6 +163,28 @@ describe('WebMCP tool registration', () => {
     expectAffectedSections(result, ['filter'], 1)
   })
 
+  it('applies a timbre operation when its built-in table is not in the current template', async () => {
+    const gateway = new CapturingGateway()
+    const session = new SessionService(getTemplatePatch('bass'))
+    const commands = new CommandService(session)
+    await registerTools(gateway, session, commands)
+    const applyPatch = gateway.registrations.find(({ tool }) => tool.name === 'apply_patch')!.tool
+
+    const result = await applyPatch.execute({
+      reason: 'Use a bright wavetable',
+      changes: [{ op: 'timbre', character: 'bright' }],
+    })
+
+    expect(result).toMatchObject({
+      changed: {
+        'oscillators.0.wavetableId': { before: 'sine', after: 'airy' },
+      },
+      current: { osc1: { wavetableId: 'airy' } },
+      undo_step: 1,
+    })
+    expect(session.getPatch().wavetableData.airy).toBeDefined()
+  })
+
   it('creates and activates variant B from an operation change', async () => {
     const gateway = new CapturingGateway()
     const { commands, session } = createHarness()

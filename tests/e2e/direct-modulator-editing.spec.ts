@@ -40,6 +40,18 @@ test('direct envelope and LFO gestures are atomic, undoable, and cancellable', a
   await page.getByRole('button', { name: 'Undo transaction' }).click()
   await expect(point).toHaveAttribute('aria-valuetext', pointBefore ?? '')
 
+  const curve = page.getByTestId('lfo-curve-0')
+  const curveBefore = await curve.getAttribute('aria-valuenow')
+  const lfoPath = page.getByTestId('lfo-shape-path')
+  const pathBefore = await lfoPath.getAttribute('d')
+  await dragBy(page, curve, 0, 8)
+  await expect(history).toHaveText('1')
+  await expect(curve).not.toHaveAttribute('aria-valuenow', curveBefore ?? '')
+  await expect(lfoPath).not.toHaveAttribute('d', pathBefore ?? '')
+  await page.getByRole('button', { name: 'Undo transaction' }).click()
+  await expect(curve).toHaveAttribute('aria-valuenow', curveBefore ?? '')
+  await expect(lfoPath).toHaveAttribute('d', pathBefore ?? '')
+
   const box = await sustain.boundingBox()
   if (!box) throw new Error('Sustain handle is not visible')
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
@@ -66,6 +78,13 @@ test('focused handles commit one transaction on key-up', async ({ page }) => {
   await expect(page.getByTestId('history-size')).toHaveText('1')
   await page.keyboard.up('ArrowRight')
   await expect(page.getByTestId('history-size')).toHaveText('2')
+
+  const curve = page.getByTestId('lfo-curve-0')
+  await curve.focus()
+  await page.keyboard.down('ArrowRight')
+  await expect(page.getByTestId('history-size')).toHaveText('2')
+  await page.keyboard.up('ArrowRight')
+  await expect(page.getByTestId('history-size')).toHaveText('3')
 })
 
 test('dragging time and LFO handles left decreases values without snapping right', async ({ page }) => {
@@ -91,9 +110,9 @@ test('dragging time and LFO handles left decreases values without snapping right
   await expect(history).toHaveText('1')
 })
 
-test('AHDSR exposes hold and combines decay with sustain while LFO handles alternate', async ({ page }) => {
+test('envelope keeps hold in the graph and shares its curve point style with the LFO', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByTestId('amp-hold')).toBeVisible()
+  await expect(page.getByTestId('amp-hold')).toHaveCount(0)
   await expect(page.getByTestId('amp-hold-handle')).toBeVisible()
   await expect(page.getByTestId('amp-decay-handle')).toHaveCount(0)
   await expect(page.getByTestId('amp-sustain-handle')).toHaveCount(0)
@@ -139,6 +158,11 @@ test('AHDSR exposes hold and combines decay with sustain while LFO handles alter
     page.getByTestId('lfo-point-0').evaluate((element) => ({ fill: getComputedStyle(element).fill, stroke: getComputedStyle(element).stroke, strokeWidth: getComputedStyle(element).strokeWidth })),
   ])
   expect(handleStyles[0]).toEqual(handleStyles[1])
+  const curveHandleStyles = await Promise.all([
+    page.getByTestId('amp-attack-curve-handle').evaluate((element) => ({ fill: getComputedStyle(element).fill, stroke: getComputedStyle(element).stroke, strokeWidth: getComputedStyle(element).strokeWidth })),
+    page.getByTestId('lfo-curve-0').evaluate((element) => ({ fill: getComputedStyle(element).fill, stroke: getComputedStyle(element).stroke, strokeWidth: getComputedStyle(element).strokeWidth })),
+  ])
+  expect(curveHandleStyles[0]).toEqual(curveHandleStyles[1])
   const restrainedStyles = await Promise.all([
     page.getByTestId('amp-attack-handle').evaluate((element) => getComputedStyle(element).filter),
     page.getByTestId('lfo-point-0').evaluate((element) => getComputedStyle(element).filter),

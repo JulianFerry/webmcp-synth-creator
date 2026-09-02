@@ -95,7 +95,7 @@ export function EditableLfoGraph({ points, smooth, resetKey, onCommit }: Props) 
       aria-valuemin={-1}
       aria-valuenow={power}
       aria-valuetext={`${power.toFixed(2)} curve power`}
-      className="lfo-point lfo-curve-point graph-handle"
+      className="lfo-point lfo-curve-point graph-handle graph-curve-handle"
       cx={4 + phase * 92}
       cy={29 - level * 26}
       data-handle-kind="curve"

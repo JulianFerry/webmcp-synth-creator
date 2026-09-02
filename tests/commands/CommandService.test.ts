@@ -4,6 +4,7 @@ import { CommandError, CommandService } from '../../src/commands/CommandService'
 import { PatchHistory } from '../../src/commands/history'
 import { LatencyTrace } from '../../src/dev/latencyTrace'
 import { createDefaultPatch } from '../../src/patch/defaults'
+import { getTemplatePatch } from '../../src/presets/templates'
 import { SessionService } from '../../src/session/SessionService'
 
 function createHarness() {
@@ -64,6 +65,20 @@ describe('CommandService', () => {
     })
     expect(result.current).toEqual({ filter: result.patch.filter })
     expect(result.undoStep).toBe(1)
+  })
+
+  it('loads the built-in wavetable selected by a timbre operation', () => {
+    const commands = new CommandService(new SessionService(getTemplatePatch('bass')))
+
+    const result = commands.applyPatch({
+      type: 'apply_patch',
+      reason: 'Use the bright built-in wavetable',
+      changes: [{ op: 'timbre', character: 'bright' }],
+    })
+
+    expect(result.patch.oscillators[0].wavetableId).toBe('airy')
+    expect(result.patch.wavetableData.airy).toBeDefined()
+    expect(commands.undo().patch.wavetableData.airy).toBeUndefined()
   })
 
   it('leaves patch, history, and subscribers untouched after atomic validation failure', () => {

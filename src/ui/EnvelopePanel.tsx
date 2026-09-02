@@ -81,20 +81,6 @@ export function EnvelopePanel({
         />
         <ParameterSlider
           formatValue={seconds}
-          id="amp-hold"
-          label="Hold"
-          max={4}
-          min={0}
-          onCancel={() => onCancelPreview(path('holdSeconds'))}
-          onCommit={(value) => commit('holdSeconds', value, 'hold')}
-          onPreview={(value) => onPreview(path('holdSeconds'), value)}
-          resetKey={resetKey}
-          step={0.01}
-          testId="amp-hold"
-          value={previewEnvelope.holdSeconds}
-        />
-        <ParameterSlider
-          formatValue={seconds}
           id="amp-decay"
           label="Decay"
           max={5}
@@ -135,21 +121,6 @@ export function EnvelopePanel({
           testId="amp-release"
           value={previewEnvelope.releaseSeconds}
         />
-        {(['attackCurve', 'decayCurve', 'releaseCurve'] as const).map((field) => <ParameterSlider
-          formatValue={(value) => value.toFixed(2)}
-          id={`amp-${field.replace('Curve', '-curve')}`}
-          key={field}
-          label={field.replace('Curve', ' curve')}
-          max={1}
-          min={-1}
-          onCancel={() => onCancelPreview(path(field))}
-          onCommit={(value) => commit(field, value, field.replace('Curve', ' curve'))}
-          onPreview={(value) => onPreview(path(field), value)}
-          resetKey={resetKey}
-          step={0.01}
-          testId={`amp-${field.replace('Curve', '-curve')}`}
-          value={previewEnvelope[field]}
-        />)}
       </div>
     </article>
   )

@@ -107,7 +107,8 @@ test('direct amp and LFO editors stay mounted while removed routing controls rem
   await page.goto('/')
   await page.getByTestId('preview-note').click()
 
-  await expect(page.getByTestId('amp-hold')).toBeVisible()
+  await expect(page.getByTestId('amp-hold')).toHaveCount(0)
+  await expect(page.getByTestId('amp-hold-handle')).toBeVisible()
   await expect(page.getByTestId('lfo-sync-division')).toBeVisible()
   await expect(page.getByTestId('lfo-phase')).toBeVisible()
   await expect(page.getByTestId('mod-envelope-attack')).toHaveCount(0)

@@ -683,18 +683,13 @@ test('playable voice derives static wavetable, ADSR, and filter visuals from eff
   expect(envelopeLabels).toEqual([
     'Delay',
     'Attack',
-    'Hold',
     'Decay',
     'Sustain',
     'Release',
-    'attack curve',
-    'decay curve',
-    'release curve',
   ])
 
   for (const [testId, value] of [
     ['amp-attack', '1.2'],
-    ['amp-hold', '0.4'],
     ['amp-decay', '2.5'],
     ['amp-sustain', '0.3'],
     ['amp-release', '4'],
@@ -717,13 +712,9 @@ test('playable voice derives static wavetable, ADSR, and filter visuals from eff
   expect(await page.locator('.envelope-controls output').allTextContents()).toEqual([
     '0 ms',
     '1.20 s',
-    '400 ms',
     '2.50 s',
     '30%',
     '4.00 s',
-    '0.00',
-    '-0.10',
-    '-0.10',
   ])
 
   await page.getByRole('tab', { name: 'Effects' }).click()

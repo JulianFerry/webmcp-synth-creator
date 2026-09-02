@@ -1094,12 +1094,6 @@ h2 {
   stroke-width: 0.55;
 }
 
-.lfo-curve-point {
-  fill: var(--panel-low);
-  stroke: var(--graph-marker-color);
-  stroke-width: 1.1;
-}
-
 .editable-graph { touch-action: none; user-select: none; }
 .graph-handle { cursor: grab; fill: var(--graph-handle-color); stroke: var(--graph-handle-edge); stroke-width: 2; vector-effect: non-scaling-stroke; filter: none; }
 .graph-handle-ring { display: none; fill: none; stroke: var(--graph-handle-edge); stroke-width: 2; pointer-events: none; vector-effect: non-scaling-stroke; }
@@ -1108,6 +1102,7 @@ h2 {
 .graph-handle:hover { fill: var(--text); stroke: var(--graph-handle-edge); filter: none; }
 .graph-handle:focus-visible { fill: var(--text); stroke: var(--graph-marker-color); outline: 2px solid var(--graph-marker-color); outline-offset: 2px; filter: none; }
 .graph-handle:active { cursor: grabbing; filter: none; }
+.graph-curve-handle { fill: var(--panel-low); stroke: var(--graph-marker-color); stroke-width: 1; }
 
 .lfo-plot figcaption {
   display: flex;
@@ -1228,7 +1223,6 @@ h2 {
 .chorus-orbit { position: relative; width: 100%; height: 42px; overflow: hidden; border: 1px solid rgb(var(--graph-color-rgb) / 18%); border-radius: 6px; background: radial-gradient(circle, rgb(var(--graph-color-rgb) / 12%), transparent 55%), var(--panel-low); }
 .chorus-orbit span, .chorus-orbit i { position: absolute; top: 50%; left: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: var(--analysis); box-shadow: 0 0 7px var(--analysis); }
 .chorus-orbit span { width: 8px; height: 8px; margin: -4px; background: var(--active); box-shadow: 0 0 9px var(--active); }
-.envelope-curve-handle { fill: var(--panel-low); stroke: var(--graph-marker-color); stroke-width: 1; }
 .matrix-routes { display: grid; gap: 8px; }
 .matrix-route { display: grid; grid-template-columns: minmax(120px, .8fr) minmax(190px, 1.25fr) minmax(150px, 1fr) 130px auto; gap: 8px; align-items: end; padding: 10px; border: 1px solid var(--line); border-left: 2px solid var(--analysis); border-radius: 5px; background: var(--panel-low); }
 .matrix-remove { min-height: 38px; }
