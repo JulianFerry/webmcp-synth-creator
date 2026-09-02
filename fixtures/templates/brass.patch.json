@@ -1,41 +1,45 @@
 {
-  "version": 3,
+  "version": 4,
   "metadata": {
     "name": "Brass Template",
-    "category": "keys",
-    "description": "Known-valid brass base template.",
-    "tags": ["brass"]
+    "category": "other",
+    "description": "Purpose-built brass starting point with layered synthesis and a category-specific effect chain.",
+    "tags": [
+      "brass",
+      "template",
+      "layered"
+    ]
   },
   "oscillators": [
     {
       "enabled": true,
-      "wavetableId": "sine",
-      "wavetablePosition": 0,
-      "level": 0.7,
+      "wavetableId": "harsh",
+      "wavetablePosition": 0.12,
+      "level": 0.64,
       "transposeSemitones": 0,
-      "fineTuneCents": 0,
-      "unisonVoices": 7,
-      "unisonDetune": 0.35,
-      "stereoSpread": 0.85,
-      "randomPhase": 0.5,
+      "fineTuneCents": -1,
+      "unisonVoices": 3,
+      "unisonDetune": 0.1,
+      "stereoSpread": 0.45,
+      "randomPhase": 0.32,
       "pan": 0.5
     },
     {
-      "enabled": false,
-      "wavetableId": "sine",
-      "wavetablePosition": 0,
-      "level": 0,
-      "transposeSemitones": 0,
-      "fineTuneCents": 0,
-      "unisonVoices": 1,
+      "enabled": true,
+      "wavetableId": "saw",
+      "wavetablePosition": 0.52,
+      "level": 0.22,
+      "transposeSemitones": -12,
+      "fineTuneCents": 1,
+      "unisonVoices": 3,
       "unisonDetune": 0,
-      "stereoSpread": 0,
-      "randomPhase": 0,
+      "stereoSpread": 0.34,
+      "randomPhase": 0.31,
       "pan": 0.5
     },
     {
       "enabled": false,
-      "wavetableId": "sine",
+      "wavetableId": "harsh",
       "wavetablePosition": 0,
       "level": 0,
       "transposeSemitones": 0,
@@ -49,11 +53,11 @@
   ],
   "ampEnvelope": {
     "delaySeconds": 0,
-    "attackSeconds": 0.45,
+    "attackSeconds": 0.09,
     "holdSeconds": 0,
-    "decaySeconds": 0.4,
-    "sustainLevel": 0.85,
-    "releaseSeconds": 0.62,
+    "decaySeconds": 0.5,
+    "sustainLevel": 0.7,
+    "releaseSeconds": 0.35,
     "attackCurve": 0,
     "decayCurve": 0,
     "releaseCurve": 0
@@ -72,65 +76,118 @@
   "filter": {
     "enabled": true,
     "type": "lowpass",
-    "cutoffHz": 4200,
-    "resonance": 0.15,
+    "cutoffHz": 3900,
+    "resonance": 0.16,
     "slope": 24,
-    "drive": 0,
-    "keytrack": 0.4
+    "drive": 0.16,
+    "keytrack": 0.25,
+    "velocityToCutoff": 0.24
   },
   "lfo1": {
     "enabled": false,
     "points": [
-      { "x": 0, "y": 0 },
-      { "x": 1, "y": 1 }
+      {
+        "x": 0,
+        "y": 0,
+        "power": 0
+      },
+      {
+        "x": 1,
+        "y": 1,
+        "power": 0
+      }
     ],
-    "rate": { "mode": "sync", "division": "1/4" },
+    "rate": {
+      "mode": "sync",
+      "division": "1/4"
+    },
     "phase": 0,
     "smooth": true,
-    "smoothing": 0.2
+    "smoothing": 0.15,
+    "target": "level",
+    "scope": "all",
+    "depth": 0.68
   },
   "modulations": [],
   "voice": {
     "polyphony": 8,
     "legato": false,
     "glideSeconds": 0,
-    "velocitySensitivity": 0.7,
+    "velocitySensitivity": 0.65,
     "transposeSemitones": 0
   },
   "effects": {
-    "order": ["distortion", "filter", "compressor", "chorus", "delay", "reverb"],
+    "order": [
+      "distortion",
+      "filter",
+      "compressor",
+      "chorus",
+      "delay",
+      "reverb"
+    ],
     "distortion": {
-      "enabled": false,
-      "type": "soft_clip",
-      "drive": 0,
-      "mix": 0.4
+      "enabled": true,
+      "type": "sine_fold",
+      "drive": 0.35,
+      "mix": 0.54
     },
     "chorus": {
-      "enabled": true,
-      "voices": 3,
-      "rate": 0.2,
-      "depth": 0.4,
-      "feedback": 0.1,
-      "mix": 0.25
+      "enabled": false,
+      "voices": 2,
+      "rate": 0.23,
+      "depth": 0.49,
+      "feedback": 0.21,
+      "mix": 0.34
     },
     "delay": {
       "enabled": false,
       "mode": "sync",
-      "division": "1/8",
-      "feedback": 0.2,
-      "mix": 0
+      "division": "1/8T",
+      "feedback": 0.38,
+      "mix": 0.32
     },
     "reverb": {
       "enabled": true,
-      "mix": 0.45,
-      "decaySeconds": 3,
-      "size": 0.7,
-      "predelay": 0.05,
-      "lowCut": 0.1,
-      "highCut": 0.8
+      "mix": 0.28,
+      "decaySeconds": 2.05,
+      "size": 0.52,
+      "predelay": 0.06,
+      "lowCut": 0.05,
+      "highCut": 0.72
+    },
+    "compressor": {
+      "enabled": true,
+      "bands": "multiband",
+      "amount": 0.4,
+      "attack": 0.44,
+      "release": 0.35,
+      "mix": 0.75
     }
   },
-  "wavetableData": {
-    "sine": { "id": "sine", "name": "Sine", "frames": [{ "harmonics": [1] }] }
+  "wavetableData": {},
+  "lfo2": {
+    "enabled": false,
+    "points": [
+      {
+        "x": 0,
+        "y": 0,
+        "power": 0
+      },
+      {
+        "x": 1,
+        "y": 1,
+        "power": 0
+      }
+    ],
+    "rate": {
+      "mode": "sync",
+      "division": "1/2"
+    },
+    "phase": 0,
+    "smooth": true,
+    "smoothing": 0.15,
+    "target": "position",
+    "scope": 1,
+    "depth": 0.25
   }
 }

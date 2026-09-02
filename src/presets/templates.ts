@@ -15,6 +15,7 @@ import vocal from '../../fixtures/templates/vocal.patch.json' with { type: 'json
 
 import { parsePatchState } from '../patch/schemas'
 import type { PatchState } from '../patch/types'
+import { includeGeneratedWavetables } from '../wavetables/registry'
 
 export const TEMPLATE_CATEGORIES = [
   'bass', 'pad', 'pluck', 'lead', 'keys', 'strings', 'brass', 'vocal', 'bell', 'arp',
@@ -29,7 +30,15 @@ const fixtures = {
 } as unknown as Record<TemplateCategory, unknown>
 
 const templates = new Map(TEMPLATE_CATEGORIES.map((category) => {
-  return [category, parsePatchState(fixtures[category])] as const
+  const fixture = structuredClone(fixtures[category]) as {
+    oscillators: Array<{ wavetableId: string }>
+    wavetableData: PatchState['wavetableData']
+  }
+  fixture.wavetableData = includeGeneratedWavetables(
+    fixture.wavetableData,
+    fixture.oscillators.map(({ wavetableId }) => wavetableId),
+  )
+  return [category, parsePatchState(fixture)] as const
 }))
 
 export function getTemplatePatch(category: TemplateCategory): PatchState {

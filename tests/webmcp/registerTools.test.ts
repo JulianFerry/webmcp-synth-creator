@@ -178,7 +178,7 @@ describe('WebMCP tool registration', () => {
 
     expect(result).toMatchObject({
       changed: {
-        'oscillators.0.wavetableId': { before: 'sine', after: 'airy' },
+        'oscillators.0.wavetableId': { before: 'warm-saw', after: 'airy' },
       },
       current: { osc1: { wavetableId: 'airy' } },
       undo_step: 1,
@@ -549,7 +549,7 @@ describe('WebMCP tool registration', () => {
       attributes: { category: 'percussion', brightness: 0.8, width: 0.7, attack: 0.1 },
     })
     expect(created).toMatchObject({
-      current: { metadata: { name: 'Percussion Template', category: 'pluck' } },
+      current: { metadata: { name: 'Create a bright, wide percussion patch', category: 'rhythmic' } },
       session: { currentVariant: 'A', canUndo: true },
       description: expect.any(String),
     })
@@ -573,6 +573,7 @@ describe('WebMCP tool registration', () => {
       expect(result.undo_step).toBe(1)
       expect(commands.historySize).toBe(1)
       expect(session.getPatch().metadata.tags).toContain(category)
+      expect(session.getPatch().metadata.name).toBe(`${category} attribute coverage`)
       expect(session.getPatch().metadata.description).toBe(`${category} attribute coverage`)
     }
   })
@@ -630,7 +631,10 @@ describe('WebMCP tool registration', () => {
     const createPatch = gateway.registrations.find(({ tool }) => tool.name === 'create_patch')!.tool
 
     const result = await createPatch.execute({ description: 'Default category' }) as { undo_step: number }
-    expect(session.getPatch()).toEqual({ ...getTemplatePatch('pad'), metadata: { ...getTemplatePatch('pad').metadata, description: 'Default category' } })
+    expect(session.getPatch()).toEqual({
+      ...getTemplatePatch('pad'),
+      metadata: { ...getTemplatePatch('pad').metadata, name: 'Default category', description: 'Default category' },
+    })
     expect(result.undo_step).toBe(1)
     expect(commands.historySize).toBe(1)
   })

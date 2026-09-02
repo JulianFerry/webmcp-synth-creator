@@ -7,7 +7,6 @@ import { resolveOps } from '../ops/resolve'
 import { selectArticulation } from '../ops/articulationSelection'
 import type { Change } from '../ops/types'
 import { getTemplatePatch, TEMPLATE_CATEGORIES, type TemplateCategory } from '../presets/templates'
-import { SessionService } from '../session/SessionService'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
 import { writeToolResult } from './writeResult'
 
@@ -47,7 +46,6 @@ function createPatchError(error: z.ZodError | CommandError) {
 
 export function createCreatePatchTool(
   commandService: CommandService,
-  _session: SessionService,
 ): WebMcpToolDefinition {
   return {
     name: 'create_patch',
@@ -89,7 +87,10 @@ export function createCreatePatchTool(
         const { description, attributes = {} } = parsed
         const category = (attributes.category ?? 'pad') as TemplateCategory
         const template = getTemplatePatch(category)
-        const changes: Change[] = [{ path: 'metadata.description', value: description }]
+        const changes: Change[] = [
+          { path: 'metadata.name', value: description },
+          { path: 'metadata.description', value: description },
+        ]
         if (attributes.brightness !== undefined) changes.push({ op: 'tone', brightness: attributes.brightness })
         if (attributes.movement !== undefined) changes.push({ op: 'movement', amount: attributes.movement })
         if (attributes.width !== undefined) changes.push({ op: 'width', amount: attributes.width })
