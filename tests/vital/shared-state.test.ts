@@ -79,7 +79,7 @@ describe('shared Vital state', () => {
       sourceFilename: 'preserved-native-state.vital',
     })
     expect(imported.backing.preservesUnsupportedFeatures).toBe(true)
-    expect(imported.backing.hiddenEffects).toEqual(['Compressor', 'Equalizer'])
+    expect(imported.backing.hiddenEffects).toEqual(['Equalizer'])
     expect(imported.backing.affectedControls).toEqual([
       { control: 'filter cutoff', sources: ['Macro 2'] },
     ])

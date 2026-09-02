@@ -15,6 +15,8 @@ describe('closed patch paths', () => {
     expect(new Set(SUPPORTED_PATCH_PATHS).size).toBe(SUPPORTED_PATCH_PATHS.length)
     expect(isSupportedPatchPath('filter.cutoffHz')).toBe(true)
     expect(isSupportedPatchPath('filter.warmth')).toBe(false)
+    expect(isSupportedPatchPath('effects.compressor.amount')).toBe(true)
+    expect(SUPPORTED_PATCH_PATHS.some((path) => path.includes('threshold'))).toBe(false)
     expect(isSupportedPatchPath('__proto__.polluted')).toBe(false)
   })
 

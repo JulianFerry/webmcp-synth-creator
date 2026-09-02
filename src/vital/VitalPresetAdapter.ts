@@ -410,7 +410,6 @@ function valuesEqual(left: unknown, right: unknown): boolean {
 
 const HIDDEN_EFFECT_CONTROLS = [
   ['distortion_on', 'Distortion'],
-  ['compressor_on', 'Compressor'],
   ['chorus_on', 'Chorus'],
   ['eq_on', 'Equalizer'],
   ['flanger_on', 'Flanger'],

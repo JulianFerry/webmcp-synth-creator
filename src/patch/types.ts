@@ -141,6 +141,15 @@ export interface ChorusState {
   mix: number
 }
 
+export interface CompressorState {
+  enabled: boolean
+  bands: 'multiband' | 'low' | 'high'
+  amount: number
+  attack: number
+  release: number
+  mix: number
+}
+
 export interface DelayState {
   enabled: boolean
   mode: 'sync' | 'free'
@@ -184,6 +193,7 @@ export interface PatchState {
   effects: {
     order: EffectId[]
     distortion: DistortionState
+    compressor: CompressorState
     chorus: ChorusState
     delay: DelayState
     reverb: ReverbState

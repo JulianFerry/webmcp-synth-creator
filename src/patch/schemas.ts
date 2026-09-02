@@ -19,6 +19,7 @@ import {
 import { isAllowedModulationRoute } from './modulation'
 import { withWorkbenchLfoRouting } from './modulation'
 import { EFFECT_IDS } from './effects'
+import { DEFAULT_COMPRESSOR_STATE } from './compressor'
 import { isSupportedPatchPath, parsePatchPathValue } from './paths'
 import type { ApplyPatchCommand, PatchState, SetLfoPointCommand, SetLfoShapeCommand } from './types'
 import { upgradePatchDocument } from './upgrade'
@@ -270,6 +271,17 @@ export const chorusStateSchema = z
   })
   .strict()
 
+export const compressorStateSchema = z
+  .object({
+    enabled: z.boolean(),
+    bands: z.enum(['multiband', 'low', 'high']),
+    amount: unitInterval,
+    attack: unitInterval,
+    release: unitInterval,
+    mix: unitInterval,
+  })
+  .strict()
+
 export const wavetableFrameStateSchema = z
   .object({
     harmonics: z.array(unitInterval).min(1).max(128),
@@ -296,7 +308,7 @@ export const patchStateSchema = z
     lfo2: lfoStateSchema,
     modulations: z.array(modulationRouteSchema).max(16),
     voice: voiceStateSchema,
-    effects: z.object({ order: z.array(z.enum(EFFECT_IDS)).length(EFFECT_IDS.length), distortion: distortionStateSchema, chorus: chorusStateSchema, delay: delayStateSchema, reverb: reverbStateSchema }).strict().superRefine((effects, context) => {
+    effects: z.object({ order: z.array(z.enum(EFFECT_IDS)).length(EFFECT_IDS.length), distortion: distortionStateSchema, compressor: compressorStateSchema.default(DEFAULT_COMPRESSOR_STATE), chorus: chorusStateSchema, delay: delayStateSchema, reverb: reverbStateSchema }).strict().superRefine((effects, context) => {
       if (new Set(effects.order).size !== EFFECT_IDS.length) {
         context.addIssue({ code: z.ZodIssueCode.custom, message: 'Effect order must contain each effect exactly once', path: ['order'] })
       }

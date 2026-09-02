@@ -164,6 +164,14 @@ describe('Vital PatchState v2 effect model', () => {
       feedback: 0.2,
       mix: 0.45,
     }
+    patch.effects.compressor = {
+      enabled: true,
+      bands: 'low',
+      amount: 0.65,
+      attack: 0.3,
+      release: 0.7,
+      mix: 0.8,
+    }
     patch.effects.reverb = {
       ...patch.effects.reverb,
       predelay: 0.12,
@@ -194,6 +202,7 @@ describe('Vital PatchState v2 effect model', () => {
     expect(imported.voice.transposeSemitones).toBe(-7)
     expect(imported.effects.distortion).toEqual(patch.effects.distortion)
     expect(imported.effects.chorus).toEqual(patch.effects.chorus)
+    expect(imported.effects.compressor).toEqual(patch.effects.compressor)
     expect(imported.effects.reverb).toMatchObject({ predelay: 0.12, lowCut: 0.2, highCut: 0.85 })
   })
 

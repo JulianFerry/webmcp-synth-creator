@@ -18,6 +18,7 @@ import type { PatchState } from './types'
 export const FILTER_TYPES = ['lowpass', 'highpass', 'bandpass', 'notch'] as const
 export const FILTER_SLOPES = [12, 24] as const
 export const DISTORTION_TYPES = ['soft_clip', 'hard_clip', 'sine_fold', 'bit_crush'] as const
+export const COMPRESSOR_BANDS = ['multiband', 'low', 'high'] as const
 export const LFO_TARGETS = ['level', 'position', 'pitch', 'cutoff'] as const
 export const LFO_SCOPES = ['all', 1, 2, 3] as const
 
@@ -165,6 +166,12 @@ export const PATCH_PATH_REGISTRY = {
   'effects.distortion.type': metadata(z.enum(DISTORTION_TYPES), 'enum'),
   'effects.distortion.drive': metadata(unitInterval, 'normalized 0..1'),
   'effects.distortion.mix': metadata(unitInterval, 'normalized 0..1'),
+  'effects.compressor.enabled': metadata(z.boolean(), 'boolean'),
+  'effects.compressor.bands': metadata(z.enum(COMPRESSOR_BANDS), 'enum'),
+  'effects.compressor.amount': metadata(unitInterval, 'normalized 0..1'),
+  'effects.compressor.attack': metadata(unitInterval, 'normalized 0..1'),
+  'effects.compressor.release': metadata(unitInterval, 'normalized 0..1'),
+  'effects.compressor.mix': metadata(unitInterval, 'normalized 0..1'),
   'effects.chorus.enabled': metadata(z.boolean(), 'boolean'),
   'effects.chorus.voices': metadata(z.number().int().min(1).max(4), 'voice count'),
   'effects.chorus.rate': metadata(unitInterval, 'normalized 0..1'),

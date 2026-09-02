@@ -46,6 +46,7 @@ import {
 import { buildVitalWavetable } from './wavetable'
 import {
   decodeVitalScalarValues,
+  projectVitalScalarValues,
   VITAL_BOUND_SETTING_KEYS,
   type VitalScalarPath,
 } from './bindings'
@@ -889,7 +890,8 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
   }
 
   try {
-    return parsePatchState(patchCandidate)
+    const structuralPatch = parsePatchState(patchCandidate)
+    return parsePatchState(projectVitalScalarValues(structuralPatch, scalars))
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'unknown schema error'
     throw new VitalImportError(`Vital preset is outside PatchState bounds: ${detail}`)

@@ -221,6 +221,19 @@ export const PATCH_STATE_INPUT_SCHEMA: Record<string, unknown> = {
           uniqueItems: true,
           items: { type: 'string', enum: [...EFFECT_IDS] },
         },
+        compressor: {
+          type: 'object',
+          properties: {
+            enabled: { type: 'boolean' },
+            bands: { type: 'string', enum: ['multiband', 'low', 'high'] },
+            amount: unitInterval,
+            attack: unitInterval,
+            release: unitInterval,
+            mix: unitInterval,
+          },
+          required: ['enabled', 'bands', 'amount', 'attack', 'release', 'mix'],
+          additionalProperties: false,
+        },
         delay: {
           type: 'object',
           properties: {
@@ -254,7 +267,7 @@ export const PATCH_STATE_INPUT_SCHEMA: Record<string, unknown> = {
           additionalProperties: false,
         },
       },
-      required: ['delay', 'reverb'],
+      required: ['compressor', 'delay', 'reverb'],
       additionalProperties: false,
     },
     wavetableData: {

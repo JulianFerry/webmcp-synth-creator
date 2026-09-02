@@ -1,5 +1,9 @@
-import { getPatchPathValue, type SupportedPatchPath } from '../patch/paths'
+import { getPatchPathValue, setPatchPathValue, type SupportedPatchPath } from '../patch/paths'
 import type { DistortionType, PatchState } from '../patch/types'
+import {
+  COMPRESSOR_THRESHOLD_DEFAULTS_DB,
+  COMPRESSOR_THRESHOLD_OFFSET_DB,
+} from '../patch/compressor'
 import {
   decodeVitalChorusRate,
   decodeVitalEnvelopeCurve,
@@ -135,6 +139,41 @@ const distortionTypeCodec: Codec = {
   },
 }
 
+const compressorBandsCodec: Codec = {
+  encode: (value) => ({ multiband: 0, low: 1, high: 2 })[value as 'multiband' | 'low' | 'high'],
+  decode: (value) => {
+    const band = (['multiband', 'low', 'high'] as const)[value]
+    if (!band) throw new RangeError(`Unsupported Vital compressor band mode: ${value}`)
+    return band
+  },
+}
+
+const compressorAmountBinding: VitalScalarBinding = {
+  key: 'compressor_low_upper_threshold',
+  ownership: 'workbench',
+  encode: (patch) =>
+    COMPRESSOR_THRESHOLD_DEFAULTS_DB.compressor_low_upper_threshold -
+    patch.effects.compressor.amount * COMPRESSOR_THRESHOLD_OFFSET_DB,
+  decode: (settings) => {
+    const amounts = Object.entries(COMPRESSOR_THRESHOLD_DEFAULTS_DB).map(([key, initial]) =>
+      (initial - setting(settings, key)) / COMPRESSOR_THRESHOLD_OFFSET_DB,
+    )
+    if (amounts.some((amount) => Math.abs(amount - amounts[0]) > 1e-6)) {
+      throw new RangeError('Vital compressor thresholds do not share one workbench amount offset')
+    }
+    return amounts[0]
+  },
+}
+
+export const VITAL_DERIVED_SCALAR_BINDINGS = Object.entries(
+  COMPRESSOR_THRESHOLD_DEFAULTS_DB,
+).map(([key, initial]) => ({
+  key,
+  ownership: 'workbench' as const,
+  encode: (patch: PatchState) =>
+    initial - patch.effects.compressor.amount * COMPRESSOR_THRESHOLD_OFFSET_DB,
+}))
+
 export const VITAL_SCALAR_BINDINGS: Record<VitalScalarPath, VitalScalarBinding> = {
   'oscillators.0.enabled': oscillator(0, 'enabled', 'on', booleanCodec),
   'oscillators.0.wavetablePosition': oscillator(0, 'wavetablePosition', 'wave_frame', affine(256)),
@@ -213,6 +252,12 @@ export const VITAL_SCALAR_BINDINGS: Record<VitalScalarPath, VitalScalarBinding> 
   'effects.distortion.type': bind('effects.distortion.type', 'distortion_type', distortionTypeCodec),
   'effects.distortion.drive': bind('effects.distortion.drive', 'distortion_drive', affine(30)),
   'effects.distortion.mix': bind('effects.distortion.mix', 'distortion_mix'),
+  'effects.compressor.enabled': bind('effects.compressor.enabled', 'compressor_on', booleanCodec),
+  'effects.compressor.bands': bind('effects.compressor.bands', 'compressor_enabled_bands', compressorBandsCodec),
+  'effects.compressor.amount': compressorAmountBinding,
+  'effects.compressor.attack': bind('effects.compressor.attack', 'compressor_attack'),
+  'effects.compressor.release': bind('effects.compressor.release', 'compressor_release'),
+  'effects.compressor.mix': bind('effects.compressor.mix', 'compressor_mix'),
   'effects.chorus.enabled': bind('effects.chorus.enabled', 'chorus_on', booleanCodec),
   'effects.chorus.voices': bind('effects.chorus.voices', 'chorus_voices'),
   'effects.chorus.rate': bind('effects.chorus.rate', 'chorus_frequency', scaled(encodeVitalChorusRate, decodeVitalChorusRate)),
@@ -252,7 +297,10 @@ export const FORCED_VITAL_BINDINGS = [
 
 export function mapVitalScalarValues(patch: PatchState): Record<string, number> {
   return Object.fromEntries(
-    Object.values(VITAL_SCALAR_BINDINGS).map((binding) => [binding.key, binding.encode(patch)]),
+    [
+      ...Object.values(VITAL_SCALAR_BINDINGS).map((binding) => [binding.key, binding.encode(patch)] as const),
+      ...VITAL_DERIVED_SCALAR_BINDINGS.map((binding) => [binding.key, binding.encode(patch)] as const),
+    ],
   )
 }
 
@@ -264,7 +312,19 @@ export function decodeVitalScalarValues(settings: Record<string, unknown>): Reco
   ) as Record<VitalScalarPath, unknown>
 }
 
+export function projectVitalScalarValues(
+  patch: PatchState,
+  values: Record<VitalScalarPath, unknown>,
+): PatchState {
+  const projected = structuredClone(patch)
+  for (const [path, value] of Object.entries(values) as Array<[VitalScalarPath, unknown]>) {
+    setPatchPathValue(projected, path, value)
+  }
+  return projected
+}
+
 export const VITAL_BOUND_SETTING_KEYS = new Set([
   ...Object.values(VITAL_SCALAR_BINDINGS).map(({ key }) => key),
+  ...VITAL_DERIVED_SCALAR_BINDINGS.map(({ key }) => key),
   ...FORCED_VITAL_BINDINGS.map(({ key }) => key),
 ])

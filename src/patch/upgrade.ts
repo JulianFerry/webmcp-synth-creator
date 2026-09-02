@@ -1,5 +1,6 @@
 import type { EnvelopeState, LfoState, OscillatorState } from './types'
 import { DEFAULT_EFFECT_ORDER } from './effects'
+import { DEFAULT_COMPRESSOR_STATE } from './compressor'
 import {
   LEGACY_ENVELOPE_ATTACK_CURVE,
   LEGACY_ENVELOPE_DECAY_RELEASE_CURVE,
@@ -130,6 +131,10 @@ export function upgradePatchDocument(value: unknown): unknown {
         depth: 0.68,
       },
       lfo2: structuredClone(SECOND_LFO_DEFAULTS),
+      effects: {
+        ...(document.effects as Record<string, unknown>),
+        compressor: structuredClone(DEFAULT_COMPRESSOR_STATE),
+      },
     }
     changed = true
   }

@@ -33,6 +33,14 @@ describe('patch document upgrade', () => {
     expect(upgraded.filter).toMatchObject({ slope: 12, drive: 0, keytrack: 0 })
     expect(upgraded.effects.distortion.enabled).toBe(false)
     expect(upgraded.effects.chorus.enabled).toBe(false)
+    expect(upgraded.effects.compressor).toEqual({
+      enabled: false,
+      bands: 'multiband',
+      amount: 0,
+      attack: 0.5,
+      release: 0.5,
+      mix: 1,
+    })
   })
 
   it('upgrades version 2 fields with sound-preserving defaults', () => {
@@ -66,6 +74,7 @@ describe('patch document upgrade', () => {
     expect(upgraded.modulations.slice(0, 3)).toEqual(WORKBENCH_LFO_ROUTES)
     expect(upgraded.modulations.slice(3).every(({ amount }) => amount === 0)).toBe(true)
     expect(upgraded.effects.reverb).toMatchObject({ predelay: 0, lowCut: 0, highCut: 110 / 128 })
+    expect(upgraded.effects.compressor).toMatchObject({ enabled: false, amount: 0 })
   })
 
   it('is idempotent after the first upgrade', () => {
