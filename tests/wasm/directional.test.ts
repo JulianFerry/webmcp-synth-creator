@@ -166,7 +166,7 @@ describe.skipIf(artifact === null)('Vital WASM directional acoustics', () => {
     )
   }, 180_000)
 
-  it('ports LFO, modulation-envelope, delay, and reverb direction checks to Vital', async () => {
+  it('ports LFO, delay, and reverb direction checks to Vital', async () => {
     const createBase = () => {
       const patch = createDefaultPatch()
       patch.oscillators[0].unisonVoices = 1
@@ -200,36 +200,6 @@ describe.skipIf(artifact === null)('Vital WASM directional acoustics', () => {
       phase: 0,
       smooth: false,
     }
-    gated.modulations = [
-      {
-        id: 'deep-gate',
-        source: 'lfo1',
-        destination: 'oscillator1.level',
-        amount: 0.9,
-        bipolar: false,
-      },
-    ]
-
-    const staticFilter = createBase()
-    staticFilter.filter.cutoffHz = 800
-    const envelopeFilter = structuredClone(staticFilter)
-    envelopeFilter.modEnvelope = {
-      attackSeconds: 0.08,
-      holdSeconds: 0,
-      decaySeconds: 0.12,
-      sustainLevel: 0,
-      releaseSeconds: 0.05,
-    }
-    envelopeFilter.modulations = [
-      {
-        id: 'env-filter',
-        source: 'modEnvelope',
-        destination: 'filter.cutoff',
-        amount: 0.85,
-        bipolar: false,
-      },
-    ]
-
     const dryDelay = createBase()
     const wetDelay = structuredClone(dryDelay)
     wetDelay.effects.delay = {
@@ -247,8 +217,6 @@ describe.skipIf(artifact === null)('Vital WASM directional acoustics', () => {
     const [
       ungatedRender,
       gatedRender,
-      staticFilterRender,
-      envelopeFilterRender,
       dryDelayRender,
       wetDelayRender,
       dryReverbRender,
@@ -256,8 +224,6 @@ describe.skipIf(artifact === null)('Vital WASM directional acoustics', () => {
     ] = await renderInSequence([
       { patch: ungated, options: { holdSeconds: 0.7, tailSeconds: 0.3, velocity: 1 } },
       { patch: gated, options: { holdSeconds: 0.7, tailSeconds: 0.3, velocity: 1 } },
-      { patch: staticFilter, options: { holdSeconds: 0.6, tailSeconds: 0.2, velocity: 1 } },
-      { patch: envelopeFilter, options: { holdSeconds: 0.6, tailSeconds: 0.2, velocity: 1 } },
       { patch: dryDelay, options: { holdSeconds: 0.12, tailSeconds: 1.38, velocity: 1 } },
       { patch: wetDelay, options: { holdSeconds: 0.12, tailSeconds: 1.38, velocity: 1 } },
       { patch: dryReverb, options: { holdSeconds: 0.12, tailSeconds: 1.38, velocity: 1 } },
@@ -268,8 +234,6 @@ describe.skipIf(artifact === null)('Vital WASM directional acoustics', () => {
       `[vital-directional] modulation=${JSON.stringify({
         ungated: summarize(ungatedRender.metrics),
         gated: summarize(gatedRender.metrics),
-        staticFilter: summarize(staticFilterRender.metrics),
-        envelopeFilter: summarize(envelopeFilterRender.metrics),
         dryDelay: summarize(dryDelayRender.metrics),
         wetDelay: summarize(wetDelayRender.metrics),
         dryReverb: summarize(dryReverbRender.metrics),
@@ -278,9 +242,6 @@ describe.skipIf(artifact === null)('Vital WASM directional acoustics', () => {
     )
 
     expect(gatedRender.metrics.rms).toBeGreaterThan(ungatedRender.metrics.rms * 1.05)
-    expect(envelopeFilterRender.metrics.highFrequencyEnergy).toBeGreaterThan(
-      staticFilterRender.metrics.highFrequencyEnergy * 1.05,
-    )
     expect(wetDelayRender.metrics.tailRms).toBeGreaterThan(
       dryDelayRender.metrics.tailRms + 0.00001,
     )

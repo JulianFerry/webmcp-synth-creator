@@ -12,7 +12,10 @@ describe('Vital browser file input', () => {
         type: 'application/json',
       }),
     )
-    expect(document).toEqual({ synth_version: '1.0.7' })
+    expect(document).toEqual({
+      document: { synth_version: '1.0.7' },
+      originalJson: '{"synth_version":"1.0.7"}',
+    })
   })
 
   it('rejects malformed JSON and unsafe or wrong filenames', async () => {

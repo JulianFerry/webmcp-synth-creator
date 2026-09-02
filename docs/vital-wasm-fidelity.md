@@ -1,6 +1,6 @@
 # Vital WASM fidelity and performance
 
-Date: 2026-09-01
+Date: 2026-09-02
 
 Post-redesign integration status: the rebuilt WASM and native artifacts pass the automated
 same-source fidelity, directional, three-oscillator/effect-model, and isolated Chromium performance
@@ -48,6 +48,9 @@ The redesign integration does not change the renderer update policy:
 - No output mute, discarded begin block, note-on fade, or silent pre-ready warm render is present.
 - The worklet still uses the observed output length, preallocated steady-state buffers, no fetch,
   and no logging in `process()`.
+- Every editable patch owns one fixed LFO 1 route to each oscillator level. Route destinations and
+  depth are internal invariants; the UI and WebMCP expose only enable, shape, rate, phase, and
+  smoothing.
 
 ## Same-source fidelity gate
 
@@ -74,8 +77,8 @@ not a replacement for desktop listening.
 | D - unison | `0.036851909 / 0.036851826` | `0.433421761 / 0.433421284` | `2582.979 / 2582.986 Hz` | `0.999999987325557` | `1.59e-4` |
 | E - FX filter | `0.028861057 / 0.028860997` | `0.296064854 / 0.296064675` | `1421.940 / 1421.941 Hz` | `0.999999994786601` | `1.02e-4` |
 | F - point LFO | `0.016478987 / 0.016478992` | `0.270872563 / 0.270872027` | `1055.038 / 1055.039 Hz` | `0.999999993064387` | `1.18e-4` |
-| G - oscillator 2 | `0.053821798 / 0.053821813` | `0.397099972 / 0.397099853` | `808.249 / 808.247 Hz` | `0.999999999439216` | `3.35e-5` |
-| H - delay and reverb | `0.056781835 / 0.056781877` | `0.362499833 / 0.362499684` | `622.701 / 622.701 Hz` | `0.999999999561003` | `2.96e-5` |
+| G - oscillator 2 | `0.036070025 / 0.036070045` | `0.397099972 / 0.397099853` | `868.865 / 868.865 Hz` | `0.999999998679146` | `5.14e-5` |
+| H - delay and reverb | `0.039085248 / 0.039085281` | `0.362491369 / 0.362491220` | `1229.264 / 1229.300 Hz` | `0.999999999036764` | `4.39e-5` |
 
 Stages E-H changed after the redesigned UI moved its logical filter from Vital Filter 1 into the
 reorderable Vital FX chain and retained the six-stage UI effect order in `effect_chain_order`.
@@ -92,10 +95,11 @@ adds a progressive A-H diagnostic. Recorded directions include:
 - E lowers centroid from 2,583 Hz to 1,421 Hz.
 - F raises 10-ms block-RMS variation from `0.279` to `1.213`; adjacent 250-ms `1/8`
   cycles correlate at `0.9978` at 120 BPM.
-- G raises RMS from `0.01648` to `0.05382` when oscillator 2 is enabled.
-- H raises final-quarter tail RMS from numerical silence to `0.0003048`.
-- The ported checks retain silence, level, octave, release, dark-filter, LFO, modulation-envelope,
-  delay-tail, and reverb-tail directions against WASM output.
+- G raises RMS from `0.01648` to `0.03607` when oscillator 2 is enabled and the same global LFO
+  gates both enabled oscillators.
+- H raises final-quarter tail RMS from numerical silence to `0.0002514`.
+- The ported checks retain silence, level, octave, release, dark-filter, global-LFO, delay-tail,
+  and reverb-tail directions against WASM output.
 
 ## State-load cost evidence
 
@@ -157,7 +161,7 @@ renderer beside the measured host. This avoids reuse of a Vite server from anoth
 parallel browser-test contention, and a second Vital engine competing with the measurement. The
 exact command `npm run test:e2e -- vital-performance` exercises this worktree and passes.
 
-`npm run test:e2e:preview` performs a clean production build and then runs 21 production-server
+`npm run test:e2e:preview` performs a clean production build and then runs 22 production-server
 checks covering first-gesture startup and release, quick previews, WebMCP state edits, Vital
 import/export, effect ordering, tabs, and desktop/tablet/mobile layouts. The built distribution
 contains `vital.mjs`, `vital.wasm`, `fixtures/vital/init.vital`, `LICENSE`, and `NOTICE`.
@@ -187,11 +191,11 @@ comparison. Metrics support the comparison; they do not replace listening.
 | C | Attack, decay, sustain, and release | Pending rerun | Passed before the redesign integration; rerun with the rebuilt export. |
 | D | Deterministic five-voice unison | Pending rerun | Passed before the redesign integration; rerun with the rebuilt export. |
 | E | Reorderable 4.2 kHz resonant FX low-pass | Pending | The pre-redesign pass used Filter 1 and does not cover the integrated mapping. |
-| F | Point LFO at `1/8`, 120 BPM through the FX filter | Pending | Confirm shape, phase, depth, and shortened second pulse. |
-| G | Oscillator 2 one octave above through the FX chain | Pending | Confirm oscillator contribution and chain routing. |
+| F | Point LFO at `1/8`, 120 BPM gating every enabled oscillator level | Pending | Confirm shape, phase, fixed depth, and shortened second pulse. |
+| G | Oscillator 2 one octave above through the FX chain and global LFO | Pending | Confirm both oscillators share the same LFO gate. |
 | H | Reordered FX filter, synchronized delay, and reverb | Pending | Confirm processor placement and release tail. |
 
-The fresh pass must also cover an oscillator-3-only patch, oscillator 3 modulation, lowpass,
+The fresh pass must also cover an oscillator-3-only patch under the fixed global LFO, lowpass,
 highpass, bandpass, and notch FX-filter types, and at least two filter/delay/reverb orders. Those
 cases pass adapter, import/export, WASM render, and browser automation, but same-source automation
 cannot verify the desktop Vital application boundary.
@@ -203,7 +207,7 @@ Manual interaction checks to repeat with the post-redesign build:
 2. Apply the same scalar edits through WebMCP while a note is held; confirm the audible change is
    immediate and no UI gesture is required after audio is running.
 3. Confirm B and F match desktop Vital in custom-wavetable character and point-LFO shape, division,
-   phase, shortened second pulse, and modulation depth.
+   phase, shortened second pulse, fixed modulation depth, and all-enabled-oscillator fan-out.
 
 ## Gate decision
 
@@ -211,9 +215,8 @@ Manual interaction checks to repeat with the post-redesign build:
 - Oscillator 3, FX-filter type, modulation, and reordered-effects WASM automation: pass.
 - Ported WASM directional assertions: pass.
 - Isolated Chromium artifact/init/block/state/scalar/order telemetry: pass.
-- Development-server browser suite: 52 passed; one compact-layout assertion failed once and passed
-  immediately on focused rerun.
-- Clean production-preview matrix: 21 passed.
+- Development-server browser suite: 55 passed.
+- Clean production-preview matrix: 22 passed.
 - Distribution assets and corresponding-source metadata: pass.
 - Fresh desktop Vital 1.0.7 listening: pending external manual gate.
 - Post-redesign human interaction-feel check: pending with the desktop comparison.

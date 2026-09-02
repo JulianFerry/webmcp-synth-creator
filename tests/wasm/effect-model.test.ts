@@ -8,6 +8,7 @@ import { VitalEngine, type VitalWasmModuleFactory } from '../../src/audio/vital/
 import { renderVitalOffline, type VitalOfflineRender } from '../../src/audio/vital/offlineRender'
 import { createDefaultPatch } from '../../src/patch/defaults'
 import type { FilterType, PatchState } from '../../src/patch/types'
+import { getPresetPatch } from '../../src/presets/registry'
 import {
   CALIBRATION_A_PATCH,
   CALIBRATION_F_PATCH,
@@ -95,22 +96,12 @@ describe.skipIf(artifact === null)('Vital WASM PatchState v2 effect model', () =
     }
   }, 60_000)
 
-  it('renders oscillator 3 modulation as a measurably different finite signal', async () => {
+  it('applies the fixed global LFO to an oscillator-3-only patch', async () => {
     const staticPatch = oscillatorThreeOnlyPatch()
     const modulatedPatch = structuredClone(staticPatch)
     modulatedPatch.lfo1 = structuredClone(CALIBRATION_F_PATCH.lfo1)
-    modulatedPatch.modulations = [
-      {
-        id: 'oscillator-3-level-gate',
-        source: 'lfo1',
-        destination: 'oscillator3.level',
-        amount: -0.68,
-        bipolar: false,
-      },
-    ]
-
     const exported = adapter.exportPatch(modulatedPatch).document.settings
-    expect((exported.modulations as Array<Record<string, unknown>>)[0]).toEqual({
+    expect((exported.modulations as Array<Record<string, unknown>>)[2]).toEqual({
       source: 'lfo_1',
       destination: 'osc_3_level',
     })
@@ -123,6 +114,23 @@ describe.skipIf(artifact === null)('Vital WASM PatchState v2 effect model', () =
     expect(modulatedRender.metrics.rms).toBeGreaterThan(0)
     expect(stereoDifferenceRms(staticRender, modulatedRender)).toBeGreaterThan(1e-4)
   }, 120_000)
+
+  it.each(['warm-mono-bass', 'calibration-b-custom-wavetable'])(
+    'makes the fixed global LFO audible for %s',
+    async (presetId) => {
+      const disabled = getPresetPatch(presetId)
+      disabled.lfo1.enabled = false
+      const enabled = structuredClone(disabled)
+      enabled.lfo1.enabled = true
+
+      const disabledRender = await renderPatch(disabled, 2, 0.2)
+      const enabledRender = await renderPatch(enabled, 2, 0.2)
+      expect(disabledRender.metrics.rms).toBeGreaterThan(0)
+      expect(enabledRender.metrics.rms).toBeGreaterThan(0)
+      expect(stereoDifferenceRms(disabledRender, enabledRender)).toBeGreaterThan(1e-4)
+    },
+    120_000,
+  )
 
   it('renders a measurably different signal when enabled FX processors are reordered', async () => {
     const filterFirst = structuredClone(CALIBRATION_H_PATCH)

@@ -2,8 +2,9 @@ import { z } from 'zod'
 
 import { CommandError, CommandService } from '../commands/CommandService'
 import type { PatchState } from '../patch/types'
+import { SessionService } from '../session/SessionService'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
-import { PATCH_STATE_INPUT_SCHEMA } from './patchJsonSchema'
+import { AGENT_PATCH_STATE_INPUT_SCHEMA } from './patchJsonSchema'
 
 function createPatchError(error: z.ZodError | CommandError) {
   if (error instanceof z.ZodError) {
@@ -25,7 +26,10 @@ function createPatchError(error: z.ZodError | CommandError) {
   return { ok: false, error: { code: 'PATCH_NOT_CHANGED', message: error.message } }
 }
 
-export function createCreatePatchTool(commandService: CommandService): WebMcpToolDefinition {
+export function createCreatePatchTool(
+  commandService: CommandService,
+  session: SessionService,
+): WebMcpToolDefinition {
   return {
     name: 'create_patch',
     title: 'Create a complete synth patch',
@@ -41,8 +45,9 @@ export function createCreatePatchTool(commandService: CommandService): WebMcpToo
           description: 'Concise intent for creating this patch.',
         },
         patch: {
-          ...PATCH_STATE_INPUT_SCHEMA,
-          description: 'Complete PatchState v1, including referenced wavetable data.',
+          ...AGENT_PATCH_STATE_INPUT_SCHEMA,
+          description:
+            'Complete editable PatchState v2 projection, including referenced wavetable data. LFO 1 always uses the fixed global Workbench amplitude routing shown by the UI.',
         },
       },
       required: ['reason', 'patch'],
@@ -52,11 +57,19 @@ export function createCreatePatchTool(commandService: CommandService): WebMcpToo
     async execute(input, context) {
       context?.signal.throwIfAborted()
       try {
+        const inputPatch = input.patch as Omit<PatchState, 'modulations'> & {
+          modulations?: unknown
+        }
+        const editablePatch = { ...inputPatch }
+        delete editablePatch.modulations
         const result = commandService.createPatch(
           {
             type: 'create_patch',
             reason: input.reason as string,
-            patch: input.patch as PatchState,
+            patch: {
+              ...editablePatch,
+              modulations: session.getPatch().modulations,
+            } as PatchState,
           },
           { source: 'webmcp' },
         )

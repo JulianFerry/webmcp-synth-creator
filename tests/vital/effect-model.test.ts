@@ -114,7 +114,7 @@ describe('Vital PatchState v2 effect model', () => {
     expect(operations.some(({ name }) => name.startsWith('filter_1_'))).toBe(false)
   })
 
-  it('maps logical filter modulation to the same FX filter cutoff', () => {
+  it('replaces preset-specific filter modulation with fixed global LFO routing', () => {
     const patch = createDefaultPatch()
     patch.modulations = [
       {
@@ -128,10 +128,15 @@ describe('Vital PatchState v2 effect model', () => {
     const settings = realAdapter().exportPatch(patch).document.settings
     const routes = settings.modulations as Array<Record<string, unknown>>
 
-    expect(routes[0]).toEqual({ source: 'env_2', destination: 'filter_fx_cutoff' })
+    expect(routes.slice(0, 3)).toEqual([
+      { source: 'lfo_1', destination: 'osc_1_level' },
+      { source: 'lfo_1', destination: 'osc_2_level' },
+      { source: 'lfo_1', destination: 'osc_3_level' },
+    ])
+    expect(routes).not.toContainEqual({ source: 'env_2', destination: 'filter_fx_cutoff' })
   })
 
-  it('round-trips oscillator 3 scalars, wavetable slot, and modulation through one adapter state', () => {
+  it('round-trips oscillator 3 scalars and wavetable slot with fixed global modulation', () => {
     const adapter = realAdapter()
     const before = createDefaultPatch()
     const patch = structuredClone(before)
@@ -147,16 +152,6 @@ describe('Vital PatchState v2 effect model', () => {
       stereoSpread: 0.72,
       randomPhase: 0.18,
     }
-    patch.modulations = [
-      {
-        id: 'oscillator-3-pitch',
-        source: 'lfo1',
-        destination: 'oscillator3.pitch',
-        amount: 0.31,
-        bipolar: true,
-      },
-    ]
-
     const exported = adapter.exportPatch(patch)
     const routes = exported.document.settings.modulations as Array<Record<string, unknown>>
     expect(exported.document.settings.wavetables).toHaveLength(3)
@@ -171,10 +166,14 @@ describe('Vital PatchState v2 effect model', () => {
       osc_3_unison_detune: Math.sqrt(0.36 * 12),
       osc_3_stereo_spread: 0.72,
       osc_3_random_phase: 0.18,
-      modulation_1_amount: 0.31,
-      modulation_1_bipolar: 1,
+      modulation_1_amount: -0.68,
+      modulation_1_bipolar: 0,
     })
-    expect(routes[0]).toEqual({ source: 'lfo_1', destination: 'osc_3_tune' })
+    expect(routes.slice(0, 3)).toEqual([
+      { source: 'lfo_1', destination: 'osc_1_level' },
+      { source: 'lfo_1', destination: 'osc_2_level' },
+      { source: 'lfo_1', destination: 'osc_3_level' },
+    ])
 
     expect(adapter.controlOperations(before, patch).map(({ name }) => name)).toEqual(
       expect.arrayContaining([
@@ -187,8 +186,6 @@ describe('Vital PatchState v2 effect model', () => {
         'osc_3_unison_detune',
         'osc_3_stereo_spread',
         'osc_3_random_phase',
-        'modulation_1_amount',
-        'modulation_1_bipolar',
       ]),
     )
 
@@ -202,12 +199,11 @@ describe('Vital PatchState v2 effect model', () => {
     expect(imported.oscillators[2].unisonDetune).toBeCloseTo(
       patch.oscillators[2].unisonDetune,
     )
-    expect(imported.modulations[0]).toMatchObject({
-      source: 'lfo1',
-      destination: 'oscillator3.pitch',
-      amount: 0.31,
-      bipolar: true,
-    })
+    expect(imported.modulations.map(({ destination }) => destination)).toEqual([
+      'oscillator1.level',
+      'oscillator2.level',
+      'oscillator3.level',
+    ])
     expect(imported.effects.order).toEqual(patch.effects.order)
   })
 

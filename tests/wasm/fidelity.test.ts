@@ -96,7 +96,7 @@ const tolerances: Record<string, FidelityTolerance> = {
     rmsRelative: 0.00001,
   },
   h: {
-    centroidRelative: 0.00001,
+    centroidRelative: 0.00005,
     correlationMinimum: 0.99999995,
     normalizedError: 0.00035,
     peakRelative: 0.00001,

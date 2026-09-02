@@ -14,6 +14,7 @@ import {
   type SessionSummary,
   type VariantId,
 } from '../session/SessionService'
+import type { ImportedVitalBacking } from '../vital/VitalPresetAdapter'
 import {
   createVariantTransaction,
   type CreateVariantCommand,
@@ -76,11 +77,15 @@ export class CommandService {
     )
   }
 
-  createPatch(commandInput: CreatePatchCommand, context: CommandContext = {}): CommandResult {
+  createPatch(
+    commandInput: CreatePatchCommand,
+    context: CommandContext = {},
+    vitalBacking?: ImportedVitalBacking | null,
+  ): CommandResult {
     const { correlationId, source } = this.beginRequest(context, 'ui')
     const before = this.session.getPatch()
     const transaction = createPatchTransaction(before, commandInput)
-    this.commitReplacement(transaction, correlationId, source, 'patch_create')
+    this.commitReplacement(transaction, correlationId, source, 'patch_create', vitalBacking)
     return this.commandResult(transaction.patch, transaction.changed, correlationId)
   }
 
@@ -88,7 +93,7 @@ export class CommandService {
     const { correlationId, source } = this.beginRequest(context, 'ui')
     const before = this.session.getPatch()
     const transaction = createLoadPresetTransaction(before, commandInput)
-    this.commitReplacement(transaction, correlationId, source, 'preset_load')
+    this.commitReplacement(transaction, correlationId, source, 'preset_load', null)
     return this.commandResult(transaction.patch, transaction.changed, correlationId)
   }
 
@@ -245,8 +250,17 @@ export class CommandService {
     reason: string,
     source: RequestSource,
     kind: SessionCommitInput['kind'],
+    vitalBackingReplacement?: ImportedVitalBacking | null,
   ): SessionCommitInput {
-    return { patch, changed, correlationId, reason, source, kind }
+    return {
+      patch,
+      changed,
+      correlationId,
+      reason,
+      source,
+      kind,
+      ...(vitalBackingReplacement === undefined ? {} : { vitalBackingReplacement }),
+    }
   }
 
   private commandResult(
@@ -271,8 +285,9 @@ export class CommandService {
     correlationId: string,
     source: RequestSource,
     kind: 'patch_create' | 'preset_load',
+    vitalBacking?: ImportedVitalBacking | null,
   ): void {
-    this.assertChanged(transaction.changed)
+    if (vitalBacking === undefined || vitalBacking === null) this.assertChanged(transaction.changed)
     this.session.commitTransaction(
       this.commitInput(
         transaction.patch,
@@ -281,6 +296,7 @@ export class CommandService {
         transaction.reason,
         source,
         kind,
+        vitalBacking,
       ),
       transaction.historyEntry,
       () => this.trace.record(correlationId, 'patch_committed', source),

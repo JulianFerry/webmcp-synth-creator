@@ -223,20 +223,16 @@ describe('VitalWasmRenderer', () => {
     })
     expect(host.stateUpdates).toHaveLength(1)
 
-    const modulations = structuredClone(beforePreview.modulations)
-    modulations[0].amount = Number((modulations[0].amount - 0.1).toFixed(2))
-    commands.applyPatch(
-      {
-        type: 'apply_patch',
-        reason: 'Change one modulation amount without rebuilding resources',
-        changes: [{ path: 'modulations', value: modulations }],
-      },
-      { source: 'webmcp' },
-    )
-    expect(host.controlUpdates.at(-1)?.operations).toContainEqual({
-      name: 'modulation_1_amount',
-      value: modulations[0].amount,
-    })
+    expect(() =>
+      commands.applyPatch(
+        {
+          type: 'apply_patch',
+          reason: 'Attempt to change fixed Workbench modulation routing',
+          changes: [{ path: 'modulations' as never, value: [] }],
+        },
+        { source: 'webmcp' },
+      ),
+    ).toThrow('Unsupported patch path: modulations')
     expect(host.stateUpdates).toHaveLength(1)
 
     const points = structuredClone(session.getPatch().lfo1.points)
@@ -248,6 +244,63 @@ describe('VitalWasmRenderer', () => {
     expect(host.stateUpdates).toHaveLength(2)
     expect(host.stateUpdates.at(-1)?.json).toBe(adapter.exportPatch(session.getPatch()).json)
     expect(renderer.getState().previewValues).toEqual({})
+    renderer.dispose()
+  })
+
+  it('loads native imports unchanged and preserves their opaque state through supported edits', async () => {
+    const { adapter, commands, host, renderer } = createHarness()
+    await renderer.startAudio()
+
+    const nativeDocument = adapter.exportPatch(createDefaultPatch()).document
+    nativeDocument.preset_name = 'Opaque Native Import'
+    nativeDocument.settings.osc_1_destination = 1
+    nativeDocument.settings.sample_on = 1
+    ;(nativeDocument.settings.sample as Record<string, unknown>).name = 'Opaque sample'
+    const originalJson = `\n${JSON.stringify(nativeDocument, null, 2)}\n`
+    const imported = adapter.importPatch(nativeDocument, { originalJson })
+
+    commands.createPatch(
+      {
+        type: 'create_patch',
+        reason: 'Import complete native state',
+        patch: imported.patch,
+      },
+      { source: 'ui' },
+      imported.backing,
+    )
+    expect(host.stateUpdates.at(-1)?.json).toBe(originalJson)
+
+    const stateLoadsAfterImport = host.stateUpdates.length
+    commands.applyPatch(
+      {
+        type: 'apply_patch',
+        reason: 'Edit one supported native base control',
+        changes: [{ path: 'filter.cutoffHz', value: 2_400 }],
+      },
+      { source: 'ui' },
+    )
+    expect(host.stateUpdates).toHaveLength(stateLoadsAfterImport)
+    expect(host.controlUpdates.at(-1)?.operations).toContainEqual({
+      name: 'filter_fx_cutoff',
+      value: expect.any(Number),
+    })
+
+    const points = structuredClone(imported.patch.lfo1.points)
+    points[1].x += 0.01
+    commands.setLfoShape(
+      { type: 'set_lfo_shape', reason: 'Edit the exposed LFO shape', points },
+      { source: 'ui' },
+    )
+    const structuralDocument = JSON.parse(host.stateUpdates.at(-1)!.json) as {
+      settings: Record<string, unknown>
+    }
+    expect(structuralDocument.settings).toMatchObject({
+      osc_1_destination: 1,
+      sample_on: 1,
+    })
+    expect((structuralDocument.settings.sample as Record<string, unknown>).name).toBe(
+      'Opaque sample',
+    )
     renderer.dispose()
   })
 

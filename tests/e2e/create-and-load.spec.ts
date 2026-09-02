@@ -134,7 +134,6 @@ const customSinePatch = {
     phase: 0,
     smooth: true,
   },
-  modulations: [],
   voice: { polyphony: 6, legato: false, glideSeconds: 0, velocitySensitivity: 0.4 },
   effects: {
     order: ['distortion', 'filter', 'compressor', 'chorus', 'delay', 'reverb'],

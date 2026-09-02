@@ -81,6 +81,21 @@ function variantBName(name: string): string {
   return `${name.slice(0, 80 - suffix.length)}${suffix}`
 }
 
+function vitalImportNotice(info: ReturnType<SessionService['getVitalBackingInfo']>): string | null {
+  if (info === null) return null
+  const details = []
+  if (info.hiddenEffects.length > 0) {
+    details.push(`Hidden effects: ${info.hiddenEffects.join(', ')}.`)
+  }
+  if (info.affectedControls.length > 0) {
+    const controls = info.affectedControls
+      .map(({ control, sources }) => `${control} (${sources.join(', ')})`)
+      .join(', ')
+    details.push(`Controls that may not behave as shown: ${controls}.`)
+  }
+  return details.length > 0 ? details.join(' ') : null
+}
+
 export function createAppStore({ session, commands, synth }: AppStoreDependencies): AppStore {
   let vitalAdapter: VitalPresetAdapter | null = null
   const initialPatch = session.getPatch()
@@ -246,8 +261,11 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
       }
 
       try {
-        const document = await readVitalImportFile(file)
-        const imported = vitalAdapter.importPatch(document, { sourceFilename: file.name })
+        const importedFile = await readVitalImportFile(file)
+        const imported = vitalAdapter.importPatch(importedFile.document, {
+          originalJson: importedFile.originalJson,
+          sourceFilename: file.name,
+        })
         commands.createPatch(
           {
             type: 'create_patch',
@@ -255,10 +273,11 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
             patch: imported.patch,
           },
           { source: 'ui' },
+          imported.backing,
         )
         set({
           lastError: null,
-          vitalImportNotice: imported.warnings.join(' '),
+          vitalImportNotice: vitalImportNotice(session.getVitalBackingInfo()),
         })
       } catch (error) {
         set({ lastError: errorMessage(error), vitalImportNotice: null })
@@ -295,7 +314,10 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
         return
       }
       try {
-        const filename = vitalAdapter.downloadPatch(session.getPatch())
+        const filename = vitalAdapter.downloadPatch(
+          session.getPatch(),
+          session.getVitalBacking(),
+        )
         set({ exportFilename: filename, lastError: null })
       } catch (error) {
         set({ lastError: errorMessage(error) })
@@ -351,7 +373,7 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
       controlResetKey: state.controlResetKey + 1,
       exportFilename: vitalFilename(event.patch.metadata.name),
       lastError: null,
-      vitalImportNotice: null,
+      vitalImportNotice: vitalImportNotice(session.getVitalBackingInfo()),
     }))
   })
   synth.subscribe((audio) => store.setState({ audio }))

@@ -278,3 +278,14 @@ export const PATCH_STATE_INPUT_SCHEMA: Record<string, unknown> = {
   ],
   additionalProperties: false,
 }
+
+const patchStateProperties = PATCH_STATE_INPUT_SCHEMA.properties as Record<string, unknown>
+const patchStateRequired = PATCH_STATE_INPUT_SCHEMA.required as string[]
+
+export const AGENT_PATCH_STATE_INPUT_SCHEMA: Record<string, unknown> = {
+  ...PATCH_STATE_INPUT_SCHEMA,
+  properties: Object.fromEntries(
+    Object.entries(patchStateProperties).filter(([key]) => key !== 'modulations'),
+  ),
+  required: patchStateRequired.filter((key) => key !== 'modulations'),
+}

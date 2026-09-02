@@ -1,30 +1,26 @@
 import { describe, expect, it } from 'vitest'
 
-import { MODULATION_DESTINATIONS_BY_SOURCE } from '../../src/patch/modulation'
 import { createDefaultPatch } from '../../src/patch/defaults'
 import { parsePatchState } from '../../src/patch/schemas'
-import type { ModulationRoute } from '../../src/patch/types'
 
-describe('closed modulation matrix', () => {
-  it('accepts every declared source-destination pair', () => {
-    let count = 0
-    for (const [source, destinations] of Object.entries(MODULATION_DESTINATIONS_BY_SOURCE)) {
-      for (const destination of destinations) {
-        const patch = createDefaultPatch()
-        patch.modulations = [
-          {
-            id: `route-${count}`,
-            source,
-            destination,
-            amount: 0.25,
-            bipolar: false,
-          } as ModulationRoute,
-        ]
-        expect(parsePatchState(patch).modulations[0]).toMatchObject({ source, destination })
-        count += 1
-      }
-    }
-    expect(count).toBe(20)
+describe('fixed Workbench modulation routing', () => {
+  it('normalizes valid preset-specific routes to the global oscillator-level LFO', () => {
+    const patch = createDefaultPatch()
+    patch.modulations = [
+      {
+        id: 'preset-specific-route',
+        source: 'lfo1',
+        destination: 'filter.cutoff',
+        amount: 0.25,
+        bipolar: true,
+      },
+    ]
+
+    expect(parsePatchState(patch).modulations.map(({ destination }) => destination)).toEqual([
+      'oscillator1.level',
+      'oscillator2.level',
+      'oscillator3.level',
+    ])
   })
 
   it('rejects unknown route members and duplicate route pairs', () => {
