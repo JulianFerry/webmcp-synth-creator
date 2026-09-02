@@ -84,12 +84,12 @@ test('WebMCP adds an oscillator 3 route to a held Vital note and undo removes it
     },
   ]
 
-  const result = await executeTool<{ summary: { modulations: unknown[] } }>(page, 'apply_patch', {
+  const result = await executeTool<{ current: { modulations: unknown[] } }>(page, 'apply_patch', {
     reason: 'Route the modulation envelope to oscillator 3 through the Vital renderer',
     changes: [{ path: 'modulations', value: nextModulations }],
   })
 
-  expect(result.summary.modulations).toHaveLength(nextModulations.length)
+  expect(result.current.modulations).toHaveLength(nextModulations.length)
   await expect(audioState).toHaveAttribute('data-route-count', String(nextModulations.length))
   await expect(audioState).toHaveAttribute('data-modulation-version', String(version + 1))
   await expect(page.getByTestId('active-voice-count')).toHaveText('1')
@@ -123,7 +123,7 @@ test('direct amp and LFO editors stay mounted while removed routing controls rem
 
   const audioState = page.getByTestId('audio-adapter-state')
   const version = Number(await audioState.getAttribute('data-modulation-version'))
-  const changed = await executeTool<{ summary: { modEnvelope: { attackSeconds: number } } }>(
+  const changed = await executeTool<{ current: { mod_env: { attackSeconds: number } } }>(
     page,
     'apply_patch',
     {
@@ -131,7 +131,7 @@ test('direct amp and LFO editors stay mounted while removed routing controls rem
       changes: [{ path: 'modEnvelope.attackSeconds', value: 0.33 }],
     },
   )
-  expect(changed.summary.modEnvelope.attackSeconds).toBe(0.33)
+  expect(changed.current.mod_env.attackSeconds).toBe(0.33)
   await expect(audioState).toHaveAttribute('data-modulation-version', String(version + 1))
 
   await page.getByRole('tab', { name: 'Effects' }).click()

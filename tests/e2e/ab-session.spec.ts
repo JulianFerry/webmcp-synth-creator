@@ -66,7 +66,7 @@ test('A/B session creates and auditions wider B, undoes only B, then exports sel
     if (!tool) throw new Error('create_variant was not registered')
     return JSON.parse(
       await document.modelContext!.executeTool(tool, {
-        reason: 'Create a wider B while preserving the current tone',
+        description: 'Create a wider B while preserving the current tone',
         changes: [
           { path: 'metadata.name', value: 'Ethereal Gate Wide B' },
           { path: 'oscillators.0.unisonVoices', value: 7 },
@@ -121,18 +121,20 @@ test('A/B session creates and auditions wider B, undoes only B, then exports sel
   await expect(page.getByTestId('future-size')).toHaveText('0')
   await expect(page.getByTestId('export-filename')).toHaveText('ethereal-gate.vital')
 
-  const sessionState = await page.evaluate(async () => {
+  const patchState = await page.evaluate(async () => {
     const tools = await document.modelContext!.getTools()
-    const tool = tools.find((candidate) => candidate.name === 'get_session_state')
-    if (!tool) throw new Error('get_session_state was not registered')
+    const tool = tools.find((candidate) => candidate.name === 'get_patch')
+    if (!tool) throw new Error('get_patch was not registered')
     return JSON.parse(await document.modelContext!.executeTool(tool, {})) as {
-      currentVariant: string
-      hasVariantB: boolean
-      canUndo: boolean
-      canRedo: boolean
+      session: {
+        currentVariant: string
+        hasVariantB: boolean
+        canUndo: boolean
+        canRedo: boolean
+      }
     }
   })
-  expect(sessionState).toMatchObject({
+  expect(patchState.session).toMatchObject({
     currentVariant: 'A',
     hasVariantB: true,
     canUndo: false,

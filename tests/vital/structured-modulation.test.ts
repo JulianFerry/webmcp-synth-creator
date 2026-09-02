@@ -13,6 +13,7 @@ import {
 import {
   decodeVitalDelaySeconds,
   decodeVitalEnvelopeSeconds,
+  decodeVitalLfoSmoothing,
   decodeVitalReverbDecaySeconds,
 } from '../../src/vital/units'
 
@@ -26,6 +27,7 @@ describe('structured Vital modulation export', () => {
   it('serializes LFO points, powers, rate, phase, and smoothing from logical state', () => {
     const patch = createDefaultPatch()
     patch.lfo1 = {
+      ...patch.lfo1,
       enabled: true,
       points: [
         { x: 0, y: 0, power: -0.3 },
@@ -36,6 +38,7 @@ describe('structured Vital modulation export', () => {
       rate: { mode: 'sync', division: '1/8T' },
       phase: 0.125,
       smooth: true,
+      smoothing: decodeVitalLfoSmoothing(-5),
     }
     const exported = realAdapter().exportPatch(patch)
     const lfo = (exported.document.settings.lfos as Array<Record<string, unknown>>)[0]
@@ -131,6 +134,7 @@ describe('structured Vital modulation export', () => {
   it('maps modulation envelope, synchronized delay, and reverb values', () => {
     const patch = createDefaultPatch()
     patch.modEnvelope = {
+      ...patch.modEnvelope,
       attackSeconds: 0.02,
       holdSeconds: 0.1,
       decaySeconds: 0.6,
@@ -145,7 +149,13 @@ describe('structured Vital modulation export', () => {
       feedback: 0.44,
       mix: 0.27,
     }
-    patch.effects.reverb = { enabled: true, mix: 0.36, decaySeconds: 4, size: 0.81 }
+    patch.effects.reverb = {
+      ...patch.effects.reverb,
+      enabled: true,
+      mix: 0.36,
+      decaySeconds: 4,
+      size: 0.81,
+    }
     const settings = realAdapter().exportPatch(patch).document.settings
 
     expect(settings).toMatchObject({
@@ -211,6 +221,7 @@ describe('structured Vital modulation export', () => {
     ) as { settings: Record<string, unknown> }
     const patch = createDefaultPatch()
     patch.ampEnvelope = {
+      ...patch.ampEnvelope,
       attackSeconds: 0.32,
       holdSeconds: 0.12,
       decaySeconds: 1.7,

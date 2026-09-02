@@ -57,9 +57,11 @@ test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vit
   })
   expect(toolNames).toEqual([
     'get_patch',
+    'get_section',
+    'get_capabilities',
     'apply_patch',
     'set_lfo_shape',
-    'get_session_state',
+    'set_lfo_point',
     'create_variant',
     'select_variant',
     'undo',
@@ -67,6 +69,8 @@ test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vit
     'create_patch',
     'list_presets',
     'load_preset',
+    'describe_patch',
+    'export_patch',
   ])
 
   await page.getByTestId('preview-note').click()
