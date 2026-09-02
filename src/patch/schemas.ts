@@ -86,6 +86,15 @@ export const filterStateSchema = z
     velocityToCutoff: unitInterval.default(0),
   })
   .strict()
+  .superRefine((filter, context) => {
+    if (filter.type === 'notch' && filter.slope === 24) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Vital does not support a 24 dB notch filter slope',
+        path: ['slope'],
+      })
+    }
+  })
 
 export const lfoPointSchema = z
   .object({

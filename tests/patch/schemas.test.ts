@@ -6,9 +6,9 @@ import { parseApplyPatchCommand, parsePatchState } from '../../src/patch/schemas
 
 describe('PatchState schema', () => {
   it('accepts the generated default and checked-in vertical slice fixture', () => {
-    expect(parsePatchState(createDefaultPatch()).version).toBe(3)
+    expect(parsePatchState(createDefaultPatch()).version).toBe(4)
     expect(parsePatchState(verticalSliceFixture)).toMatchObject({
-      version: 3,
+      version: 4,
       metadata: { name: 'Ethereal Gate' },
     })
   })
@@ -47,6 +47,13 @@ describe('PatchState schema', () => {
       patch.filter.type = type
       expect(parsePatchState(patch).filter.type).toBe(type)
     }
+  })
+
+  it('rejects a 24 dB notch slope that Vital cannot represent', () => {
+    const patch = createDefaultPatch()
+    patch.filter.type = 'notch'
+    patch.filter.slope = 24
+    expect(() => parsePatchState(patch)).toThrow(/Vital does not support a 24 dB notch/)
   })
 
   it.each(['1/1', '1/2', '1/4', '1/8', '1/8T', '1/16', '1/16T', '1/32', '1/64'])(

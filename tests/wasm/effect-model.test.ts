@@ -160,6 +160,30 @@ describe.skipIf(artifact === null)('Vital WASM PatchState v2 effect model', () =
     expect(stereoDifferenceRms(first, last)).toBeGreaterThan(1e-5)
   }, 120_000)
 
+  it('renders a measurably different signal when the free-running chorus rate changes', async () => {
+    const slow = createDefaultPatch()
+    slow.filter.enabled = false
+    slow.lfo1.enabled = false
+    slow.lfo2.enabled = false
+    slow.effects.delay.enabled = false
+    slow.effects.reverb.enabled = false
+    slow.effects.distortion.enabled = false
+    slow.effects.chorus.enabled = true
+    slow.effects.chorus.mix = 1
+    slow.effects.chorus.depth = 1
+    slow.effects.chorus.feedback = 0.5
+    slow.effects.chorus.rate = 0
+    const fast = structuredClone(slow)
+    fast.effects.chorus.rate = 1
+
+    const slowRender = await renderPatch(slow, 1, 0.2)
+    const fastRender = await renderPatch(fast, 1, 0.2)
+
+    expect(slowRender.metrics.nonFiniteSamples).toBe(0)
+    expect(fastRender.metrics.nonFiniteSamples).toBe(0)
+    expect(stereoDifferenceRms(slowRender, fastRender)).toBeGreaterThan(1e-4)
+  }, 120_000)
+
   it('accepts adapter-derived FX filter and order controls without a state reload', async () => {
     const engine = await createEngine()
     const before = createDefaultPatch()

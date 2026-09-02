@@ -25,12 +25,25 @@ describe('Vital scalar binding registry', () => {
     expect(decoded['ampEnvelope.decayCurve']).toBe(patch.ampEnvelope.decayCurve)
   })
 
-  it('classifies all ten audited constants as forced and includes every binding key', () => {
-    expect(FORCED_VITAL_BINDINGS).toHaveLength(10)
+  it('classifies all audited constants as forced and includes every binding key', () => {
+    expect(FORCED_VITAL_BINDINGS).toHaveLength(16)
     expect(FORCED_VITAL_BINDINGS.every(({ ownership }) => ownership === 'forced')).toBe(true)
     for (const { key } of FORCED_VITAL_BINDINGS) expect(VITAL_BOUND_SETTING_KEYS.has(key)).toBe(true)
     for (const { key } of Object.values(VITAL_SCALAR_BINDINGS)) {
       expect(VITAL_BOUND_SETTING_KEYS.has(key)).toBe(true)
     }
+  })
+
+  it('maps workbench controls into their supported Vital ranges', () => {
+    const patch = createDefaultPatch()
+    patch.filter.keytrack = 0.75
+    patch.effects.distortion.drive = 0.5
+    patch.effects.chorus.feedback = 1
+
+    expect(mapVitalScalarValues(patch)).toMatchObject({
+      filter_fx_keytrack: 0.75,
+      distortion_drive: 15,
+      chorus_feedback: 0.95,
+    })
   })
 })

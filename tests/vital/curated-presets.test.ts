@@ -21,10 +21,7 @@ describe('curated preset Vital structure', () => {
     (_category, patch) => {
       const adapter = realAdapter()
       const exported = adapter.exportPatch(patch)
-      const imported = adapter.importPatch(exported.document)
-      expect(imported.warnings).toEqual([
-        'Vital has no PatchState tags or modulation route IDs; import uses a vital-import tag and generated route IDs. Custom wavetable IDs are regenerated unless the table exactly matches the built-in registry.',
-      ])
+      const imported = adapter.importPatchStrict(exported.document)
       expect(adapter.exportPatch(imported.patch).document.settings).toEqual(exported.document.settings)
     },
   )
@@ -34,6 +31,7 @@ describe('curated preset Vital structure', () => {
     (presetId) => {
       const patch = getPresetPatch(presetId)
       const settings = realAdapter().exportPatch(patch).document.settings
+      expect(settings.filter_fx_keytrack).toBe(0)
       const wavetables = settings.wavetables as Array<{
         groups: Array<{ components: Array<{ keyframes: Array<{ wave_data: string }> }> }>
       }>
@@ -81,6 +79,16 @@ describe('curated preset Vital structure', () => {
       expect(routes.slice(patch.modulations.length).every((route) => route.source === '')).toBe(
         true,
       )
+    },
+  )
+
+  it.each(listPresets().map(({ id }) => [id] as const))(
+    'strictly round-trips curated preset %s',
+    (presetId) => {
+      const adapter = realAdapter()
+      const exported = adapter.exportPatch(getPresetPatch(presetId))
+      const imported = adapter.importPatchStrict(exported.document)
+      expect(imported.patch.version).toBe(4)
     },
   )
 })
