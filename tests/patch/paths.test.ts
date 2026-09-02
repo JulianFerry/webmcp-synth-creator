@@ -61,4 +61,19 @@ describe('closed patch paths', () => {
     expect(normalizedPaths).toContain('effects.chorus.rate')
     expect(normalizedPaths).toContain('effects.reverb.highCut')
   })
+
+  it('validates chorus editor values against the logical PatchState contract', () => {
+    expect(parsePatchPathValue('effects.chorus.voices', 1)).toBe(1)
+    expect(parsePatchPathValue('effects.chorus.voices', 4)).toBe(4)
+    expect(() => parsePatchPathValue('effects.chorus.voices', 0)).toThrow()
+    expect(() => parsePatchPathValue('effects.chorus.voices', 5)).toThrow()
+    expect(() => parsePatchPathValue('effects.chorus.voices', 2.5)).toThrow()
+
+    for (const path of ['effects.chorus.rate', 'effects.chorus.feedback'] as const) {
+      expect(parsePatchPathValue(path, 0)).toBe(0)
+      expect(parsePatchPathValue(path, 1)).toBe(1)
+      expect(() => parsePatchPathValue(path, -0.01)).toThrow()
+      expect(() => parsePatchPathValue(path, 1.01)).toThrow()
+    }
+  })
 })

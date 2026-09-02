@@ -34,6 +34,22 @@ async function installWebMcpDouble(page: Page): Promise<void> {
   })
 }
 
+async function setRange(page: Page, testId: string, value: number): Promise<void> {
+  const control = page.getByTestId(testId)
+  await control.focus()
+  await control.evaluate((element, nextValue) => {
+    const input = element as HTMLInputElement
+    input.value = String(nextValue)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  }, value)
+  await control.blur()
+  await expect(control).toHaveAttribute('data-parameter-value', String(value))
+}
+
+async function expectParameter(page: Page, testId: string, value: number): Promise<void> {
+  await expect.poll(async () => Number(await page.getByTestId(testId).getAttribute('data-parameter-value'))).toBeCloseTo(value)
+}
+
 test('workbench tabs expose keyboard navigation and mount only the active panel', async ({ page }) => {
   await page.goto('/')
   const tablist = page.getByRole('tablist', { name: 'Workbench sections' })
@@ -168,6 +184,86 @@ test('bypassed effects are greyed while their enable switches remain available',
     await expect(panel.locator('.control-grid')).toHaveCSS('opacity', '0.34')
     await expect(toggle).toBeVisible()
   }
+})
+
+test('operation-written effect, filter, and envelope fields have real editors', async ({ page }) => {
+  await page.goto('/')
+
+  const initialGraph = await page.getByTestId('amp-envelope-path').getAttribute('d')
+  await expect(page.getByTestId('amp-delay')).toBeVisible()
+  await setRange(page, 'amp-delay', .3)
+  await setRange(page, 'amp-attack-curve', .2)
+  await setRange(page, 'amp-decay-curve', -.35)
+  await setRange(page, 'amp-release-curve', .4)
+  for (const phase of ['attack', 'decay', 'release']) {
+    const handle = page.getByTestId(`amp-${phase}-curve-handle`)
+    await expect(handle).toHaveAccessibleName(`${phase[0].toUpperCase()}${phase.slice(1)} curve handle`)
+    await handle.focus()
+    await handle.press('ArrowRight')
+    await handle.press('ArrowRight')
+  }
+  await expect(page.getByTestId('amp-envelope-path')).not.toHaveAttribute('d', initialGraph!)
+
+  const attackCurveHandle = page.getByTestId('amp-attack-curve-handle')
+  const handleBounds = await attackCurveHandle.boundingBox()
+  expect(handleBounds).not.toBeNull()
+  const beforeDragPath = await page.getByTestId('amp-envelope-path').getAttribute('d')
+  const beforeDragCurve = Number(await page.getByTestId('amp-attack-curve').getAttribute('data-parameter-value'))
+  await page.mouse.move(handleBounds!.x + handleBounds!.width / 2, handleBounds!.y + handleBounds!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(handleBounds!.x + handleBounds!.width / 2, handleBounds!.y + handleBounds!.height / 2 + 9, { steps: 6 })
+  await page.mouse.up()
+  await expect.poll(async () => Number(await page.getByTestId('amp-attack-curve').getAttribute('data-parameter-value'))).not.toBeCloseTo(beforeDragCurve)
+  await expect(page.getByTestId('amp-envelope-path')).not.toHaveAttribute('d', beforeDragPath!)
+  const draggedAttackCurve = Number(await page.getByTestId('amp-attack-curve').getAttribute('data-parameter-value'))
+
+  await page.getByRole('tab', { name: 'Effects' }).click()
+  await expect(page.getByTestId('effect-card-distortion').getByRole('heading', { name: 'Distortion' })).toBeVisible()
+  await expect(page.getByTestId('effect-card-chorus').getByRole('heading', { name: 'Chorus' })).toBeVisible()
+  await expect(page.getByTestId('distortion-type')).toBeVisible()
+  await expect(page.getByTestId('distortion-drive')).toBeVisible()
+  await expect(page.getByTestId('chorus-voices')).toBeVisible()
+  await expect(page.getByTestId('chorus-mix')).toBeVisible()
+  await expect(page.getByTestId('chorus-voices')).toHaveAttribute('aria-valuemax', '4')
+  await expect(page.getByTestId('chorus-rate')).toHaveAttribute('aria-valuemin', '0')
+  await expect(page.getByTestId('chorus-rate')).toHaveAttribute('aria-valuemax', '1')
+  await expect(page.getByTestId('chorus-feedback')).toHaveAttribute('aria-valuemax', '1')
+  await expect(page.getByTestId('filter-slope')).toBeVisible()
+  await expect(page.getByTestId('filter-drive')).toBeVisible()
+  await expect(page.getByTestId('filter-keytrack')).toBeVisible()
+
+  if (await page.getByTestId('distortion-enabled').getAttribute('aria-checked') === 'false') await page.getByTestId('distortion-enabled').click()
+  await page.getByTestId('distortion-type').selectOption('sine_fold')
+  await setRange(page, 'distortion-drive', .63)
+  await setRange(page, 'distortion-mix', .71)
+  if (await page.getByTestId('chorus-enabled').getAttribute('aria-checked') === 'false') await page.getByTestId('chorus-enabled').click()
+  await setRange(page, 'chorus-voices', 4)
+  await setRange(page, 'chorus-rate', .73)
+  await setRange(page, 'chorus-depth', .58)
+  await setRange(page, 'chorus-feedback', .31)
+  await setRange(page, 'chorus-mix', .46)
+  await page.getByTestId('filter-slope').selectOption('24')
+  await setRange(page, 'filter-drive', .37)
+  await setRange(page, 'filter-keytrack', .68)
+  await expect(page.getByTestId('distortion-enabled')).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByTestId('distortion-type')).toHaveValue('sine_fold')
+  await expect(page.getByTestId('filter-slope')).toHaveValue('24')
+
+  await page.getByRole('tab', { name: 'Oscillators' }).click()
+  await expect(page.getByTestId('amp-delay')).toHaveAttribute('data-parameter-value', '0.3')
+  await expectParameter(page, 'amp-attack-curve', draggedAttackCurve)
+  await expectParameter(page, 'amp-decay-curve', -.25)
+  await expectParameter(page, 'amp-release-curve', .5)
+  await page.getByRole('tab', { name: 'Effects' }).click()
+  await expect(page.getByTestId('distortion-enabled')).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByTestId('distortion-type')).toHaveValue('sine_fold')
+  await expect(page.getByTestId('chorus-enabled')).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByTestId('filter-slope')).toHaveValue('24')
+  for (const [id, value] of [['distortion-drive', '.63'], ['distortion-mix', '.71'], ['chorus-voices', '4'], ['chorus-rate', '.73'], ['chorus-depth', '.58'], ['chorus-feedback', '.31'], ['chorus-mix', '.46'], ['filter-drive', '.37'], ['filter-keytrack', '.68']] as const) {
+    await expectParameter(page, id, Number(value))
+  }
+  await page.getByRole('button', { name: 'Undo transaction' }).click()
+  await expect(page.getByTestId('filter-keytrack')).not.toHaveAttribute('data-parameter-value', '0.68')
 })
 
 test('mobile drag bar can move an effect down', async ({ page }) => {

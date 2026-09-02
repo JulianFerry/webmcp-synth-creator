@@ -247,3 +247,17 @@ test('mobile stacks the workspace and keeps the two-octave keyboard scrollable',
   })
   expect(Math.abs(footerGap)).toBeLessThanOrEqual(1)
 })
+
+test('effect parity editors stay usable without horizontal overflow on mobile', async ({ page }) => {
+  await openAt(page, 360)
+  await page.getByRole('tab', { name: 'Effects' }).click()
+
+  for (const effect of ['distortion', 'filter', 'chorus']) {
+    const card = page.getByTestId(`effect-card-${effect}`)
+    await expect(card).toBeVisible()
+    expect((await card.boundingBox())!.width).toBeLessThanOrEqual(350)
+  }
+  await expect(page.getByTestId('distortion-enabled')).toHaveCSS('min-height', '44px')
+  await expect(page.getByTestId('chorus-enabled')).toHaveCSS('min-height', '44px')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0)
+})

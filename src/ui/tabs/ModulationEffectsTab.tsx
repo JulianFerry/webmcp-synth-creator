@@ -2,6 +2,8 @@ import type { SynthRendererState } from '../../audio/SynthRenderer'
 import type { SupportedPatchPath } from '../../patch/paths'
 import type { PatchState } from '../../patch/types'
 import { DelayEditor } from '../modfx/DelayEditor'
+import { ChorusEditor } from '../modfx/ChorusEditor'
+import { DistortionEditor } from '../modfx/DistortionEditor'
 import { EffectsGrid, type EffectDefinition } from '../modfx/EffectsGrid'
 import { FilterEditor } from '../modfx/FilterEditor'
 import { ReverbEditor } from '../modfx/ReverbEditor'
@@ -18,7 +20,9 @@ interface ModulationEffectsTabProps {
 export function ModulationEffectsTab({ audio, patch, resetKey, onCancelPreview, onChange, onPreview }: ModulationEffectsTabProps) {
   const path = (value: string) => value as SupportedPatchPath
   const editor = ({ id, name, description }: EffectDefinition) => {
+    if (id === 'distortion') return <DistortionEditor distortion={patch.effects.distortion} resetKey={resetKey} onChange={(field, value) => onChange(path(`effects.distortion.${field}`), value, `Set distortion ${field}`)} />
     if (id === 'filter') return <FilterEditor filter={patch.filter} previewFilter={audio.draft.filter} resetKey={resetKey} onCancelPreview={onCancelPreview} onChange={onChange} onPreview={onPreview} />
+    if (id === 'chorus') return <ChorusEditor chorus={patch.effects.chorus} resetKey={resetKey} onChange={(field, value) => onChange(path(`effects.chorus.${field}`), value, `Set chorus ${field}`)} />
     if (id === 'delay') return <DelayEditor delay={patch.effects.delay} resetKey={resetKey} onChange={(field, value) => onChange(path(`effects.delay.${field}`), value, `Set delay ${field}`)} />
     if (id === 'reverb') return <ReverbEditor reverb={patch.effects.reverb} resetKey={resetKey} onChange={(field, value) => onChange(path(`effects.reverb.${field}`), value, `Set reverb ${field}`)} />
     return <article className={`panel effect-editor processor-slot processor-slot-${id}`}>

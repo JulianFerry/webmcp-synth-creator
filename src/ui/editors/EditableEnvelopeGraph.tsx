@@ -14,10 +14,10 @@ interface Props {
   testIdPrefix?: string
 }
 
-type GraphHandle = 'attack' | 'hold' | 'decaySustain' | 'release'
+type GraphHandle = EnvelopeHandle | 'decaySustain'
 
-const label = (handle: EnvelopeHandle) => handle[0].toUpperCase() + handle.slice(1)
-const valueText = (handle: EnvelopeHandle, value: number) => handle === 'sustain' ? `${Math.round(value * 100)} percent` : value < 1 ? `${Math.round(value * 1000)} milliseconds` : `${value.toFixed(2)} seconds`
+const label = (handle: EnvelopeHandle) => `${handle[0].toUpperCase()}${handle.slice(1).replace('Curve', ' curve')}`
+const valueText = (handle: EnvelopeHandle, value: number) => handle.endsWith('Curve') ? `${value.toFixed(2)} curve` : handle === 'sustain' ? `${Math.round(value * 100)} percent` : value < 1 ? `${Math.round(value * 1000)} milliseconds` : `${value.toFixed(2)} seconds`
 
 export function EditableEnvelopeGraph({ envelope, previewEnvelope, resetKey, onCommit, onPreview, onCancel, testIdPrefix = 'amp' }: Props) {
   const fillGradientId = `envelope-fill-${useId().replaceAll(':', '')}`
@@ -110,10 +110,14 @@ export function EditableEnvelopeGraph({ envelope, previewEnvelope, resetKey, onC
   const points = envelopeHandlePoints(draft)
   const plot = createEnvelopePlot(draft)
   const handles: Array<{ handle: GraphHandle; x: number; y: number }> = [
+    { handle: 'delay', ...points.delay },
     { handle: 'attack', ...points.attack },
     { handle: 'hold', ...points.hold },
     { handle: 'decaySustain', ...points.decay },
     { handle: 'release', ...points.release },
+    { handle: 'attackCurve', ...points.attackCurve },
+    { handle: 'decayCurve', ...points.decayCurve },
+    { handle: 'releaseCurve', ...points.releaseCurve },
   ]
 
   return <svg ref={svgRef} aria-label="Editable AHDSR amplitude envelope" className="envelope-plot editable-graph" data-plot-inset="4" role="group" viewBox="0 0 100 32"
@@ -127,7 +131,7 @@ export function EditableEnvelopeGraph({ envelope, previewEnvelope, resetKey, onC
     {handles.map(({ handle, x, y }) => {
       const field = fieldForGraphHandle(handle)
       const combined = handle === 'decaySustain'
-      const testId = combined ? `${testIdPrefix}-decay-sustain-handle` : `${testIdPrefix}-${handle}-handle`
+      const testId = combined ? `${testIdPrefix}-decay-sustain-handle` : `${testIdPrefix}-${handle.replace('Curve', '-curve')}-handle`
       const ariaLabel = combined ? 'Decay and sustain handle' : `${label(field!)} handle`
       const ariaValueText = combined
         ? `${valueText('decay', draft.decaySeconds)} decay, ${valueText('sustain', draft.sustainLevel)} sustain`
@@ -136,11 +140,11 @@ export function EditableEnvelopeGraph({ envelope, previewEnvelope, resetKey, onC
         <circle aria-hidden="true" className="graph-handle-ring" cx={x} cy={y} r="1.4" />
         <circle
         aria-label={ariaLabel}
-        aria-valuemax={combined ? 5 : field === 'sustain' ? 1 : field === 'attack' ? 3 : field === 'hold' ? 4 : 8}
-        aria-valuemin={0}
+        aria-valuemax={combined ? 5 : field?.endsWith('Curve') ? 1 : field === 'sustain' ? 1 : field === 'delay' || field === 'hold' ? 4 : field === 'attack' ? 3 : 8}
+        aria-valuemin={field?.endsWith('Curve') ? -1 : 0}
         aria-valuenow={combined ? draft.decaySeconds : draft[ENVELOPE_HANDLE_FIELDS[field!]]}
         aria-valuetext={ariaValueText}
-        className={`graph-handle envelope-${handle}-handle`}
+        className={`graph-handle envelope-${handle}-handle${handle.endsWith('Curve') ? ' envelope-curve-handle' : ''}`}
         cx={x}
         cy={y}
         data-testid={testId}

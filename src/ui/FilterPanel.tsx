@@ -25,6 +25,11 @@ const FILTER_TYPES: ReadonlyArray<{ value: FilterType; label: string }> = [
   { value: 'notch', label: 'Notch' },
 ]
 
+const FILTER_SLOPES = [
+  { value: '12', label: '12 dB / octave' },
+  { value: '24', label: '24 dB / octave' },
+] as const
+
 export function FilterPanel({
   filter,
   previewFilter,
@@ -101,6 +106,14 @@ export function FilterPanel({
           testId="filter-type"
           value={filter.type}
         />
+        <ParameterSelect
+          id="filter-slope"
+          label="Slope"
+          onCommit={(value) => commit('slope', Number(value), 'slope')}
+          options={FILTER_SLOPES}
+          testId="filter-slope"
+          value={String(filter.slope) as '12' | '24'}
+        />
         <ParameterSlider
           formatValue={(value) => `${value.toLocaleString()} Hz`}
           id="filter-cutoff-control"
@@ -130,6 +143,34 @@ export function FilterPanel({
           step={0.01}
           testId="filter-resonance"
           value={filter.resonance}
+        />
+        <ParameterSlider
+          formatValue={(value) => `${Math.round(value * 100)}%`}
+          id="filter-drive"
+          label="Drive"
+          max={1}
+          min={0}
+          onCancel={() => onCancelPreview(path('drive'))}
+          onCommit={(value) => commit('drive', value, 'drive')}
+          onPreview={(value) => onPreview(path('drive'), value)}
+          resetKey={resetKey}
+          step={0.01}
+          testId="filter-drive"
+          value={previewFilter.drive}
+        />
+        <ParameterSlider
+          formatValue={(value) => `${Math.round(value * 100)}%`}
+          id="filter-keytrack"
+          label="Key track"
+          max={1}
+          min={0}
+          onCancel={() => onCancelPreview(path('keytrack'))}
+          onCommit={(value) => commit('keytrack', value, 'keytrack')}
+          onPreview={(value) => onPreview(path('keytrack'), value)}
+          resetKey={resetKey}
+          step={0.01}
+          testId="filter-keytrack"
+          value={previewFilter.keytrack}
         />
       </div>
     </article>

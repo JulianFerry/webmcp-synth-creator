@@ -10,11 +10,15 @@ import {
 } from '../../src/ui/visualizations'
 
 const envelope: EnvelopeState = {
+  delaySeconds: 0,
   attackSeconds: 0.2,
   holdSeconds: 0,
   decaySeconds: 0.8,
   sustainLevel: 0.7,
   releaseSeconds: 1.2,
+  attackCurve: 0,
+  decayCurve: 0,
+  releaseCurve: 0,
 }
 
 describe('ADSR visualization', () => {
@@ -25,8 +29,11 @@ describe('ADSR visualization', () => {
     const decay = createEnvelopePlot({ ...envelope, decaySeconds: 4 })
     const sustain = createEnvelopePlot({ ...envelope, sustainLevel: 0.2 })
     const release = createEnvelopePlot({ ...envelope, releaseSeconds: 7 })
+    const delay = createEnvelopePlot({ ...envelope, delaySeconds: 2 })
+    const curved = createEnvelopePlot({ ...envelope, attackCurve: .6, decayCurve: -.6, releaseCurve: .4 })
 
     expect(attack.attackEndX).toBeGreaterThan(base.attackEndX)
+    expect(delay.delayEndX).toBeGreaterThan(base.delayEndX)
     expect(hold.holdEndX - hold.attackEndX).toBeGreaterThan(
       base.holdEndX - base.attackEndX,
     )
@@ -36,7 +43,7 @@ describe('ADSR visualization', () => {
     expect(sustain.sustainY).toBeGreaterThan(base.sustainY)
     expect(release.releaseStartX).toBe(base.releaseStartX)
     expect(release.releaseEndX).toBeGreaterThan(base.releaseEndX)
-    expect(new Set([base.path, attack.path, hold.path, decay.path, sustain.path, release.path]).size).toBe(6)
+    expect(new Set([base.path, attack.path, hold.path, decay.path, sustain.path, release.path, delay.path, curved.path]).size).toBe(8)
   })
 })
 
@@ -46,6 +53,9 @@ describe('filter response visualization', () => {
     type: 'lowpass',
     cutoffHz: 1_000,
     resonance: 0.2,
+    slope: 12,
+    drive: 0,
+    keytrack: 0,
   }
 
   function response(type: FilterType) {
