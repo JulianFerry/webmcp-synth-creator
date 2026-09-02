@@ -116,6 +116,13 @@ export function withWorkbenchLfoRouting(patch: PatchState): PatchState {
     modulations: [
       ...routesFor(patch.lfo1, 'lfo1'),
       ...routesFor(patch.lfo2, 'lfo2'),
+      ...(patch.filter.velocityToCutoff > 0 ? [{
+        id: 'workbench-velocity-filter-cutoff',
+        source: 'velocity' as const,
+        destination: 'filter.cutoff' as const,
+        amount: patch.filter.velocityToCutoff,
+        bipolar: false,
+      }] : []),
     ],
   }
 }

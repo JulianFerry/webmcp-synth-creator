@@ -5,8 +5,7 @@ import { SessionService } from '../session/SessionService'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
 
 export const READABLE_PATCH_SECTIONS = [
-  'osc1', 'osc2', 'osc3', 'amp_env', 'mod_env', 'lfo', 'filter', 'effects', 'voice',
-  'modulations',
+  'osc1', 'osc2', 'osc3', 'amp_env', 'mod_env', 'lfo1', 'lfo2', 'filter', 'effects', 'voice',
 ] as const satisfies readonly PatchSection[]
 
 const inputSchema = z.object({ section: z.enum(READABLE_PATCH_SECTIONS) }).strict()

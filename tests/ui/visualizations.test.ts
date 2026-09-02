@@ -56,6 +56,7 @@ describe('filter response visualization', () => {
     slope: 12,
     drive: 0,
     keytrack: 0,
+    velocityToCutoff: 0,
   }
 
   function response(type: FilterType) {

@@ -35,6 +35,11 @@ const enumeration = <T extends readonly [string, ...string[]]>(values: T) =>
 const integer = (minimum: number, maximum: number) =>
   required(z.number().int().min(minimum).max(maximum), { type: 'integer', minimum, maximum }, `${minimum}..${maximum}`)
 const text = () => required(z.string().trim().min(1), { type: 'string', minLength: 1 }, 'string')
+const lfoScope = () => required(
+  z.union([z.literal('all'), z.literal(1), z.literal(2), z.literal(3)]),
+  { enum: ['all', 1, 2, 3] },
+  '"all" | 1 | 2 | 3',
+)
 const target = () => required(
   z.union([z.literal(1), z.literal(2), z.literal(3), z.literal('both'), z.literal('all')]),
   { enum: [1, 2, 3, 'both', 'all'] },
@@ -116,28 +121,30 @@ filter.drive = amount*0.4`,
     name: 'movement',
     fields: {
       amount: normalized(), rate: optional(normalized()),
-      target: optional(enumeration(['position', 'cutoff', 'pitch', 'pan', 'level'])),
+      target: optional(enumeration(['level', 'position', 'pitch', 'cutoff'])),
+      scope: optional(lfoScope()),
       shape: optional(enumeration(['sine', 'triangle', 'ramp_up', 'ramp_down', 'random', 'smooth_random'])),
       sync: optional(boolean()),
     },
-    mapping: `Target defaults to position; Shape defaults to sine.
-lfo1.enabled = true; lfo1.points = SHAPES[shape ?? "sine"]
-lfo1.rate = sync ?? true ? {mode:"sync", division:divisionFor(rate ?? 0.25)} : {mode:"free", hz:lfoHz(rate ?? 0.25)}
-lfo1.smoothing = 0.4
-upsertRoute(lfo1 -> destFor(target), amount = amount*0.6, bipolar = true)
-destFor: position -> oscillator1.wavetablePosition; cutoff -> filter.cutoff; pitch -> oscillator1.pitch; pan -> oscillator1.pan; level -> oscillator1.level.`,
+    mapping: `movement is continuous modulation; gate is stepped and rhythmic. Both can target level.
+Target defaults to position; scope defaults to all and is forced to all for cutoff; shape defaults to sine.
+lfo2.enabled = true; lfo2.points = SHAPES[shape ?? "sine"]
+lfo2.rate = sync ?? true ? {mode:"sync", division:divisionFor(rate ?? 0.25)} : {mode:"free", hz:lfoHz(rate ?? 0.25)}
+lfo2.smoothing = 0.4; lfo2.target = target; lfo2.scope = scope; lfo2.depth = amount.`,
   },
   {
     name: 'gate',
     fields: {
       pattern: enumeration(['even_8', 'even_16', 'offbeat', 'long_short', 'short_long', 'triplet', 'dotted', 'swung', 'stutter', 'none']),
       division: optional(enumeration(TEMPO_SYNC_DIVISIONS)), depth: optional(normalized()),
-      smoothing: optional(normalized()), target: optional(enumeration(['level', 'cutoff', 'both'])),
+      smoothing: optional(normalized()), target: optional(enumeration(['level', 'position', 'pitch', 'cutoff'])),
+      scope: optional(lfoScope()),
     },
-    mapping: `lfo1.enabled = true; lfo1.points = PATTERNS[pattern]; lfo1.rate = {mode:"sync", division:division ?? "1/1"}; lfo1.smoothing = smoothing ?? 0.08
-target level|both: upsertRoute(lfo1 -> volume, amount = -(depth ?? 0.85))
-target cutoff|both: upsertRoute(lfo1 -> filter.cutoff, amount = -(depth ?? 0.85))
-pattern none: remove both routes and set lfo1.points = [{x:0,y:1},{x:1,y:1}].`,
+    mapping: `gate is stepped and rhythmic modulation; movement is continuous. Both can target level.
+Target defaults to level; scope defaults to all and is forced to all for cutoff.
+lfo1.enabled = true; lfo1.points = PATTERNS[pattern]; lfo1.rate = {mode:"sync", division:division ?? "1/1"}; lfo1.smoothing = smoothing ?? 0.08
+lfo1.target = target; lfo1.scope = scope; lfo1.depth = depth ?? 0.85
+pattern none sets lfo1.points = [{x:0,y:1},{x:1,y:1}].`,
   },
   {
     name: 'balance',
@@ -169,9 +176,9 @@ voice.legato = legato ?? (mono ?? false)`,
     name: 'response',
     fields: { velocity_to_level: optional(normalized()), velocity_to_cutoff: optional(normalized()), keytrack: optional(normalized()) },
     mapping: `if velocity_to_level given: voice.velocitySensitivity = velocity_to_level
-if velocity_to_cutoff given: upsertRoute(velocity -> filter.cutoff, amount = velocity_to_cutoff)
+if velocity_to_cutoff given: filter.velocityToCutoff = velocity_to_cutoff
 if keytrack given: filter.keytrack = keytrack
-Routes reaching amount 0 are removed, not left at zero.`,
+Routing is derived from filter.velocityToCutoff; zero emits no velocity route.`,
   },
 ] as const satisfies readonly OperationDefinition[]
 

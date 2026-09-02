@@ -136,6 +136,7 @@ export const PATCH_PATH_REGISTRY = {
   'filter.slope': metadata(z.union(FILTER_SLOPES.map((slope) => z.literal(slope)) as [z.ZodLiteral<12>, z.ZodLiteral<24>]), 'dB/octave'),
   'filter.drive': metadata(unitInterval, 'normalized 0..1'),
   'filter.keytrack': metadata(unitInterval, 'normalized 0..1'),
+  'filter.velocityToCutoff': metadata(unitInterval, 'normalized 0..1'),
   'lfo1.enabled': metadata(z.boolean(), 'boolean'),
   'lfo1.points': metadata(lfoPoints, 'normalized point list'),
   'lfo1.rate': metadata(lfoRate, 'tempo division or hertz'),

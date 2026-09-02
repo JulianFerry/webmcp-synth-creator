@@ -32,6 +32,7 @@ export type StructuralPath =
   | `oscillators.${0 | 1 | 2}.wavetableId`
   | 'filter.type'
   | 'filter.slope'
+  | 'filter.velocityToCutoff'
   | 'lfo1.enabled'
   | 'lfo1.points'
   | 'lfo1.rate'

@@ -7,6 +7,7 @@ import { writeToolResult } from './writeResult'
 
 const documentedSetLfoShapeInput = {
   reason: 'Shorten the second pulse while preserving the current rate',
+  lfo: 1,
   points: [
     { x: 0, y: 0 },
     { x: 0.02, y: 1 },
@@ -42,11 +43,15 @@ export function createSetLfoShapeTool(commandService: CommandService): WebMcpToo
     name: 'set_lfo_shape',
     title: 'Edit the point-based LFO shape',
     description:
-      'Edit the global LFO 1 points for a focused rhythmic change. Preserve its enabled state and rate; destination and depth are fixed across all Workbench patches. The optional boolean smooth setting controls interpolation between shape points; output slew is the separate lfo1.smoothing path edited by gate, movement, or apply_patch.',
+      'Edit LFO 1 or LFO 2 points for a focused shape change. The lfo argument defaults to 1. Preserve enabled state, rate, target, scope, and depth. The optional boolean smooth setting controls interpolation between shape points; output slew is the separate lfoN.smoothing path edited by gate, movement, or apply_patch.',
     inputSchema: {
       type: 'object',
       examples: [documentedSetLfoShapeInput],
       properties: {
+        lfo: {
+          type: 'integer', enum: [1, 2],
+          description: 'LFO slot to edit. Defaults to 1.',
+        },
         reason: {
           type: 'string',
           minLength: 1,
@@ -88,6 +93,7 @@ export function createSetLfoShapeTool(commandService: CommandService): WebMcpToo
           {
             type: 'set_lfo_shape',
             reason: input.reason as string,
+            ...(input.lfo === undefined ? {} : { lfo: input.lfo as 1 | 2 }),
             points: input.points as LfoPoint[],
             ...(input.smooth === undefined ? {} : { smooth: input.smooth as boolean }),
           },

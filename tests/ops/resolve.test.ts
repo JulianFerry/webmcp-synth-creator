@@ -74,32 +74,34 @@ describe('Phase 5 operation resolver exact emitted paths', () => {
     ])
   })
 
-  it('movement emits exactly LFO setup and one atomic modulation write', () => {
+  it('movement emits only its declared LFO 2 fields', () => {
     expect(paths({ op: 'movement', amount: 0.5 })).toEqual([
-      'lfo1.enabled', 'lfo1.points', 'lfo1.rate', 'lfo1.smoothing', 'modulations',
+      'lfo2.enabled', 'lfo2.points', 'lfo2.rate', 'lfo2.smoothing',
+      'lfo2.target', 'lfo2.scope', 'lfo2.depth',
     ])
-    const result = resolveOps(patch(), [{ op: 'movement', amount: 0.5, target: 'pan', shape: 'triangle', sync: false, rate: 0.5 }])
-    expect(result.find(({ path }) => path === 'lfo1.points')?.value).toEqual(MOVEMENT_SHAPES.triangle)
-    expect(result.at(-1)?.value).toContainEqual(expect.objectContaining({ source: 'lfo1', destination: 'oscillator1.pan', amount: 0.3, bipolar: true }))
+    const result = resolveOps(patch(), [{ op: 'movement', amount: 0.5, target: 'pitch', scope: 2, shape: 'triangle', sync: false, rate: 0.5 }])
+    expect(result.find(({ path }) => path === 'lfo2.points')?.value).toEqual(MOVEMENT_SHAPES.triangle)
+    expect(result).toContainEqual({ path: 'lfo2.target', value: 'pitch' })
+    expect(result).toContainEqual({ path: 'lfo2.scope', value: 2 })
+    expect(result).toContainEqual({ path: 'lfo2.depth', value: 0.5 })
   })
 
-  it('gate emits exactly LFO setup and one atomic modulation write, including none', () => {
+  it('gate emits only its declared LFO 1 fields, including none', () => {
     expect(paths({ op: 'gate', pattern: 'even_8' })).toEqual([
-      'lfo1.enabled', 'lfo1.points', 'lfo1.rate', 'lfo1.smoothing', 'modulations',
+      'lfo1.enabled', 'lfo1.points', 'lfo1.rate', 'lfo1.smoothing',
+      'lfo1.target', 'lfo1.scope', 'lfo1.depth',
     ])
     expect(paths({ op: 'gate', pattern: 'none' })).toEqual([
-      'lfo1.enabled', 'lfo1.points', 'lfo1.rate', 'lfo1.smoothing', 'modulations',
+      'lfo1.enabled', 'lfo1.points', 'lfo1.rate', 'lfo1.smoothing',
+      'lfo1.target', 'lfo1.scope', 'lfo1.depth',
     ])
     expect(resolveOps(patch(), [{ op: 'gate', pattern: 'swung' }])
       .find(({ path }) => path === 'lfo1.points')?.value).toEqual(GATE_PATTERNS.swung)
     const none = resolveOps(patch(), [{ op: 'gate', pattern: 'none' }])
     expect(none.find(({ path }) => path === 'lfo1.points')?.value).toEqual(FLAT_GATE_PATTERN)
-    expect(none.find(({ path }) => path === 'modulations')?.value).not.toContainEqual(
-      expect.objectContaining({ source: 'lfo1', destination: 'volume' }),
-    )
-    expect(none.find(({ path }) => path === 'modulations')?.value).not.toContainEqual(
-      expect.objectContaining({ source: 'lfo1', destination: 'filter.cutoff' }),
-    )
+    expect(none).toContainEqual({ path: 'lfo1.target', value: 'level' })
+    expect(none).toContainEqual({ path: 'lfo1.scope', value: 'all' })
+    expect(none).toContainEqual({ path: 'lfo1.depth', value: 0.85 })
   })
 
   it('balance emits only arguments supplied and enable writes only for osc2/osc3', () => {
@@ -136,8 +138,19 @@ describe('Phase 5 operation resolver exact emitted paths', () => {
     expect(paths({ op: 'response', velocity_to_level: 0.7, keytrack: 0.4 })).toEqual([
       'voice.velocitySensitivity', 'filter.keytrack',
     ])
-    expect(paths({ op: 'response', velocity_to_cutoff: 0.5 })).toEqual(['modulations'])
+    expect(paths({ op: 'response', velocity_to_cutoff: 0.5 })).toEqual(['filter.velocityToCutoff'])
     expect(paths({ op: 'response' })).toEqual([])
+  })
+
+  it('keeps gate and movement on independent LFO slots in one apply_patch resolution', () => {
+    const result = resolveOps(patch(), [
+      { op: 'gate', pattern: 'even_8', depth: 0.7 },
+      { op: 'movement', amount: 0.4, target: 'cutoff' },
+    ])
+    expect(result.map(({ path }) => path)).toEqual([
+      'lfo1.enabled', 'lfo1.points', 'lfo1.rate', 'lfo1.smoothing', 'lfo1.target', 'lfo1.scope', 'lfo1.depth',
+      'lfo2.enabled', 'lfo2.points', 'lfo2.rate', 'lfo2.smoothing', 'lfo2.target', 'lfo2.scope', 'lfo2.depth',
+    ])
   })
 
   it('merges duplicate paths last-write-wins, including raw precision overrides', () => {

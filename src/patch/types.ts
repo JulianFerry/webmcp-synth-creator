@@ -55,6 +55,7 @@ export interface FilterState {
   slope: 12 | 24
   drive: number
   keytrack: number
+  velocityToCutoff: number
 }
 
 export interface LfoPoint {
@@ -202,6 +203,7 @@ export interface ApplyPatchCommand {
 export interface SetLfoShapeCommand {
   type: 'set_lfo_shape'
   reason: string
+  lfo?: 1 | 2
   points: LfoPoint[]
   smooth?: boolean
 }
@@ -209,6 +211,7 @@ export interface SetLfoShapeCommand {
 export interface SetLfoPointCommand {
   type: 'set_lfo_point'
   reason: string
+  lfo?: 1 | 2
   index: number
   x?: number
   y?: number

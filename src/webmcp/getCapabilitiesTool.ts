@@ -2,8 +2,7 @@ import { ARTICULATION_PRESETS } from '../ops/articulationAndLayer'
 import { GATE_PATTERNS } from '../ops/patterns'
 import { MOVEMENT_SHAPES } from '../ops/shapes'
 import { TEMPO_SYNC_DIVISIONS } from '../patch/limits'
-import { MODULATION_DESTINATIONS, MODULATION_SOURCES } from '../patch/modulation'
-import { DISTORTION_TYPES, FILTER_SLOPES, FILTER_TYPES, PATCH_PATH_REGISTRY } from '../patch/paths'
+import { DISTORTION_TYPES, FILTER_SLOPES, FILTER_TYPES, LFO_SCOPES, LFO_TARGETS, PATCH_PATH_REGISTRY } from '../patch/paths'
 import { TEMPLATE_CATEGORIES } from '../presets/templates'
 import { WAVETABLE_CAPABILITIES } from '../wavetables/registry'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
@@ -19,8 +18,9 @@ export function createGetCapabilitiesTool(): WebMcpToolDefinition {
       context?.signal.throwIfAborted()
       return {
         wavetables: WAVETABLE_CAPABILITIES.map((wavetable) => ({ ...wavetable })),
-        modulationSources: [...MODULATION_SOURCES],
-        modulationDestinations: [...MODULATION_DESTINATIONS],
+        lfoTargets: [...LFO_TARGETS],
+        lfoScopes: [...LFO_SCOPES],
+        lfoOperationSlots: { gate: 1, movement: 2 },
         filterTypes: [...FILTER_TYPES],
         filterSlopesDbPerOctave: [...FILTER_SLOPES],
         distortionTypes: [...DISTORTION_TYPES],

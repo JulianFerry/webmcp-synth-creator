@@ -13,12 +13,12 @@ function resolveOperation(patch: PatchState, operation: Operation): RawChange[] 
     case 'width': return resolveWidth(operation)
     case 'space': return resolveSpace(operation)
     case 'drive': return resolveDrive(operation)
-    case 'movement': return resolveMovement(patch, operation)
-    case 'gate': return resolveGate(patch, operation)
+    case 'movement': return resolveMovement(operation)
+    case 'gate': return resolveGate(operation)
     case 'balance': return resolveBalance(operation)
     case 'layer': return resolveLayer(patch, operation)
     case 'pitch': return resolvePitch(operation)
-    case 'response': return resolveResponse(patch, operation)
+    case 'response': return resolveResponse(operation)
   }
 }
 

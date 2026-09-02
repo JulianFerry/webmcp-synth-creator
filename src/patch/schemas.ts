@@ -83,6 +83,7 @@ export const filterStateSchema = z
     slope: z.union([z.literal(12), z.literal(24)]),
     drive: unitInterval,
     keytrack: unitInterval,
+    velocityToCutoff: unitInterval.default(0),
   })
   .strict()
 
@@ -359,6 +360,7 @@ const setLfoShapeCommandSchema = z
   .object({
     type: z.literal('set_lfo_shape'),
     reason: z.string().trim().min(1).max(500),
+    lfo: z.union([z.literal(1), z.literal(2)]).optional(),
     points: lfoPointsSchema,
     smooth: z.boolean().optional(),
   })
@@ -368,6 +370,7 @@ const setLfoPointCommandSchema = z
   .object({
     type: z.literal('set_lfo_point'),
     reason: z.string().trim().min(1).max(500),
+    lfo: z.union([z.literal(1), z.literal(2)]).optional(),
     index: z.number().int().min(0).max(31),
     x: unitInterval.optional(),
     y: unitInterval.optional(),

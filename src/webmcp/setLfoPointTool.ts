@@ -27,11 +27,15 @@ export function createSetLfoPointTool(commandService: CommandService): WebMcpToo
     name: 'set_lfo_point',
     title: 'Edit one point in the LFO shape',
     description:
-      'Edit one zero-based LFO 1 point in a single transaction. Omitted coordinates are preserved; x is clamped between neighboring points, and endpoint x positions remain pinned at 0 and 1. Power controls the curve leading from this point and cannot be set on the final point.',
+      'Edit one zero-based point in LFO 1 or LFO 2 in a single transaction. The lfo argument defaults to 1. Omitted coordinates are preserved; x is clamped between neighboring points, and endpoint x positions remain pinned at 0 and 1. Power controls the curve leading from this point and cannot be set on the final point.',
     inputSchema: {
       type: 'object',
       examples: [{ reason: 'Shorten the second pulse', index: 2, x: 0.16 }],
       properties: {
+        lfo: {
+          type: 'integer', enum: [1, 2],
+          description: 'LFO slot to edit. Defaults to 1.',
+        },
         reason: {
           type: 'string', minLength: 1, maxLength: 500,
           description: 'Concise intent for this one-point LFO transaction.',
@@ -54,6 +58,7 @@ export function createSetLfoPointTool(commandService: CommandService): WebMcpToo
         const result = commandService.setLfoPoint({
           type: 'set_lfo_point',
           reason: input.reason as string,
+          ...(input.lfo === undefined ? {} : { lfo: input.lfo as 1 | 2 }),
           index: input.index as number,
           ...(input.x === undefined ? {} : { x: input.x as number }),
           ...(input.y === undefined ? {} : { y: input.y as number }),

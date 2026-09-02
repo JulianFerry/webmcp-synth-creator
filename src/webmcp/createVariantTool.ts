@@ -89,7 +89,7 @@ export function createCreateVariantTool(commandService: CommandService): WebMcpT
           (change) =>
             change === null ||
             typeof change !== 'object' ||
-            !isAgentEditablePatchPath((change as Record<string, unknown>).path),
+            ('path' in change && !isAgentEditablePatchPath((change as Record<string, unknown>).path)),
         )
       ) {
         return {

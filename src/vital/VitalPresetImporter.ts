@@ -699,6 +699,16 @@ function decodeLfoRouting(
   return { target, scope, depth: Math.abs(first.amount) }
 }
 
+function decodeVelocityToCutoff(routes: readonly ModulationRoute[]): number {
+  const owned = routes.filter((route) => route.source === 'velocity')
+  if (owned.length === 0) return 0
+  const route = owned[0]
+  if (owned.length !== 1 || route.destination !== 'filter.cutoff' || route.bipolar || route.amount < 0) {
+    throw new VitalImportError('Velocity routing is not representable')
+  }
+  return route.amount
+}
+
 function decodeFilterCutoff(value: number): number {
   return Math.round(440 * 2 ** ((value - 69) / 12))
 }
@@ -825,6 +835,7 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
       resonance: scalar(scalars, 'filter.resonance'),
       drive: scalar(scalars, 'filter.drive'),
       keytrack: scalar(scalars, 'filter.keytrack'),
+      velocityToCutoff: decodeVelocityToCutoff(modulation.routes),
     },
     lfo1: parseLfo(importedLfos[0], settings, modulation.lfoEnabled.lfo1, scalars, 1, decodeLfoRouting(modulation.routes, 'lfo1')),
     lfo2: parseLfo(importedLfos[1], settings, modulation.lfoEnabled.lfo2, scalars, 2, decodeLfoRouting(modulation.routes, 'lfo2')),

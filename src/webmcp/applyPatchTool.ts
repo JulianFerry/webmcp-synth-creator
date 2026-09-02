@@ -69,7 +69,7 @@ export function createApplyPatchTool(commandService: CommandService): WebMcpTool
           (change) =>
             change === null ||
             typeof change !== 'object' ||
-            !isAgentEditablePatchPath((change as Record<string, unknown>).path),
+            ('path' in change && !isAgentEditablePatchPath((change as Record<string, unknown>).path)),
         )
       ) {
         return {

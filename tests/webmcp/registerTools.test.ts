@@ -124,7 +124,8 @@ describe('WebMCP tool registration', () => {
     expect(applyPatch.description).toContain('filter.cutoffHz = cutoffHz(0.12 + brightness*0.80')
     expect(applyPatch.description).toContain("t' = t * (0.25 + speed*1.5)")
     expect(applyPatch.description).toContain('voice.transposeSemitones = clamp(')
-    expect(applyPatch.description).toContain('Routes reaching amount 0 are removed')
+    expect(applyPatch.description).toContain('Routing is derived from filter.velocityToCutoff')
+    expect(applyPatch.description).toContain('movement is continuous modulation; gate is stepped and rhythmic')
     expect(applyPatch.description).toMatch(/Prefer operations over raw paths[\s\S]*call to this tool\.$/)
     expect(setLfoShape.inputSchema).toMatchObject({
       type: 'object',
@@ -220,7 +221,7 @@ describe('WebMCP tool registration', () => {
       { signal: executionController.signal },
     )
     expect(JSON.parse(JSON.stringify(readResult))).toMatchObject({
-      version: 3,
+      version: 4,
       name: 'Ethereal Gate',
       oscillators: expect.arrayContaining([
         expect.objectContaining({ unisonDetune: 0.36, randomPhase: 0.7 }),
@@ -342,16 +343,16 @@ describe('WebMCP tool registration', () => {
 
     expect(result).toMatchObject({
       changed: { 'lfo1.points': { before: before.lfo1.points, after: points } },
-      current: { lfo: { enabled: true, points, rate: before.lfo1.rate } },
+      current: { lfo1: { enabled: true, points, rate: before.lfo1.rate } },
       canUndo: true,
     })
     expect(session.getPatch().modulations).toEqual(before.modulations)
     expect(commands.historySize).toBe(1)
     expect(result).not.toHaveProperty('content')
-    expectAffectedSections(result, ['lfo'], 1)
+    expectAffectedSections(result, ['lfo1'], 1)
   })
 
-  it('edits one LFO point through the focused tool', async () => {
+  it('edits one LFO 2 point through the focused tool', async () => {
     const gateway = new CapturingGateway()
     const { commands, session } = createHarness()
     await registerTools(gateway, session, commands)
@@ -361,17 +362,17 @@ describe('WebMCP tool registration', () => {
     const before = session.getPatch()
 
     const result = await setLfoPoint.execute({
-      reason: 'Shorten the second pulse', index: 4, x: 0.35,
+      reason: 'Raise the final movement point', lfo: 2, index: 1, y: 0.75,
     })
 
     expect(result).toMatchObject({
-      changed: { 'lfo1.points': { before: before.lfo1.points } },
-      current: { lfo: { points: expect.arrayContaining([{ x: 0.35, y: 0 }]) } },
+      changed: { 'lfo2.points': { before: before.lfo2.points } },
+      current: { lfo2: { points: expect.arrayContaining([{ x: 1, y: 0.75, power: 0 }]) } },
       undo_step: 1,
     })
-    expect(session.getPatch().lfo1.points[4].x).toBe(0.35)
+    expect(session.getPatch().lfo2.points[1].y).toBe(0.75)
     expect(session.getPatch().modulations).toEqual(before.modulations)
-    expectAffectedSections(result, ['lfo'], 1)
+    expectAffectedSections(result, ['lfo2'], 1)
   })
 
   it('rejects a combined final-point coordinate and power edit atomically', async () => {
@@ -414,19 +415,18 @@ describe('WebMCP tool registration', () => {
 
     expect(result).toMatchObject({
       changed: { 'lfo1.enabled': { before: true, after: false } },
-      current: { lfo: { enabled: false, points: before.lfo1.points, rate: before.lfo1.rate } },
+      current: { lfo1: { enabled: false, points: before.lfo1.points, rate: before.lfo1.rate } },
     })
     expect(session.getPatch().modulations).toEqual(before.modulations)
-    expectAffectedSections(result, ['lfo'], 1)
+    expectAffectedSections(result, ['lfo1'], 1)
   })
 
-  it('rejects direct modulation routing and retains routes during complete agent patch creation', async () => {
+  it('rejects direct modulation routing', async () => {
     const gateway = new CapturingGateway()
     const { commands, session } = createHarness()
     await registerTools(gateway, session, commands)
     const tool = (name: string) =>
       gateway.registrations.find(({ tool: candidate }) => candidate.name === name)!.tool
-    const beforeRoutes = session.getPatch().modulations
 
     await expect(
       tool('apply_patch').execute({
@@ -442,15 +442,7 @@ describe('WebMCP tool registration', () => {
       },
     })
 
-    const replacement = session.getPatch()
-    replacement.metadata.name = 'Agent Editable Replacement'
-    replacement.modulations = []
-    await tool('create_patch').execute({
-      reason: 'Replace all exposed fields',
-      patch: replacement,
-    })
-    expect(session.getPatch().metadata.name).toBe('Agent Editable Replacement')
-    expect(session.getPatch().modulations).toEqual(beforeRoutes)
+    expect(session.getPatch().metadata.name).toBe('Ethereal Gate')
   })
 
   it('reports absent B and keeps every session write result scoped to the active variant', async () => {
@@ -549,7 +541,7 @@ describe('WebMCP tool registration', () => {
     expect(loaded).not.toHaveProperty('content')
     expectAffectedSections(loaded, [
       'metadata', 'osc1', 'osc2', 'osc3', 'amp_env', 'mod_env', 'filter',
-      'lfo', 'modulations', 'voice', 'effects', 'wavetables',
+      'lfo1', 'voice', 'effects', 'wavetables',
     ], 1)
 
     const created = await tool('create_patch').execute({
@@ -590,8 +582,8 @@ describe('WebMCP tool registration', () => {
       expect(patch.filter).toMatchObject({ enabled: true, type: 'lowpass', slope: 24, cutoffHz: normalizedToCutoffHz(0.76) })
     }],
     ['movement', { movement: 0.4 }, (patch: ReturnType<typeof getTemplatePatch>) => {
-      expect(patch.lfo1).toMatchObject({ enabled: true, rate: { mode: 'sync', division: '1/1' }, smoothing: 0.4 })
-      expect(patch.modulations).toEqual([expect.objectContaining({ source: 'lfo1', destination: 'oscillator1.wavetablePosition', amount: 0.24, bipolar: true })])
+      expect(patch.lfo2).toMatchObject({ enabled: true, rate: { mode: 'sync', division: '1/1' }, smoothing: 0.4, target: 'position', scope: 'all', depth: 0.4 })
+      expect(patch.modulations).toEqual(expect.arrayContaining([expect.objectContaining({ source: 'lfo2', destination: 'oscillator1.wavetablePosition', amount: 0.4, bipolar: true })]))
     }],
     ['width', { width: 0.7 }, (patch: ReturnType<typeof getTemplatePatch>) => {
       expect(patch.oscillators[0]).toMatchObject({ unisonVoices: 7, unisonDetune: 0.7 * 0.7, stereoSpread: 0.3 + 0.7 * 0.7 })
@@ -687,7 +679,9 @@ describe('WebMCP tool registration', () => {
       [key: string]: unknown
     }
     expect(capabilities).toMatchObject({
-      modulationSources: ['lfo1', 'modEnvelope', 'velocity'],
+      lfoTargets: ['level', 'position', 'pitch', 'cutoff'],
+      lfoScopes: ['all', 1, 2, 3],
+      lfoOperationSlots: { gate: 1, movement: 2 },
       filterTypes: ['lowpass', 'highpass', 'bandpass', 'notch'],
       filterSlopesDbPerOctave: [12, 24],
       distortionTypes: ['soft_clip', 'hard_clip', 'sine_fold', 'bit_crush'],
@@ -708,11 +702,11 @@ describe('WebMCP tool registration', () => {
       osc3: session.getPatch().oscillators[2],
       amp_env: session.getPatch().ampEnvelope,
       mod_env: session.getPatch().modEnvelope,
-      lfo: session.getPatch().lfo1,
+      lfo1: session.getPatch().lfo1,
+      lfo2: session.getPatch().lfo2,
       filter: session.getPatch().filter,
       effects: session.getPatch().effects,
       voice: { ...session.getPatch().voice, mode: 'poly' },
-      modulations: session.getPatch().modulations,
     }
     for (const [section, current] of Object.entries(expectedSections)) {
       await expect(tool('get_section').execute({ section })).resolves.toEqual({ section, current })

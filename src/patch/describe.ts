@@ -15,18 +15,31 @@ function envelopeSentence(patch: PatchState): string {
   return `${attackLabel}, ${releaseLabel}; ${shape} ${matchArticulation(patch.ampEnvelope)} envelope.`
 }
 
-function lfoSentence(patch: PatchState): string | null {
-  if (!patch.lfo1.enabled) return null
-  const route = patch.modulations.find(({ source }) => source === 'lfo1')
-  if (!route) return null
-  const rate = patch.lfo1.rate.mode === 'sync' ? patch.lfo1.rate.division : `${patch.lfo1.rate.hz} Hz`
-  const xs = patch.lfo1.points.map(({ x }) => x)
+const DIVISION_NAMES: Record<string, string> = {
+  '1/1': 'whole-note', '1/2': 'half-note', '1/4': 'quarter-note', '1/8': 'eighth-note',
+  '1/16': 'sixteenth-note', '1/2T': 'half-note triplet', '1/4T': 'quarter-note triplet',
+  '1/8T': 'eighth-note triplet', '1/16T': 'sixteenth-note triplet',
+  '1/2D': 'dotted half-note', '1/4D': 'dotted quarter-note', '1/8D': 'dotted eighth-note',
+}
+
+const TARGET_ACTION = {
+  level: 'level', position: 'wavetable position', pitch: 'pitch', cutoff: 'filter cutoff',
+} as const
+
+function lfoSentence(patch: PatchState, slot: 1 | 2): string | null {
+  const lfo = patch[`lfo${slot}`]
+  if (!lfo.enabled) return null
+  const rate = lfo.rate.mode === 'sync'
+    ? `${DIVISION_NAMES[lfo.rate.division] ?? lfo.rate.division} rate`
+    : `${lfo.rate.hz} Hz`
+  const xs = lfo.points.map(({ x }) => x)
   const gaps = xs.slice(1).map((x, index) => x - xs[index])
   const regular = gaps.length < 2 || Math.max(...gaps) - Math.min(...gaps) < 0.03
-  const action = route.destination === 'volume' || route.destination.endsWith('.level')
-    ? 'Gated'
-    : 'Modulated'
-  return `${action} at ${rate}${regular ? '' : ' with an uneven pulse'} for ${route.destination}.`
+  const scope = lfo.target === 'cutoff' ? '' : lfo.scope === 'all'
+    ? ' across all oscillators'
+    : ` on oscillator ${lfo.scope}`
+  const style = slot === 1 ? 'Stepped rhythmic' : 'Continuous'
+  return `${style} ${TARGET_ACTION[lfo.target]} modulation at ${rate}${scope}${regular ? '' : ' with an uneven pulse'}.`
 }
 
 function widthAndEffectsSentence(patch: PatchState): string | null {
@@ -70,7 +83,8 @@ export function describePatch(patch: PatchState): string {
   const sentences = [
     `${brightness}${position} ${character} ${patch.metadata.category ?? 'patch'}.`,
     envelopeSentence(patch),
-    lfoSentence(patch),
+    lfoSentence(patch, 1),
+    lfoSentence(patch, 2),
     widthAndEffectsSentence(patch),
     layerSentence(patch),
   ]

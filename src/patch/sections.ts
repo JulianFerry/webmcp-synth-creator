@@ -7,22 +7,22 @@ export type PatchSection =
   | 'osc3'
   | 'amp_env'
   | 'mod_env'
-  | 'lfo'
+  | 'lfo1'
+  | 'lfo2'
   | 'filter'
   | 'effects'
   | 'voice'
-  | 'modulations'
   | 'wavetables'
 
 export function pathToSection(path: string): PatchSection {
   if (path === 'wavetableData') return 'wavetables'
-  if (path === 'modulations') return 'modulations'
   if (path.startsWith('oscillators.0.')) return 'osc1'
   if (path.startsWith('oscillators.1.')) return 'osc2'
   if (path.startsWith('oscillators.2.')) return 'osc3'
   if (path.startsWith('ampEnvelope.')) return 'amp_env'
   if (path.startsWith('modEnvelope.')) return 'mod_env'
-  if (path.startsWith('lfo1.')) return 'lfo'
+  if (path.startsWith('lfo1.')) return 'lfo1'
+  if (path.startsWith('lfo2.')) return 'lfo2'
   if (path.startsWith('effects.')) return 'effects'
   if (path.startsWith('metadata.')) return 'metadata'
   if (path.startsWith('filter.')) return 'filter'
@@ -38,11 +38,11 @@ export function sectionValue(patch: PatchState, section: PatchSection): unknown 
     case 'osc3': return structuredClone(patch.oscillators[2])
     case 'amp_env': return structuredClone(patch.ampEnvelope)
     case 'mod_env': return structuredClone(patch.modEnvelope)
-    case 'lfo': return structuredClone(patch.lfo1)
+    case 'lfo1': return structuredClone(patch.lfo1)
+    case 'lfo2': return structuredClone(patch.lfo2)
     case 'filter': return structuredClone(patch.filter)
     case 'effects': return structuredClone(patch.effects)
     case 'voice': return { ...structuredClone(patch.voice), mode: patch.voice.polyphony === 1 ? 'mono' : 'poly' }
-    case 'modulations': return structuredClone(patch.modulations)
     case 'wavetables': return Object.values(patch.wavetableData).map(({ id, name, frames }) => ({ id, name, frameCount: frames.length }))
   }
 }

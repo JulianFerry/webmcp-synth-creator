@@ -7,13 +7,15 @@ export function createSetLfoPointTransaction(
   currentPatch: PatchState,
 ): ApplyPatchCommand {
   const command = parseSetLfoPointCommand(commandInput)
-  const current = currentPatch.lfo1.points[command.index]
+  const lfoKey = `lfo${command.lfo ?? 1}` as const
+  const currentPoints = currentPatch[lfoKey].points
+  const current = currentPoints[command.index]
   if (!current) throw new RangeError(`LFO point index ${command.index} does not exist`)
-  if (command.power !== undefined && command.index === currentPatch.lfo1.points.length - 1) {
+  if (command.power !== undefined && command.index === currentPoints.length - 1) {
     throw new RangeError('Curve power cannot be set on the final LFO point')
   }
 
-  let points = structuredClone(currentPatch.lfo1.points)
+  let points = structuredClone(currentPoints)
   if (command.x !== undefined || command.y !== undefined) {
     points = moveLfoPoint(points, command.index, {
       ...current,
@@ -28,6 +30,6 @@ export function createSetLfoPointTransaction(
   return {
     type: 'apply_patch',
     reason: command.reason,
-    changes: [{ path: 'lfo1.points', value: points }],
+    changes: [{ path: `${lfoKey}.points`, value: points }],
   }
 }

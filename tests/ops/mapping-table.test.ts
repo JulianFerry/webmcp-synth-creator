@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import { createDefaultPatch } from '../../src/patch/defaults'
-import type { ModulationRoute } from '../../src/patch/types'
 import { normalizedToCutoffHz, normalizedToGlideSeconds, normalizedToLfoDivision, normalizedToLfoHz, normalizedToReverbDecaySeconds } from '../../src/ops/normalization'
 import { resolveOps, type Change } from '../../src/ops/resolve'
 
@@ -89,28 +88,25 @@ describe('literal section 6 operation mapping table', () => {
     })
   })
 
-  it.each([
-    ['position', 'oscillator1.wavetablePosition'], ['cutoff', 'filter.cutoff'], ['pitch', 'oscillator1.pitch'],
-    ['pan', 'oscillator1.pan'], ['level', 'oscillator1.level'],
-  ] as const)('maps movement target %s', (target, destination) => {
+  it.each(['position', 'cutoff', 'pitch', 'level'] as const)('maps movement target %s', (target) => {
     const record = asRecord({ op: 'movement', amount: 0.5, target })
-    expect(Object.keys(record)).toEqual(['lfo1.enabled', 'lfo1.points', 'lfo1.rate', 'lfo1.smoothing', 'modulations'])
-    expect(record.modulations).toContainEqual(expect.objectContaining({ source: 'lfo1', destination, amount: 0.3, bipolar: true }))
+    expect(Object.keys(record)).toEqual(['lfo2.enabled', 'lfo2.points', 'lfo2.rate', 'lfo2.smoothing', 'lfo2.target', 'lfo2.scope', 'lfo2.depth'])
+    expect(record).toMatchObject({ 'lfo2.target': target, 'lfo2.scope': 'all', 'lfo2.depth': 0.5 })
   })
 
   it.each(['sine', 'triangle', 'ramp_up', 'ramp_down', 'random', 'smooth_random'] as const)('maps movement shape %s', (shape) => {
-    expect(asRecord({ op: 'movement', amount: 1, shape })['lfo1.points']).toEqual(expect.any(Array))
+    expect(asRecord({ op: 'movement', amount: 1, shape })['lfo2.points']).toEqual(expect.any(Array))
   })
 
   it('maps movement synchronized and free rates literally', () => {
-    expect(asRecord({ op: 'movement', amount: 1, rate: 0.75 })['lfo1.rate']).toEqual({ mode: 'sync', division: normalizedToLfoDivision(0.75) })
-    expect(asRecord({ op: 'movement', amount: 1, rate: 0.75, sync: false })['lfo1.rate']).toEqual({ mode: 'free', hz: normalizedToLfoHz(0.75) })
+    expect(asRecord({ op: 'movement', amount: 1, rate: 0.75 })['lfo2.rate']).toEqual({ mode: 'sync', division: normalizedToLfoDivision(0.75) })
+    expect(asRecord({ op: 'movement', amount: 1, rate: 0.75, sync: false })['lfo2.rate']).toEqual({ mode: 'free', hz: normalizedToLfoHz(0.75) })
   })
 
-  it.each(['level', 'cutoff', 'both'] as const)('maps gate target %s to exact routes', (target) => {
-    const routes = asRecord({ op: 'gate', pattern: 'even_8', depth: 0.6, target }).modulations as ModulationRoute[]
-    const expected = target === 'both' ? ['filter.cutoff', 'volume'] : [target === 'level' ? 'volume' : 'filter.cutoff']
-    expect(routes.filter(({ source, amount }) => source === 'lfo1' && amount === -0.6).map(({ destination }) => destination).sort()).toEqual(expected.sort())
+  it.each(['level', 'position', 'pitch', 'cutoff'] as const)('maps gate target %s to declared state', (target) => {
+    expect(asRecord({ op: 'gate', pattern: 'even_8', depth: 0.6, target })).toMatchObject({
+      'lfo1.target': target, 'lfo1.scope': 'all', 'lfo1.depth': 0.6,
+    })
   })
 
   it.each([
