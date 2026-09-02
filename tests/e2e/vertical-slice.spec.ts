@@ -1,7 +1,5 @@
 import { expect, test } from '@playwright/test'
 
-const expectDevelopmentTrace = process.env.PLAYWRIGHT_PREVIEW !== '1'
-
 test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vital export', async ({
   page,
 }) => {
@@ -130,9 +128,9 @@ test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vit
         .map((event) => event.stage) ?? []
     )
   }, result.correlationId)
-  expect(correlatedStages).toEqual(
-    expectDevelopmentTrace
-      ? ['request_received', 'patch_committed', 'audio_diff_applied']
-      : [],
-  )
+  expect(correlatedStages).toEqual([
+    'request_received',
+    'patch_committed',
+    'audio_diff_applied',
+  ])
 })

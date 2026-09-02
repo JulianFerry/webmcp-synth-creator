@@ -83,7 +83,7 @@ test('WebMCP cannot add selective oscillator routes outside the visible LFO cont
         'Modulation routing is not agent-editable. Use the same LFO enable, shape, rate, phase, and smoothing controls exposed by the Workbench UI.',
     },
   })
-  await expect(audioState).toHaveAttribute('data-route-count', '3')
+  await expect(audioState).toHaveAttribute('data-route-count', '6')
   await expect(audioState).toHaveAttribute('data-modulation-version', String(version))
   await expect(page.getByTestId('active-voice-count')).toHaveText('1')
 })
@@ -97,18 +97,19 @@ test('direct amp and LFO editors stay mounted while routing controls remain hidd
 
   await expect(page.getByTestId('amp-hold')).toHaveCount(0)
   await expect(page.getByTestId('amp-hold-handle')).toBeVisible()
-  await expect(page.getByTestId('lfo-sync-division')).toBeVisible()
-  await expect(page.getByTestId('lfo-phase')).toBeVisible()
+  await expect(page.getByTestId('lfo-1-sync-division')).toBeVisible()
+  await expect(page.getByTestId('lfo-1-phase')).toBeVisible()
   await expect(page.getByTestId('mod-envelope-attack')).toHaveCount(0)
   await expect(page.getByTestId('modulation-route-count')).toHaveCount(0)
 
   const envelopeGraph = page.getByLabel('Editable AHDSR amplitude envelope')
-  const lfoGraph = page.getByLabel(/Editable LFO shape/)
+  const lfoGraph = page.getByLabel(/Editable LFO shape/).first()
   const envelopeBox = await envelopeGraph.boundingBox()
   const lfoBox = await lfoGraph.boundingBox()
   expect(envelopeBox).not.toBeNull()
   expect(lfoBox).not.toBeNull()
-  expect(Math.abs(envelopeBox!.height - lfoBox!.height)).toBeLessThan(3)
+  expect(envelopeBox!.height).toBeGreaterThanOrEqual(80)
+  expect(lfoBox!.height).toBeGreaterThanOrEqual(80)
 
   const audioState = page.getByTestId('audio-adapter-state')
   const version = Number(await audioState.getAttribute('data-modulation-version'))

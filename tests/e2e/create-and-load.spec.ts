@@ -106,12 +106,15 @@ test('create and load complete patches through WebMCP and curated UI paths', asy
     attributes: { category: 'lead' },
   })
   expect(created.current.metadata).toMatchObject({
-    name: 'Lead Template',
+    name: 'Create one complete playable lead patch',
     description: 'Create one complete playable lead patch',
   })
   expect(created.session).toMatchObject({ currentVariant: 'A', canUndo: true })
   expect(created.changed['metadata.description']).toBeDefined()
-  await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', 'Lead Template')
+  await expect(page.locator('.patch-actions')).toHaveAttribute(
+    'data-patch-name',
+    'Create one complete playable lead patch',
+  )
   await expect(page.getByTestId('preset-selector')).toHaveValue('')
   await expect(page.getByTestId('active-voice-count')).toHaveText('1')
   await expect(page.getByTestId('latest-diff')).toContainText('wavetableData')

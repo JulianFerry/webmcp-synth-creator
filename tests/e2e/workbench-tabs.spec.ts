@@ -63,10 +63,11 @@ test('workbench tabs expose keyboard navigation and mount only the active panel'
   await expect(page.getByTestId('keyboard-surface')).toBeVisible()
   await expect(page.getByRole('complementary', { name: 'Variant comparison' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Amplitude envelope' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'LFO' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'LFO 1 · Gate' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'LFO 2 · Movement' })).toBeVisible()
 
   const envelopeTypeBounds = await page.locator('.envelope-type-chip').boundingBox()
-  const lfoToggleBounds = await page.getByRole('switch', { name: 'LFO' }).boundingBox()
+  const lfoToggleBounds = await page.getByRole('switch', { name: 'LFO 1' }).boundingBox()
   expect(envelopeTypeBounds).not.toBeNull()
   expect(lfoToggleBounds).not.toBeNull()
   expect(envelopeTypeBounds!.width).toBe(lfoToggleBounds!.width)
@@ -237,7 +238,7 @@ test('envelope keeps curve editing in the graph without duplicate curve or hold 
   await expect(page.getByTestId('amp-attack-curve-handle')).toBeVisible()
   await expect(page.getByTestId('amp-decay-curve-handle')).toBeVisible()
   await expect(page.getByTestId('amp-release-curve-handle')).toBeVisible()
-  await expect(page.getByTestId('lfo-curve-0')).toHaveClass(/graph-curve-handle/)
+  await expect(page.getByTestId('lfo-1-curve-0')).toHaveClass(/graph-curve-handle/)
 })
 
 test('operation-written effect, filter, and envelope fields have real editors', async ({ page }) => {

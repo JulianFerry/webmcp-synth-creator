@@ -274,6 +274,9 @@ describe('Vital PatchState v2 effect model', () => {
       'oscillator1.level',
       'oscillator2.level',
       'oscillator3.level',
+      'oscillator1.wavetablePosition',
+      'oscillator2.wavetablePosition',
+      'oscillator3.wavetablePosition',
     ])
     expect(imported.effects.order).toEqual(patch.effects.order)
   })

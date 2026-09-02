@@ -84,11 +84,11 @@ test('LFO edit updates one transaction, SVG, audio scheduling, and Vital structu
   })
   const result = JSON.parse(rawResult) as {
     changed: Record<string, { before: unknown; after: unknown }>
-    current: { lfo: { rate: unknown } }
+    current: { lfo1: { rate: unknown } }
   }
 
   expect(Object.keys(result.changed)).toEqual(['lfo1.points'])
-  expect(result.current.lfo.rate).toEqual({ mode: 'sync', division: '1/8' })
+  expect(result.current.lfo1.rate).toEqual({ mode: 'sync', division: '1/8' })
   expect(await shape.getAttribute('d')).not.toBe(initialShape)
   await expect(page.getByTestId('lfo-1-point-count')).toHaveText('10 points')
   await expect(page.getByTestId('lfo-1-rate-readout')).toHaveText('1/8')

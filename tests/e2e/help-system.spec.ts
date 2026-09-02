@@ -46,7 +46,7 @@ test('component help combines nested elements that resolve to the same explanati
   await page.getByTestId('help-select-button').click()
 
   const module = page.getByTestId('effect-card-distortion')
-  const nestedPanel = module.locator('.processor-slot')
+  const nestedPanel = module.locator('.effect-editor')
   const effectThumb = module.locator('.fx-drag-grip')
   await effectThumb.hover()
 
