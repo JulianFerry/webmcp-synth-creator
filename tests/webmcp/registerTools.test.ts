@@ -229,6 +229,7 @@ describe('WebMCP tool registration', () => {
       lfo1: { enabled: true },
       session: { currentVariant: 'A', hasVariantB: false, canUndo: false, canRedo: false },
     })
+    expect(readResult).not.toHaveProperty('modulations')
 
     const writeResult = await gateway.registrations.find(({ tool }) => tool.name === 'apply_patch')!.tool.execute(
       {
@@ -417,6 +418,39 @@ describe('WebMCP tool registration', () => {
     })
     expect(session.getPatch().modulations).toEqual(before.modulations)
     expectAffectedSections(result, ['lfo'], 1)
+  })
+
+  it('rejects direct modulation routing and retains routes during complete agent patch creation', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const tool = (name: string) =>
+      gateway.registrations.find(({ tool: candidate }) => candidate.name === name)!.tool
+    const beforeRoutes = session.getPatch().modulations
+
+    await expect(
+      tool('apply_patch').execute({
+        reason: 'Try to route LFO 1 selectively',
+        changes: [{ path: 'modulations', value: [] }],
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: {
+        code: 'INVALID_APPLY_PATCH_INPUT',
+        message:
+          'Modulation routing is not agent-editable. Use the same LFO enable, shape, rate, phase, and smoothing controls exposed by the Workbench UI.',
+      },
+    })
+
+    const replacement = session.getPatch()
+    replacement.metadata.name = 'Agent Editable Replacement'
+    replacement.modulations = []
+    await tool('create_patch').execute({
+      reason: 'Replace all exposed fields',
+      patch: replacement,
+    })
+    expect(session.getPatch().metadata.name).toBe('Agent Editable Replacement')
+    expect(session.getPatch().modulations).toEqual(beforeRoutes)
   })
 
   it('reports absent B and keeps every session write result scoped to the active variant', async () => {

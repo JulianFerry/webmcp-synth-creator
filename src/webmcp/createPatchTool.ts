@@ -7,6 +7,7 @@ import { resolveOps } from '../ops/resolve'
 import { selectArticulation } from '../ops/articulationSelection'
 import type { Change } from '../ops/types'
 import { getTemplatePatch, TEMPLATE_CATEGORIES, type TemplateCategory } from '../presets/templates'
+import { SessionService } from '../session/SessionService'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
 import { writeToolResult } from './writeResult'
 
@@ -44,7 +45,10 @@ function createPatchError(error: z.ZodError | CommandError) {
   return { ok: false, error: { code: 'PATCH_NOT_CHANGED', message: error.message } }
 }
 
-export function createCreatePatchTool(commandService: CommandService): WebMcpToolDefinition {
+export function createCreatePatchTool(
+  commandService: CommandService,
+  _session: SessionService,
+): WebMcpToolDefinition {
   return {
     name: 'create_patch',
     title: 'Create a patch from a validated template',

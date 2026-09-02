@@ -1,4 +1,21 @@
-import type { ModulationDestination, ModulationSource } from './types'
+import type {
+  ModulationDestination,
+  ModulationRoute,
+  ModulationSource,
+  PatchState,
+} from './types'
+
+export const WORKBENCH_LFO_AMOUNT = -0.68
+
+export const WORKBENCH_LFO_ROUTES: readonly ModulationRoute[] = [1, 2, 3].map(
+  (oscillator) => ({
+    id: `workbench-lfo-oscillator-${oscillator}-level`,
+    source: 'lfo1' as const,
+    destination: `oscillator${oscillator}.level` as ModulationDestination,
+    amount: WORKBENCH_LFO_AMOUNT,
+    bipolar: false,
+  }),
+)
 
 export const MODULATION_SOURCES = ['lfo1', 'modEnvelope', 'velocity'] as const
 
@@ -49,4 +66,11 @@ export function isAllowedModulationRoute(
   return (MODULATION_DESTINATIONS_BY_SOURCE[source] as readonly ModulationDestination[]).includes(
     destination,
   )
+}
+
+export function withWorkbenchLfoRouting(patch: PatchState): PatchState {
+  return {
+    ...patch,
+    modulations: WORKBENCH_LFO_ROUTES.map((route) => ({ ...route })),
+  }
 }

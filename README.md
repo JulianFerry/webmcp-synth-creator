@@ -165,18 +165,22 @@ browser, the default renderer runs the pinned Vital DSP through WebAssembly.
 The renderer payload and downloaded preset body are the same serialized Vital
 document; only the download filename is export-specific.
 
-Use the header's starting-patch dropdown for a starting point. **Import Vital** imports
-the documented Vital `1.0.7` subset exactly and falls back to a warning-rich lossy
-conversion for structurally valid older or feature-rich `.vital` files. A successful
-import replaces only the selected A/B variant as one undoable transaction. Malformed
-files leave the patch and history unchanged.
+Use the header's starting-patch dropdown for a starting point. **Import Vital** retains
+the complete source document, loads it unchanged into Vital WASM, and derives a
+best-effort PatchState projection for the controls the Workbench can edit. A compact notice at
+the top names active effects outside those controls and visible controls affected by hidden native
+modulation such as macros.
+Supported edits are overlaid without removing samples, extra modulators, macros,
+effects, filter models, or routing, and an untouched import exports byte-for-byte
+unchanged. A successful import replaces only the selected A/B variant as one undoable
+transaction. Malformed files leave the patch and history unchanged.
 
 ### Browser/Vital calibration ladder
 
 The **Calibration ladder** group in the starting-patch menu contains eight cumulative
 test patches. A is one retriggered sine oscillator with a neutral gate envelope; B adds
 the custom Air Spectrum wavetable; C adds ADSR; D adds deterministic unison; E enables
-the reorderable Vital FX filter; F adds eighth-note LFO gating; G enables OSC2; and H
+the reorderable Vital FX filter; F enables the global eighth-note LFO gate; G enables OSC2; and H
 enables delay and reverb. Parameters for later stages are already configured while
 bypassed, so each step activates only the subsystem named in its title. Enabled
 calibration oscillators use the workbench's `100%` reference level.
@@ -202,7 +206,8 @@ The first strongly different browser/desktop pair is the useful result: A/B poin
 state or wavetable compatibility, C at envelopes, D at unison, E at the FX filter, F at
 LFO mapping/timing, G at oscillator summing, and H at the effects chain. D deliberately
 keeps random phase at zero, and every stage ignores note velocity, so repeated trials
-are stable. After A-H, separately verify an OSC3-only patch, OSC3 modulation, all four
+are stable. LFO 1 always gates the combined level of every enabled Workbench oscillator;
+its destination and depth are fixed rather than preset-specific. After A-H, separately verify an OSC3-only patch, all four
 FX-filter types, and at least two filter/delay/reverb orders; those redesigned-state
 cases are automated against WASM but still require a fresh desktop Vital listening pass.
 

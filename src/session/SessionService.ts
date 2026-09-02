@@ -3,6 +3,7 @@ import { parsePatchState } from '../patch/schemas'
 import type { PatchState } from '../patch/types'
 import type { PatchDiff } from '../commands/diff'
 import type { RequestSource } from '../dev/latencyTrace'
+import type { ImportedVitalBacking } from '../vital/VitalPresetAdapter'
 
 export type VariantId = 'A' | 'B'
 
@@ -39,15 +40,18 @@ export interface SessionCommitInput {
     | 'variant_create'
     | 'variant_select'
     | 'variant_discard'
+  vitalBackingReplacement?: ImportedVitalBacking | null
 }
 
 export interface SessionCommitEvent extends SessionCommitInput {
   currentVariant: VariantId
+  vitalBackingRevision: number
 }
 
 interface StoredVariantState {
   present: PatchState
   history: PatchHistory
+  vitalBacking: ImportedVitalBacking | null
 }
 
 type SessionSubscriber = (event: SessionCommitEvent) => void
@@ -77,6 +81,7 @@ export class SessionService {
   private readonly variants: { A: StoredVariantState; B?: StoredVariantState }
   private currentVariant: VariantId = 'A'
   private historyLimit: number
+  private vitalBackingRevision = 0
   private readonly subscribers = new Set<SessionSubscriber>()
 
   constructor(
@@ -92,6 +97,7 @@ export class SessionService {
       A: {
         present: structuredClone(parsePatchState(initialPatch)),
         history: new PatchHistory(historyLimit),
+        vitalBacking: null,
       },
     }
   }
@@ -121,6 +127,28 @@ export class SessionService {
     }
     if (this.variants.B) state.variants.B = this.toVariantState(this.variants.B)
     return state
+  }
+
+  getVitalBacking(variantId: VariantId = this.currentVariant): ImportedVitalBacking | null {
+    const backing = this.getVariant(variantId).vitalBacking
+    return backing === null ? null : structuredClone(backing)
+  }
+
+  getVitalBackingInfo(variantId: VariantId = this.currentVariant): {
+    affectedControls: ImportedVitalBacking['affectedControls']
+    hiddenEffects: string[]
+    preservesUnsupportedFeatures: boolean
+    warnings: string[]
+  } | null {
+    const backing = this.getVariant(variantId).vitalBacking
+    return backing === null
+      ? null
+      : {
+          affectedControls: structuredClone(backing.affectedControls),
+          hiddenEffects: [...backing.hiddenEffects],
+          preservesUnsupportedFeatures: backing.preservesUnsupportedFeatures,
+          warnings: [...backing.warnings],
+        }
   }
 
   getSummary(): SessionSummary {
@@ -179,8 +207,22 @@ export class SessionService {
       )
     }
 
-    variant.history.push(historyEntry)
+    const nextBacking =
+      event.vitalBackingReplacement === undefined
+        ? variant.vitalBacking
+        : structuredClone(event.vitalBackingReplacement)
+    const storedHistoryEntry = structuredClone(historyEntry)
+    if (event.vitalBackingReplacement !== undefined) {
+      storedHistoryEntry.vitalBackingTransition = {
+        before: variant.vitalBacking,
+        after: nextBacking,
+      }
+    }
+
+    variant.history.push(storedHistoryEntry)
     variant.present = patch
+    if (nextBacking !== variant.vitalBacking) this.vitalBackingRevision += 1
+    variant.vitalBacking = nextBacking
     this.publish(event, afterStateUpdate)
   }
 
@@ -209,6 +251,13 @@ export class SessionService {
 
     if (direction === 'undo') variant.history.undo()
     else variant.history.redo()
+    if (entry.vitalBackingTransition !== undefined) {
+      variant.vitalBacking =
+        direction === 'undo'
+          ? entry.vitalBackingTransition.before
+          : entry.vitalBackingTransition.after
+      this.vitalBackingRevision += 1
+    }
     variant.present = patch
     this.publish(event, afterStateUpdate)
   }
@@ -245,7 +294,7 @@ export class SessionService {
 
     const history = new PatchHistory(this.historyLimit)
     history.push(historyEntry)
-    this.variants.B = { present: patch, history }
+    this.variants.B = { present: patch, history, vitalBacking: this.getVariant(this.currentVariant).vitalBacking }
     this.currentVariant = 'B'
     this.publish(event, afterStateUpdate)
   }
@@ -264,7 +313,9 @@ export class SessionService {
       )
     }
 
+    const previousBacking = this.getVariant(this.currentVariant).vitalBacking
     this.currentVariant = variantId
+    if (variant.vitalBacking !== previousBacking) this.vitalBackingRevision += 1
     this.publish(event, afterStateUpdate)
   }
 
@@ -282,8 +333,10 @@ export class SessionService {
         'Discarding variant B must return to variant A',
       )
     }
+    const previousBacking = this.variants.B.vitalBacking
     delete this.variants.B
     this.currentVariant = 'A'
+    if (this.variants.A.vitalBacking !== previousBacking) this.vitalBackingRevision += 1
     this.publish(event, afterStateUpdate)
   }
 
@@ -305,10 +358,13 @@ export class SessionService {
 
   private publish(event: SessionCommitInput, afterStateUpdate: () => void): void {
     afterStateUpdate()
+    const eventWithoutBacking = { ...event }
+    delete eventWithoutBacking.vitalBackingReplacement
     const publishedEvent: SessionCommitEvent = {
-      ...structuredClone(event),
+      ...structuredClone(eventWithoutBacking),
       patch: this.getPatch(),
       currentVariant: this.currentVariant,
+      vitalBackingRevision: this.vitalBackingRevision,
     }
 
     for (const subscriber of this.subscribers) {

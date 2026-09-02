@@ -53,7 +53,7 @@ async function executeTool<T>(
   )
 }
 
-test('WebMCP adds an oscillator 3 route to a held Vital note and undo removes it', async ({
+test('WebMCP cannot add selective oscillator routes outside the visible LFO controls', async ({
   page,
 }) => {
   await installWebMcpDouble(page)
@@ -62,45 +62,33 @@ test('WebMCP adds an oscillator 3 route to a held Vital note and undo removes it
   await page.getByTestId('preview-note').click()
   await expect(page.getByTestId('active-voice-count')).toHaveText('1')
 
-  const before = await executeTool<{
-    modulations: Array<{
-      id: string
-      source: 'lfo1' | 'modEnvelope'
-      destination: string
-      amount: number
-      bipolar: boolean
-    }>
-  }>(page, 'get_patch', {})
+  const before = await executeTool<Record<string, unknown>>(page, 'get_patch', {})
+  expect(before).not.toHaveProperty('modulations')
   const audioState = page.getByTestId('audio-adapter-state')
   const version = Number(await audioState.getAttribute('data-modulation-version'))
-  const nextModulations = [
-    ...before.modulations,
-    {
-      id: 'phase5-oscillator-3-position',
-      source: 'modEnvelope' as const,
-      destination: 'oscillator3.wavetablePosition',
-      amount: 0.35,
-      bipolar: false,
-    },
-  ]
 
-  const result = await executeTool<{ current: { modulations: unknown[] } }>(page, 'apply_patch', {
+  const result = await executeTool<{
+    ok: false
+    error: { code: string; message: string }
+  }>(page, 'apply_patch', {
     reason: 'Route the modulation envelope to oscillator 3 through the Vital renderer',
-    changes: [{ path: 'modulations', value: nextModulations }],
+    changes: [{ path: 'modulations', value: [] }],
   })
 
-  expect(result.current.modulations).toHaveLength(nextModulations.length)
-  await expect(audioState).toHaveAttribute('data-route-count', String(nextModulations.length))
-  await expect(audioState).toHaveAttribute('data-modulation-version', String(version + 1))
-  await expect(page.getByTestId('active-voice-count')).toHaveText('1')
-
-  await executeTool(page, 'undo', {})
-  await expect(audioState).toHaveAttribute('data-route-count', String(before.modulations.length))
-  await expect(audioState).toHaveAttribute('data-modulation-version', String(version + 2))
+  expect(result).toEqual({
+    ok: false,
+    error: {
+      code: 'INVALID_APPLY_PATCH_INPUT',
+      message:
+        'Modulation routing is not agent-editable. Use the same LFO enable, shape, rate, phase, and smoothing controls exposed by the Workbench UI.',
+    },
+  })
+  await expect(audioState).toHaveAttribute('data-route-count', '3')
+  await expect(audioState).toHaveAttribute('data-modulation-version', String(version))
   await expect(page.getByTestId('active-voice-count')).toHaveText('1')
 })
 
-test('direct amp and LFO editors stay mounted while removed routing controls remain WebMCP-only', async ({
+test('direct amp and LFO editors stay mounted while routing controls remain hidden', async ({
   page,
 }) => {
   await installWebMcpDouble(page)

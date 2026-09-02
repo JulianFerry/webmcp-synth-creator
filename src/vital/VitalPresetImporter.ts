@@ -1380,7 +1380,10 @@ function parseLossyPatch(
   const sourceVersion = stringValue(document.synth_version, 'Vital synth_version')
   if (!sourceVersion.trim()) throw new VitalImportError('Vital synth_version must not be empty')
   const warnings = new Set<string>()
-  warnOnce(warnings, `Imported with losses after the exact compatibility path rejected the preset: ${strictError.message}`)
+  warnOnce(
+    warnings,
+    `The editable projection is approximate because the exact compatibility path rejected the preset: ${strictError.message}`,
+  )
   if (sourceVersion !== template.synth_version) {
     warnOnce(warnings, `Vital ${sourceVersion} was interpreted using the ${template.synth_version} parameter model.`)
   }

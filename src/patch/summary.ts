@@ -32,7 +32,6 @@ export function summarizePatch(patch: PatchState): PatchSummary {
       smooth: patch.lfo1.smooth,
       smoothing: patch.lfo1.smoothing,
     },
-    modulations: structuredClone(patch.modulations),
     voice: structuredClone(patch.voice),
     effects: structuredClone(patch.effects),
     wavetables: Object.values(patch.wavetableData).map((wavetable) => ({

@@ -241,6 +241,26 @@ tests. Desktop Vital 1.0.7 listening remains the final interoperability check.
 
 ---
 
+## 3.5 Imported Vital presets retain native state
+
+Imported `.vital` files have two coordinated layers:
+
+```text
+Imported Vital JSON
+  ├─ unchanged native backing document → Vital WASM and export
+  └─ best-effort PatchState projection → UI, commands, WebMCP and history
+```
+
+Unsupported samples, extra oscillators or modulators, macros, effects, filter models,
+and modulation routes remain loaded and audible. Workbench controls expose only the
+PatchState projection. Supported edits patch the corresponding native controls or owned
+resource slot without rebuilding from Init or deleting unsupported state. An untouched
+import exports byte-for-byte unchanged. A compact notice above the workbench lists active effects
+outside the editable controls and visible controls affected by hidden native modulation such as
+macros. Projection diagnostics remain internal instead of filling the notice.
+
+---
+
 # 4. Primary user journeys
 
 ## 4.1 Generate a sound
@@ -712,35 +732,25 @@ Direct mouse editing is not required for the challenge submission.
 
 # 9. Modulation routes
 
-Logical modulation:
+Workbench modulation routing is fixed rather than preset-specific. Every PatchState is
+normalized to three equal, unipolar LFO 1 routes:
 
-```ts
-type ModulationSource =
-  | "lfo1"
-  | "modEnvelope"
-
-type ModulationDestination =
-  | "oscillator1.level"
-  | "oscillator1.wavetablePosition"
-  | "oscillator1.pitch"
-  | "oscillator2.level"
-  | "oscillator2.wavetablePosition"
-  | "oscillator2.pitch"
-  | "filter.cutoff"
-
-interface ModulationRoute {
-  id: string
-  source: ModulationSource
-  destination: ModulationDestination
-
-  amount: number // -1..1
-  bipolar: boolean
-}
+```text
+LFO 1 -> oscillator 1 level  -0.68
+LFO 1 -> oscillator 2 level  -0.68
+LFO 1 -> oscillator 3 level  -0.68
 ```
 
-For the MVP, this list is **closed**.
+Disabled oscillators ignore their route, so the same LFO shape gates the complete audible
+oscillator mix for every patch. The LFO enable switch bypasses or enables all three routes
+together. Shape, rate, phase, and smoothing therefore have identical meaning in every
+curated, calibration, imported-projection, or agent-created patch.
 
-The agent may only use these destinations.
+Routes and depth are internal invariants, not UI or WebMCP controls. `get_patch` does not
+expose them, and `apply_patch`, `create_variant`, and `create_patch` cannot replace them.
+Feature-rich imported Vital documents retain additional native routes in opaque backing
+state; changing a visible Workbench LFO control adds the three fixed routes in free native
+slots without removing those preserved routes.
 
 It must not invent:
 
@@ -1103,7 +1113,7 @@ Do not return the full raw `.vital` document.
 
 ### Draft tool description
 
-> Read the current logical synth patch. Use this before editing when you need to understand the existing sound design. Returns the supported oscillator, envelope, filter, LFO, modulation, voice and effect state in musical units. This is the authoritative state the agent should reason from; do not infer the patch from previous conversation text.
+> Read the current editable synth projection. Use this before editing when you need to understand the existing sound design. Returns supported oscillator, envelope, filter, LFO, voice and effect state in musical units. Preserved native Vital features may also affect the sound but are intentionally not agent-editable.
 
 Return a compact but complete logical patch summary.
 
@@ -1115,7 +1125,7 @@ Mark as read-only.
 
 ### Draft tool description
 
-> Replace or modify LFO 1's point-based shape. Use this for structural rhythmic requests such as “shorten the second pulse,” “make the gate less regular,” or “move the final pulse later.” Preserve the current LFO rate and modulation routes unless the request explicitly changes them. Points use normalized x/y coordinates from 0 to 1.
+> Replace or modify LFO 1's point-based shape. Use this for structural rhythmic requests such as “shorten the second pulse,” “make the gate less regular,” or “move the final pulse later.” Preserve the current LFO rate and retained modulation routes. Points use normalized x/y coordinates from 0 to 1.
 
 For ordinary changes involving LFO plus other parameters, use `apply_patch` instead.
 
@@ -1158,7 +1168,8 @@ All pure reads must use the appropriate read-only hint.
 
 ### `create_patch`
 
-Creates an initial patch from a structured patch proposal.
+Creates an editable patch projection from a structured proposal while applying the fixed
+global LFO routing and retaining any imported native backing state.
 
 ### `load_preset`
 
@@ -1847,8 +1858,8 @@ Possible later features:
 - semantic preset retrieval
 - larger CC0 wavetable libraries
 - AI chooses whether to generate or retrieve
-- user-imported Vital presets
-- conversational editing of imported patches
+- broader editable projections for imported Vital features
+- user-facing controls for selected preserved native features
 
 ---
 

@@ -1,6 +1,13 @@
 import type { PatchState } from '../../patch/types'
-import type { VitalPresetAdapter } from '../../vital/VitalPresetAdapter'
+import type {
+  ImportedVitalBacking,
+  VitalPresetAdapter,
+} from '../../vital/VitalPresetAdapter'
 
-export function vitalEnginePayload(adapter: VitalPresetAdapter, patch: PatchState): string {
-  return adapter.exportPatch(patch).json
+export function vitalEnginePayload(
+  adapter: VitalPresetAdapter,
+  patch: PatchState,
+  backing: ImportedVitalBacking | null = null,
+): string {
+  return adapter.exportPatch(patch, backing).json
 }

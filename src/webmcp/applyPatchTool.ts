@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { CommandError, CommandService } from '../commands/CommandService'
 import { OPERATION_TABLE } from '../ops/schema'
 import type { Change } from '../ops/types'
+import { isAgentEditablePatchPath } from '../patch/paths'
 import { CHANGE_JSON_SCHEMA } from './changeJsonSchema'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
 import { writeToolResult } from './writeResult'
@@ -62,12 +63,30 @@ export function createApplyPatchTool(commandService: CommandService): WebMcpTool
     },
     async execute(input, context) {
       context?.signal.throwIfAborted()
+      const changes = Array.isArray(input.changes) ? input.changes : []
+      if (
+        changes.some(
+          (change) =>
+            change === null ||
+            typeof change !== 'object' ||
+            !isAgentEditablePatchPath((change as Record<string, unknown>).path),
+        )
+      ) {
+        return {
+          ok: false,
+          error: {
+            code: 'INVALID_APPLY_PATCH_INPUT',
+            message:
+              'Modulation routing is not agent-editable. Use the same LFO enable, shape, rate, phase, and smoothing controls exposed by the Workbench UI.',
+          },
+        }
+      }
       try {
         const result = commandService.applyPatch(
           {
             type: 'apply_patch',
             reason: input.reason as string,
-            changes: input.changes as Change[],
+            changes: changes as Change[],
           },
           { source: 'webmcp' },
         )

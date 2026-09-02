@@ -5,12 +5,13 @@ import { WORKBENCH_TABS, type WorkbenchTab } from '../../app/uiState'
 
 interface WorkbenchTabsProps {
   active: WorkbenchTab
+  assistance: ReactNode
   children: ReactNode
   onChange: (tab: WorkbenchTab) => void
   history: ComponentProps<typeof HistoryControls>
 }
 
-export function WorkbenchTabs({ active, children, history, onChange }: WorkbenchTabsProps) {
+export function WorkbenchTabs({ active, assistance, children, history, onChange }: WorkbenchTabsProps) {
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
 
   const moveFocus = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -50,7 +51,10 @@ export function WorkbenchTabs({ active, children, history, onChange }: Workbench
             {tab.label}
           </button>
         ))}
-        <HistoryControls {...history} />
+        <div className="workbench-tab-actions">
+          <HistoryControls {...history} />
+          {assistance}
+        </div>
       </div>
       <div
         aria-labelledby={metadata.tabId}

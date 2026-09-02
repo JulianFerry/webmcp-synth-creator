@@ -74,7 +74,7 @@ export function TelemetryRegion(props: DiagnosticDrawerProps) {
               <div><dt>Filter</dt><dd>{props.summary.filter.cutoffHz.toLocaleString()} Hz</dd></div>
               <div><dt>Polyphony</dt><dd>{props.summary.voice.polyphony}</dd></div>
               <div><dt>LFO</dt><dd>{props.summary.lfo1.pointCount} pts</dd></div>
-              <div><dt>Routes</dt><dd>{props.summary.modulations.length}</dd></div>
+              <div><dt>Routes</dt><dd>{props.patch.modulations.length}</dd></div>
               <div><dt>Variant</dt><dd data-testid="current-variant">{props.currentVariant}</dd></div>
               <div><dt>Transactions</dt><dd data-testid="transaction-count">{props.transactionCount}</dd></div>
               <div><dt>Undo depth</dt><dd data-testid="history-size">{props.historySize}</dd></div>

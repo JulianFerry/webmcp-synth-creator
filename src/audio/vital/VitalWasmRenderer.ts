@@ -5,6 +5,7 @@ import type { PatchState } from '../../patch/types'
 import { SessionService, type SessionCommitEvent } from '../../session/SessionService'
 import {
   VitalPresetAdapter,
+  type ImportedVitalBacking,
   type VitalControlOperation,
 } from '../../vital/VitalPresetAdapter'
 import {
@@ -77,12 +78,14 @@ export class VitalWasmRenderer implements SynthRenderer {
   private draftPatch: PatchState
   private effectivePatch: PatchState
   private host: VitalRendererHost | null = null
+  private importedBacking: ImportedVitalBacking | null
   private noteOrder = 0
   private patch: PatchState
   private readonly pendingRevisions = new Map<number, PendingRevision>()
   private preparePromise: Promise<void> | null = null
   private previewValues: AudioPreviewValues = {}
   private revision = 0
+  private vitalBackingRevision = 0
   private state: SynthRendererState
   private readonly subscribers = new Set<StateSubscriber>()
   private unsubscribeHost: (() => void) | null = null
@@ -94,12 +97,13 @@ export class VitalWasmRenderer implements SynthRenderer {
   private readonly preloadWasm: () => Promise<unknown>
 
   constructor(
-    session: SessionService,
+    private readonly session: SessionService,
     adapter: VitalPresetAdapter | Promise<VitalPresetAdapter>,
     private readonly trace: LatencyTrace,
     options: VitalWasmRendererOptions = {},
   ) {
     this.patch = session.getPatch()
+    this.importedBacking = session.getVitalBacking()
     this.draftPatch = structuredClone(this.patch)
     this.effectivePatch = structuredClone(this.patch)
     this.adapterPromise = Promise.resolve(adapter)
@@ -316,6 +320,11 @@ export class VitalWasmRenderer implements SynthRenderer {
   private applyCommittedPatch(event: SessionCommitEvent): void {
     const previewPaths = Object.keys(this.previewValues).filter(isSupportedPatchPath)
     const previousEffectivePatch = this.effectivePatch
+    const backingChanged = event.vitalBackingRevision !== this.vitalBackingRevision
+    if (backingChanged) {
+      this.vitalBackingRevision = event.vitalBackingRevision
+      this.importedBacking = this.session.getVitalBacking()
+    }
     this.patch = structuredClone(event.patch)
     this.previewValues = {}
     this.draftPatch = structuredClone(event.patch)
@@ -338,7 +347,11 @@ export class VitalWasmRenderer implements SynthRenderer {
 
     const stolen = this.trimActiveNotes(this.patch.voice.polyphony)
     try {
-      this.applyPatchToHost(previousEffectivePatch, this.effectivePatch, effectiveChanged)
+      if (backingChanged && this.host !== null) {
+        this.loadFullState(this.effectivePatch, true)
+      } else {
+        this.applyPatchToHost(previousEffectivePatch, this.effectivePatch, effectiveChanged)
+      }
     } catch {
       this.reflectError()
     }
@@ -408,14 +421,14 @@ export class VitalWasmRenderer implements SynthRenderer {
     const modulationChanged = changedPaths.some(isModulationPath)
     if (
       changedPaths.some((path) => FULL_STATE_PATHS.has(path)) ||
-      (changedPaths.includes('modulations') && modulationTopologyChanged(before, after))
+      (this.importedBacking !== null && changedPaths.some((path) => path.startsWith('lfo1.')))
     ) {
       this.loadFullState(after, modulationChanged)
       return
     }
 
     const adapter = this.requireAdapter()
-    const operations = adapter.controlOperations(before, after)
+    const operations = adapter.controlOperations(before, after, this.importedBacking)
     if (operations.length === 0) return
 
     const revision = this.nextRevision()
@@ -435,7 +448,7 @@ export class VitalWasmRenderer implements SynthRenderer {
 
   private loadFullState(patch: PatchState, modulationChanged: boolean): void {
     const revision = this.nextRevision()
-    const json = vitalEnginePayload(this.requireAdapter(), patch)
+    const json = vitalEnginePayload(this.requireAdapter(), patch, this.importedBacking)
     if (!this.requireHost().loadState(revision, json)) return
 
     for (const pendingRevision of this.pendingRevisions.keys()) {
@@ -622,14 +635,6 @@ function isModulationPath(path: string): boolean {
       path,
     )
   )
-}
-
-function modulationTopologyChanged(before: PatchState, after: PatchState): boolean {
-  if (before.modulations.length !== after.modulations.length) return true
-  return before.modulations.some((route, index) => {
-    const next = after.modulations[index]
-    return next === undefined || route.source !== next.source || route.destination !== next.destination
-  })
 }
 
 function latencyMilliseconds(value: unknown): number | null {

@@ -55,7 +55,7 @@ export async function registerTools(
     createSelectVariantTool(commandService),
     createUndoTool(commandService),
     createRedoTool(commandService),
-    createCreatePatchTool(commandService),
+    createCreatePatchTool(commandService, session),
     createListPresetsTool(),
     createLoadPresetTool(commandService),
     createDescribePatchTool(session),

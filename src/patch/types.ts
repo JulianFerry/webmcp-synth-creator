@@ -239,7 +239,6 @@ export interface PatchSummary {
     smooth: boolean
     smoothing: number
   }
-  modulations: ModulationRoute[]
   voice: VoiceState
   effects: PatchState['effects']
   wavetables: Array<{

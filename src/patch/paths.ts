@@ -12,7 +12,6 @@ import {
   REVERB_PREDELAY_MAX_SECONDS,
   TEMPO_SYNC_DIVISIONS,
 } from './limits'
-import { isAllowedModulationRoute, MODULATION_DESTINATIONS, MODULATION_SOURCES } from './modulation'
 import { EFFECT_IDS } from './effects'
 import type { PatchState } from './types'
 
@@ -65,25 +64,6 @@ const lfoPoints = z
       }
     }
   })
-const modulationRoute = z
-  .object({
-    id: z.string().min(1).max(64),
-    source: z.enum(MODULATION_SOURCES),
-    destination: z.enum(MODULATION_DESTINATIONS as [typeof MODULATION_DESTINATIONS[number], ...typeof MODULATION_DESTINATIONS]),
-    amount: z.number().finite().min(-1).max(1),
-    bipolar: z.boolean(),
-  })
-  .strict()
-  .superRefine((route, context) => {
-    if (!isAllowedModulationRoute(route.source, route.destination)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Unsupported modulation route: ${route.source} -> ${route.destination}`,
-        path: ['destination'],
-      })
-    }
-  })
-
 export interface PatchPathMetadata {
   validator: ZodTypeAny
   unit: string
@@ -160,7 +140,6 @@ export const PATCH_PATH_REGISTRY = {
   'lfo1.phase': metadata(unitInterval, 'normalized 0..1'),
   'lfo1.smooth': metadata(z.boolean(), 'boolean'),
   'lfo1.smoothing': metadata(unitInterval, 'normalized 0..1'),
-  modulations: metadata(z.array(modulationRoute).max(16), 'modulation route list'),
   'voice.polyphony': metadata(z.number().int().min(1).max(16), 'voice count'),
   'voice.legato': metadata(z.boolean(), 'boolean'),
   'voice.glideSeconds': metadata(seconds(5), 'seconds'),
@@ -196,6 +175,12 @@ export type SupportedPatchPath = keyof typeof PATCH_PATH_REGISTRY
 export const SUPPORTED_PATCH_PATHS = Object.freeze(
   Object.keys(PATCH_PATH_REGISTRY) as SupportedPatchPath[],
 )
+
+export const AGENT_EDITABLE_PATCH_PATHS = SUPPORTED_PATCH_PATHS
+
+export function isAgentEditablePatchPath(path: unknown): path is SupportedPatchPath {
+  return typeof path === 'string' && AGENT_EDITABLE_PATCH_PATHS.includes(path as SupportedPatchPath)
+}
 
 export const PATCH_PATH_VALUE_SCHEMAS: Readonly<Record<SupportedPatchPath, ZodTypeAny>> =
   Object.freeze(Object.fromEntries(SUPPORTED_PATCH_PATHS.map((path) => [

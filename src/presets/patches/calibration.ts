@@ -204,7 +204,7 @@ export const CALIBRATION_F_PATCH = createNextStage(
     name: 'Calibration F — LFO Gate',
     category: 'other',
     description:
-      'Stage E with a tempo-synced LFO subtracting OSC1 level to create a repeatable eighth-note gate.',
+      'Stage E with the global tempo-synced LFO subtracting every enabled oscillator level to create a repeatable eighth-note gate.',
     tags: ['calibration', 'stage-f', 'lfo', 'gate'],
   },
   (patch) => {

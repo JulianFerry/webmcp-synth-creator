@@ -64,6 +64,8 @@ describe('VitalPresetAdapter import', () => {
 
       expectSupportedRoundTrip(source, imported.patch)
       expect(imported.sourceVersion).toBe('1.0.7')
+      expect(imported.backing.hiddenEffects).toEqual([])
+      expect(imported.backing.affectedControls).toEqual([])
       expect(imported.warnings).toEqual([
         expect.stringContaining('tags or modulation route IDs'),
       ])
@@ -213,8 +215,10 @@ describe('VitalPresetAdapter import', () => {
       13,
     ])
     expect(imported.patch.wavetableData['vital-osc-1-legacy-audio-table'].frames).toHaveLength(1)
-    expect(imported.patch.modulations).toEqual([
-      expect.objectContaining({ source: 'lfo1', destination: 'oscillator1.pitch' }),
+    expect(imported.patch.modulations.map(({ destination }) => destination)).toEqual([
+      'oscillator1.level',
+      'oscillator2.level',
+      'oscillator3.level',
     ])
     expect(imported.warnings).toEqual(
       expect.arrayContaining([
@@ -273,7 +277,11 @@ describe('VitalPresetAdapter import', () => {
       cutoffHz: 523,
       resonance: 0.61,
     })
-    expect(imported.patch.modulations[1]).toMatchObject({ destination: 'filter.cutoff' })
+    expect(imported.patch.modulations.map(({ destination }) => destination)).toEqual([
+      'oscillator1.level',
+      'oscillator2.level',
+      'oscillator3.level',
+    ])
     expect(imported.warnings).toContain(
       'Legacy Filter 1 was moved into the workbench effects-chain filter.',
     )
