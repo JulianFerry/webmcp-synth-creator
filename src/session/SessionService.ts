@@ -268,6 +268,8 @@ export class SessionService {
     historyEntry: HistoryEntry,
     replaceExisting = false,
     afterStateUpdate: () => void = () => undefined,
+    activate = true,
+    vitalBacking?: ImportedVitalBacking | null,
   ): void {
     if (this.variants.B && !replaceExisting) {
       throw new SessionError(
@@ -294,8 +296,15 @@ export class SessionService {
 
     const history = new PatchHistory(this.historyLimit)
     history.push(historyEntry)
-    this.variants.B = { present: patch, history, vitalBacking: this.getVariant(this.currentVariant).vitalBacking }
-    this.currentVariant = 'B'
+    this.variants.B = {
+      present: patch,
+      history,
+      vitalBacking:
+        vitalBacking === undefined
+          ? this.getVariant(this.currentVariant).vitalBacking
+          : structuredClone(vitalBacking),
+    }
+    if (activate) this.currentVariant = 'B'
     this.publish(event, afterStateUpdate)
   }
 

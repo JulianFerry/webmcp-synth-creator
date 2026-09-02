@@ -157,3 +157,57 @@ test('A/B session creates and auditions wider B, undoes only B, then exports sel
     osc_1_stereo_spread: 0.88,
   })
 })
+
+test('WebMCP creates two warm-bass proposals that are auditionable from the A/B UI', async ({
+  page,
+}) => {
+  await installWebMcpDouble(page)
+  await page.goto('/')
+  await expect(page.getByTestId('webmcp-status')).toContainText('available')
+  await expect(page.getByTestId('vital-status')).toContainText('ready')
+
+  const creation = await page.evaluate(async () => {
+    const tools = await document.modelContext!.getTools()
+    const tool = tools.find((candidate) => candidate.name === 'create_patch')
+    if (!tool) throw new Error('create_patch was not registered')
+    return JSON.parse(
+      await document.modelContext!.executeTool(tool, {
+        description: 'Warm bass: sub-heavy sine foundation',
+        attributes: { category: 'bass', brightness: 0.2 },
+        alternative: {
+          description: 'Warm bass: saturated analog saw harmonics',
+          attributes: { category: 'lead', brightness: 0.55, drive: 0.7 },
+        },
+      }),
+    ) as {
+      session: { currentVariant: string; hasVariantB: boolean }
+      variants: Record<'A' | 'B', { name: string; description: string }>
+    }
+  })
+
+  expect(creation.session).toMatchObject({ currentVariant: 'A', hasVariantB: true })
+  expect(creation.variants.A.description).not.toBe(creation.variants.B.description)
+  await expect(page.getByTestId('variant-a')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('variant-b')).toHaveAttribute('data-available', 'true')
+  await expect(page.locator('.patch-actions')).toHaveAttribute(
+    'data-patch-name',
+    'Warm bass: sub-heavy sine foundation',
+  )
+
+  await page.getByTestId('preview-note').click()
+  await page.getByTestId('variant-b').click()
+  await expect(page.getByTestId('variant-b')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('.patch-actions')).toHaveAttribute(
+    'data-patch-name',
+    'Warm bass: saturated analog saw harmonics',
+  )
+  await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-variant', 'B')
+  await expect(page.getByTestId('active-voice-count')).toHaveText('1')
+
+  await page.getByTestId('variant-a').click()
+  await expect(page.locator('.patch-actions')).toHaveAttribute(
+    'data-patch-name',
+    'Warm bass: sub-heavy sine foundation',
+  )
+  await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-variant', 'A')
+})

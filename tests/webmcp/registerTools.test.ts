@@ -118,9 +118,13 @@ describe('WebMCP tool registration', () => {
       'movement', 'gate', 'balance', 'layer', 'pitch', 'response',
     ])
     const createVariant = gateway.registrations.find(({ tool }) => tool.name === 'create_variant')!.tool
+    const createPatch = tool('create_patch')
     const variantChangeUnion = (createVariant.inputSchema.properties as any).changes.items.oneOf
     expect(variantChangeUnion).toEqual(applyChangeUnion)
     expect(createVariant.description).toContain('variant B becomes the active variant')
+    expect(createPatch.description).toContain('genuinely under-determined')
+    expect(createPatch.description).toContain('Do not propose an alternative for a specific request')
+    expect(createPatch.inputSchema.properties).toHaveProperty('alternative')
     expect(applyPatch.description).toContain('filter.cutoffHz = cutoffHz(0.12 + brightness*0.80')
     expect(applyPatch.description).toContain("t' = t * (0.25 + speed*1.5)")
     expect(applyPatch.description).toContain('voice.transposeSemitones = clamp(')
@@ -208,6 +212,44 @@ describe('WebMCP tool registration', () => {
     expectAffectedSections(result, ['filter'], 1)
     expect(session.getSummary().currentVariant).toBe('B')
     expect(session.getPatch('A').filter.cutoffHz).toBe(7200)
+  })
+
+  it('creates distinguishable A/B proposals and leaves the primary active', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const tool = (name: string) =>
+      gateway.registrations.find(({ tool: candidate }) => candidate.name === name)!.tool
+
+    await tool('create_variant').execute({
+      description: 'Prior B that paired creation must replace',
+      changes: [{ path: 'metadata.name', value: 'Obsolete B' }],
+    })
+    expect(session.getSummary().currentVariant).toBe('B')
+
+    const result = await tool('create_patch').execute({
+      description: 'Warm bass: sub-heavy sine foundation',
+      attributes: { category: 'bass', brightness: 0.2 },
+      alternative: {
+        description: 'Warm bass: saturated analog saw harmonics',
+        attributes: { category: 'lead', brightness: 0.55, drive: 0.7 },
+      },
+    }) as {
+      session: { currentVariant: string; hasVariantB: boolean }
+      variants: Record<'A' | 'B', { name: string; description: string }>
+    }
+
+    expect(result.session).toEqual(expect.objectContaining({ currentVariant: 'A', hasVariantB: true }))
+    expect(result.variants.A.name).toBe('Warm bass: sub-heavy sine foundation')
+    expect(result.variants.B.name).toBe('Warm bass: saturated analog saw harmonics')
+    expect(result.variants.A.description).not.toBe(result.variants.B.description)
+    expect(session.getVitalBacking('A')).toBeNull()
+    expect(session.getVitalBacking('B')).toBeNull()
+
+    await expect(tool('select_variant').execute({ variant: 'B' })).resolves.toMatchObject({
+      session: { currentVariant: 'B', hasVariantB: true },
+    })
+    expect(session.getPatch().metadata.name).toBe('Warm bass: saturated analog saw harmonics')
   })
 
   it('returns plain JSON-serializable read and write results', async () => {

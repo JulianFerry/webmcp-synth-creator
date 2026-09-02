@@ -159,4 +159,26 @@ describe('CommandService', () => {
 
     expect(commands.undo().patch.lfo1.enabled).toBe(true)
   })
+
+  it('creates a complete patch pair while leaving A active and both variants unbacked', () => {
+    const { commands, session } = createHarness()
+    const primary = getTemplatePatch('bass')
+    primary.metadata.name = 'Warm Sub Bass'
+    const alternative = getTemplatePatch('lead')
+    alternative.metadata.name = 'Warm Saw Bass'
+
+    const result = commands.createPatchPair(
+      { type: 'create_patch', reason: 'Warm bass with sub weight', patch: primary },
+      { type: 'create_patch', reason: 'Warm bass with saw harmonics', patch: alternative },
+      { source: 'webmcp', correlationId: 'patch-pair-1' },
+    )
+
+    expect(result.session).toMatchObject({ currentVariant: 'A', hasVariantB: true })
+    expect(session.getPatch('A').metadata.name).toBe('Warm Sub Bass')
+    expect(session.getPatch('B').metadata.name).toBe('Warm Saw Bass')
+    expect(session.getVitalBacking('A')).toBeNull()
+    expect(session.getVitalBacking('B')).toBeNull()
+    expect(commands.selectVariant('B').patch.metadata.name).toBe('Warm Saw Bass')
+    expect(session.getSummary().currentVariant).toBe('B')
+  })
 })

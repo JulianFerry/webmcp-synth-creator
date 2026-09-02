@@ -105,6 +105,53 @@ export class CommandService {
     return this.commandResult(transaction.patch, transaction.changed, correlationId)
   }
 
+  createPatchPair(
+    primaryInput: CreatePatchCommand,
+    alternativeInput: CreatePatchCommand,
+    context: CommandContext = {},
+  ): CommandResult {
+    const { correlationId, source } = this.beginRequest(context, 'ui')
+
+    if (this.session.hasVariant('B')) {
+      const activePatch = this.session.getPatch()
+      const variantA = this.session.getPatch('A')
+      this.session.discardVariantB(
+        this.commitInput(
+          variantA,
+          diffCompletePatch(activePatch, variantA),
+          correlationId,
+          'Replace variants with patch pair',
+          source,
+          'variant_discard',
+        ),
+      )
+    }
+
+    const before = this.session.getPatch('A')
+    const primary = createPatchTransaction(before, primaryInput)
+    this.commitReplacement(primary, correlationId, source, 'patch_create', null)
+
+    const alternative = createPatchTransaction(primary.patch, alternativeInput)
+    this.session.createVariantB(
+      primary.patch,
+      this.commitInput(
+        alternative.patch,
+        alternative.changed,
+        correlationId,
+        alternative.reason,
+        source,
+        'variant_create',
+      ),
+      alternative.historyEntry,
+      true,
+      () => this.trace.record(correlationId, 'patch_committed', source),
+      false,
+      null,
+    )
+
+    return this.commandResult(primary.patch, primary.changed, correlationId)
+  }
+
   loadPreset(commandInput: LoadPresetCommand, context: CommandContext = {}): CommandResult {
     const { correlationId, source } = this.beginRequest(context, 'ui')
     const before = this.session.getPatch()
