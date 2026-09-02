@@ -1,4 +1,4 @@
-import type { BrowserSynthState } from '../../audio/BrowserSynth'
+import type { SynthRendererState } from '../../audio/SynthRenderer'
 import type { SupportedPatchPath } from '../../patch/paths'
 import type { PatchState } from '../../patch/types'
 import { DelayEditor } from '../modfx/DelayEditor'
@@ -7,7 +7,7 @@ import { FilterEditor } from '../modfx/FilterEditor'
 import { ReverbEditor } from '../modfx/ReverbEditor'
 
 interface ModulationEffectsTabProps {
-  audio: BrowserSynthState
+  audio: SynthRendererState
   patch: PatchState
   resetKey: number
   onCancelPreview: (path: SupportedPatchPath) => void

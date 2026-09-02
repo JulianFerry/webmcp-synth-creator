@@ -85,17 +85,17 @@ test('LFO edit updates one transaction, SVG, audio scheduling, and Vital structu
   }, points)
   const result = JSON.parse(rawResult) as {
     changed: Record<string, { before: unknown; after: unknown }>
-    summary: { lfo1: { rate: unknown }; modulations: unknown[] }
+    summary: { lfo1: { rate: unknown } }
   }
 
   expect(Object.keys(result.changed)).toEqual(['lfo1.points'])
   expect(result.summary.lfo1.rate).toEqual({ mode: 'sync', division: '1/8' })
-  expect(result.summary.modulations).toHaveLength(2)
   expect(await shape.getAttribute('d')).not.toBe(initialShape)
   await expect(page.getByTestId('lfo-point-count')).toHaveText('10 points')
   await expect(page.getByTestId('lfo-rate-readout')).toHaveText('1/8')
   await page.getByRole('tab', { name: 'Effects' }).click()
-  await expect(page.getByTestId('modulation-route-count')).toHaveText('2 routes')
+  await expect(page.getByTestId('modulation-route-count')).toHaveCount(0)
+  await expect(page.getByTestId('effects-grid')).toBeVisible()
   await expect(page.getByTestId('transaction-count')).toHaveText('1')
   await expect(page.getByTestId('history-size')).toHaveText('1')
   await expect(page.getByTestId('latest-diff')).toContainText('lfo1.points')
@@ -121,9 +121,10 @@ test('LFO edit updates one transaction, SVG, audio scheduling, and Vital structu
     points.flatMap((point) => [point.x, 1 - point.y]),
   )
   expect(exported.settings).toMatchObject({ lfo_1_sync: 1, lfo_1_tempo: 9 })
-  expect(exported.settings.modulations.slice(0, 2)).toEqual([
+  expect(exported.settings.modulations.slice(0, 3)).toEqual([
     { source: 'lfo_1', destination: 'osc_1_level' },
-    { source: 'lfo_1', destination: 'filter_1_cutoff' },
+    { source: 'lfo_1', destination: 'osc_2_level' },
+    { source: 'lfo_1', destination: 'osc_3_level' },
   ])
 })
 
@@ -145,7 +146,6 @@ test('LFO edit heading toggle and shape mode remain independent and preserve con
       if (!tool) throw new Error('get_patch was not registered')
       return JSON.parse(await document.modelContext!.executeTool(tool, {})) as {
         lfo1: { enabled: boolean; points: unknown[]; rate: unknown; phase: number; smooth: boolean }
-        modulations: unknown[]
         effects: { delay: { division?: string } }
       }
     })
@@ -172,14 +172,12 @@ test('LFO edit heading toggle and shape mode remain independent and preserve con
   await expect(page.getByTestId('latest-diff')).toContainText('lfo1.enabled')
   const disabled = await readPatch()
   expect(disabled.lfo1).toEqual({ ...before.lfo1, enabled: false })
-  expect(disabled.modulations).toEqual(before.modulations)
 
   await shapeMode.selectOption('smooth')
   await expect(enableToggle).toHaveAttribute('aria-checked', 'false')
   await expect(shapeMode).toHaveValue('smooth')
   const smooth = await readPatch()
   expect(smooth.lfo1).toEqual({ ...before.lfo1, enabled: false, smooth: true })
-  expect(smooth.modulations).toEqual(before.modulations)
   await expect(page.getByTestId('latest-diff')).toContainText('lfo1.smooth')
 
   const downloadPromise = page.waitForEvent('download')
@@ -190,17 +188,18 @@ test('LFO edit heading toggle and shape mode remain independent and preserve con
     settings: Record<string, unknown>
   }
   expect(exported.settings).toMatchObject({
-    modulation_1_amount: 0.56,
+    modulation_1_amount: -0.68,
     modulation_1_bypass: 1,
-    modulation_2_amount: 0.12,
+    modulation_2_amount: -0.68,
     modulation_2_bypass: 1,
+    modulation_3_amount: -0.68,
+    modulation_3_bypass: 1,
   })
 
   await enableToggle.press('Enter')
   await expect(panel).not.toHaveClass(/is-disabled/)
   const reenabled = await readPatch()
   expect(reenabled.lfo1).toEqual({ ...before.lfo1, smooth: true })
-  expect(reenabled.modulations).toEqual(before.modulations)
 })
 
 test('LFO edit delay exposes all mapped divisions', async ({ page }) => {
@@ -233,4 +232,39 @@ test('LFO edit delay exposes all mapped divisions', async ({ page }) => {
   ])
   await delayDivision.selectOption('1/64')
   expect(await readDelayDivision()).toBe('1/64')
+})
+
+test('the global LFO is routed for every starting patch', async ({ page }) => {
+  await page.goto('/')
+  const selector = page.getByTestId('preset-selector')
+
+  for (const presetId of ['warm-mono-bass', 'calibration-b-custom-wavetable']) {
+    await selector.selectOption(presetId)
+    const toggle = page.locator('.lfo-panel').getByRole('switch', { name: 'LFO' })
+    await expect(toggle).toHaveAttribute('aria-checked', 'false')
+    await toggle.click()
+    await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-route-count', '3')
+
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByTestId('export-vital').click()
+    const download = await downloadPromise
+    const exported = JSON.parse(await readFile((await download.path()) as string, 'utf8')) as {
+      settings: Record<string, unknown> & {
+        modulations: Array<{ source: string; destination: string }>
+      }
+    }
+    expect(exported.settings.modulations.slice(0, 3)).toEqual([
+      { source: 'lfo_1', destination: 'osc_1_level' },
+      { source: 'lfo_1', destination: 'osc_2_level' },
+      { source: 'lfo_1', destination: 'osc_3_level' },
+    ])
+    expect(exported.settings).toMatchObject({
+      modulation_1_amount: -0.68,
+      modulation_1_bypass: 0,
+      modulation_2_amount: -0.68,
+      modulation_2_bypass: 0,
+      modulation_3_amount: -0.68,
+      modulation_3_bypass: 0,
+    })
+  }
 })

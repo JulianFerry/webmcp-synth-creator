@@ -7,7 +7,7 @@ export function createGetPatchTool(session: SessionService): WebMcpToolDefinitio
     name: 'get_patch',
     title: 'Read current synth patch',
     description:
-      'Read the selected logical patch before refinement. Preserve unrelated settings and prefer one apply_patch call per perceptual request.',
+      'Read the selected editable patch before refinement. Preserve unrelated settings and prefer one apply_patch call per perceptual request. LFO 1 globally gates every enabled oscillator with fixed routing.',
     inputSchema: {
       type: 'object',
       properties: {},

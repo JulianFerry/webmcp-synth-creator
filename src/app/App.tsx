@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import type { SessionService } from '../session/SessionService'
 import { AuditionPanel } from '../ui/AuditionPanel'
@@ -22,9 +22,6 @@ export function App({ store, session = undefined }: AppProps) {
   const [helpEntryPoint, setHelpEntryPoint] = useState<HelpEntryPoint>(null)
   const state = store()
   const { patch, audio } = state
-  useEffect(() => {
-    void state.startAudio().catch(() => undefined)
-  }, [state.startAudio])
   const wavetables = Object.values(patch.wavetableData)
   const oscillators = patch.oscillators.map((oscillator, index) => ({
     index: index as 0 | 1 | 2,
@@ -48,7 +45,8 @@ export function App({ store, session = undefined }: AppProps) {
     variant={{ currentVariant: state.currentVariant, hasVariantB: state.hasVariantB, onCreateVariant: state.createVariant, onSelectVariant: state.selectVariant }}
   />
   const telemetry = <TelemetryRegion applyDarker={state.applyDarker} audio={audio} canRedo={state.canRedo} canUndo={state.canUndo} changed={state.changed} currentVariant={state.currentVariant} futureSize={state.futureSize} historySize={state.historySize} patch={patch} reason={state.lastTransactionReason} summary={state.summary} transactionCount={state.transactionCount} vitalError={state.vitalError} vitalStatus={state.vitalStatus} webMcpReason={state.webMcpReason} webMcpStatus={state.webMcpStatus} />
-  const notices = <>{state.vitalImportNotice ? <div className="notice-banner" data-testid="vital-import-notice" role="status">{state.vitalImportNotice}</div> : null}{state.lastError ? <div className="error-banner" role="alert">{state.lastError}</div> : null}</>
+  const visibleError = state.audioPreparationError ?? state.lastError
+  const notices = <>{state.vitalImportNotice ? <div className="notice-banner" data-testid="vital-import-notice" role="status">{state.vitalImportNotice}</div> : null}{visibleError ? <div className="error-banner" data-testid={state.audioPreparationError ? 'audio-preparation-error' : undefined} role="alert">{visibleError}</div> : null}</>
 
   return <WorkbenchShell footer={<AuditionPanel {...audition} />} notices={notices} patchVariant={state.currentVariant} sidebar={sidebar} telemetry={telemetry}>
     <WorkbenchTabs

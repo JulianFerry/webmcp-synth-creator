@@ -1,4 +1,17 @@
+import { readFile } from 'node:fs/promises'
+
 import { expect, test, type Page } from '@playwright/test'
+
+import { encodeVitalEffectOrder } from '../../src/vital/effectOrder'
+
+const DISTORTION_LAST_ORDER = [
+  'filter',
+  'compressor',
+  'chorus',
+  'delay',
+  'reverb',
+  'distortion',
+] as const
 
 async function installWebMcpDouble(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -172,14 +185,7 @@ test('mobile drag bar can move an effect down', async ({ page }) => {
   await page.mouse.move(distortionHandle!.x + distortionHandle!.width / 2, 838, { steps: 12 })
   await expect.poll(() => page.evaluate(() => Math.ceil(window.scrollY + window.innerHeight) >= document.documentElement.scrollHeight - 1)).toBe(true)
   await page.mouse.up()
-  await expect.poll(effectOrder).toEqual([
-    'filter',
-    'compressor',
-    'chorus',
-    'delay',
-    'reverb',
-    'distortion',
-  ])
+  await expect.poll(effectOrder).toEqual(DISTORTION_LAST_ORDER)
 
   const movedDistortionHandle = await page.getByRole('button', { name: 'Drag Distortion to reorder' }).boundingBox()
   const filterCard = await page.getByTestId('effect-card-filter').boundingBox()
@@ -226,14 +232,16 @@ test('first and last effects are valid drag endpoints', async ({ page }) => {
     'data-effective-effects-order',
     'filter,compressor,chorus,delay,reverb,distortion',
   )
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByTestId('export-vital').click()
+  const download = await downloadPromise
+  const downloadPath = await download.path()
+  expect(downloadPath).not.toBeNull()
+  const exported = JSON.parse(await readFile(downloadPath as string, 'utf8')) as {
+    settings: { effect_chain_order: number }
+  }
+  expect(exported.settings.effect_chain_order).toBe(encodeVitalEffectOrder(DISTORTION_LAST_ORDER))
   await page.getByRole('tab', { name: 'Oscillators' }).click()
   await page.getByRole('tab', { name: 'Effects' }).click()
-  await expect.poll(effectOrder).toEqual([
-    'filter',
-    'compressor',
-    'chorus',
-    'delay',
-    'reverb',
-    'distortion',
-  ])
+  await expect.poll(effectOrder).toEqual(DISTORTION_LAST_ORDER)
 })

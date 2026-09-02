@@ -59,6 +59,7 @@ async function installWebMcpDouble(page: Page): Promise<void> {
 test('playable voice stays gesture gated and steals the oldest voice at configured polyphony', async ({
   page,
 }) => {
+  await installWebMcpDouble(page)
   await page.goto('/')
 
   await expect(page.getByTestId('active-voice-count')).toHaveText('0')
@@ -66,11 +67,16 @@ test('playable voice stays gesture gated and steals the oldest voice at configur
   await expect(page.getByTestId('hold-note')).toHaveCount(0)
   await expect(page.locator('#audition-velocity')).toHaveCount(0)
 
-  await page.getByRole('tab', { name: 'Effects' }).click()
-  const polyphony = page.getByTestId('voice-polyphony')
-  await polyphony.focus()
-  await polyphony.press('Home')
-  await expect(polyphony).toHaveValue('1')
+  await page.evaluate(async () => {
+    const tools = await document.modelContext!.getTools()
+    const applyPatch = tools.find((tool) => tool.name === 'apply_patch')
+    if (!applyPatch) throw new Error('apply_patch was not registered')
+    await document.modelContext!.executeTool(applyPatch, {
+      reason: 'Limit the Vital audition renderer to one voice',
+      changes: [{ path: 'voice.polyphony', value: 1 }],
+    })
+  })
+  await expect(page.getByTestId('voice-polyphony')).toHaveCount(0)
   await expect(page.getByTestId('history-size')).toHaveText('1')
 
   await page.getByTestId('keyboard-surface').focus()
@@ -406,16 +412,8 @@ test('playable voice cancels generalized previews back to canonical active audio
 
   await page.getByRole('tab', { name: 'Effects' }).click()
   await expect(adapter).toHaveAttribute('data-preview-count', '0')
-  const glide = page.getByTestId('voice-glide')
-  await glide.evaluate((element) => {
-    const input = element as HTMLInputElement
-    input.value = '0.45'
-    input.dispatchEvent(new InputEvent('input', { bubbles: true }))
-  })
-  await expect(adapter).toHaveAttribute('data-preview-count', '0')
-  await glide.dispatchEvent('pointercancel')
-  await expect(adapter).toHaveAttribute('data-preview-count', '0')
-  await page.getByRole('tab', { name: 'Effects' }).click()
+  await expect(page.getByTestId('voice-glide')).toHaveCount(0)
+  await expect(page.getByTestId('voice-polyphony')).toHaveCount(0)
   await expect(adapter).toHaveAttribute('data-preview-count', '0')
 
   await expect(adapter).toHaveAttribute('data-effective-transpose', '0')
@@ -746,122 +744,4 @@ test('playable voice derives static wavetable, ADSR, and filter visuals from eff
   await cutoff.dispatchEvent('pointerup')
   await expect(page.getByTestId('transaction-count')).toHaveText(String(transactions + 1))
   await expect(page.getByTestId('filter-cutoff')).toHaveText('2,520 Hz')
-})
-
-test('playable voice OfflineAudioContext render changes in expected oscillator, pitch, level, envelope, and filter directions', async ({
-  page,
-}) => {
-  await page.goto('/')
-
-  const metrics = await page.evaluate(async () => {
-    type OfflineMetrics = {
-      rms: number
-      activeDurationSeconds: number
-      zeroCrossingHz: number
-      highFrequencyEnergy: number
-    }
-    type Patch = {
-      oscillators: Array<{
-        enabled: boolean
-        wavetableId: string
-        level: number
-        transposeSemitones: number
-        unisonVoices: number
-      }>
-      ampEnvelope: {
-        attackSeconds: number
-        holdSeconds: number
-        decaySeconds: number
-        sustainLevel: number
-        releaseSeconds: number
-      }
-      filter: { enabled: boolean; cutoffHz: number; resonance: number }
-    }
-
-    const loadModules = new Function(
-      'return Promise.all([import("/src/patch/defaults.ts"), import("/src/audio/offline.ts")])',
-    ) as () => Promise<
-      [
-        { createDefaultPatch: () => Patch },
-        {
-          renderOfflineVoice: (
-            patch: Patch,
-            options: Record<string, number>,
-          ) => Promise<OfflineMetrics>
-        },
-      ]
-    >
-    const [{ createDefaultPatch }, { renderOfflineVoice }] = await loadModules()
-    const base = createDefaultPatch()
-    base.oscillators[0].unisonVoices = 1
-    base.oscillators[1].unisonVoices = 1
-    base.oscillators[1].enabled = false
-    base.ampEnvelope = {
-      attackSeconds: 0.01,
-      holdSeconds: 0,
-      decaySeconds: 0.03,
-      sustainLevel: 0.8,
-      releaseSeconds: 0.08,
-    }
-    base.filter.enabled = true
-    base.filter.cutoffHz = 8_000
-    base.filter.resonance = 0
-
-    const options = {
-      midi: 60,
-      velocity: 1,
-      noteOffSeconds: 0.2,
-      durationSeconds: 0.9,
-      sampleRate: 24_000,
-    }
-    const render = (patch: Patch) => renderOfflineVoice(patch, options)
-    const copy = (patch: Patch) => structuredClone(patch)
-
-    const silent = copy(base)
-    silent.oscillators[0].enabled = false
-
-    const quiet = copy(base)
-    quiet.oscillators[0].level = base.oscillators[0].level * 0.2
-
-    const sine = copy(base)
-    sine.oscillators[0].wavetableId = 'sine'
-    const highPitch = copy(sine)
-    highPitch.oscillators[0].transposeSemitones = 12
-
-    const longRelease = copy(base)
-    longRelease.ampEnvelope.releaseSeconds = 0.55
-
-    const dark = copy(base)
-    dark.filter.cutoffHz = 450
-
-    const [baseMetrics, silentMetrics, quietMetrics, sineMetrics, highPitchMetrics, longMetrics, darkMetrics] =
-      await Promise.all([
-        render(base),
-        render(silent),
-        render(quiet),
-        render(sine),
-        render(highPitch),
-        render(longRelease),
-        render(dark),
-      ])
-
-    return {
-      base: baseMetrics,
-      silent: silentMetrics,
-      quiet: quietMetrics,
-      sine: sineMetrics,
-      highPitch: highPitchMetrics,
-      longRelease: longMetrics,
-      dark: darkMetrics,
-    }
-  })
-
-  expect(metrics.base.rms).toBeGreaterThan(0.001)
-  expect(metrics.silent.rms).toBeLessThan(metrics.base.rms * 0.02)
-  expect(metrics.quiet.rms).toBeLessThan(metrics.base.rms * 0.35)
-  expect(metrics.highPitch.zeroCrossingHz).toBeGreaterThan(metrics.sine.zeroCrossingHz * 1.7)
-  expect(metrics.longRelease.activeDurationSeconds).toBeGreaterThan(
-    metrics.base.activeDurationSeconds + 0.2,
-  )
-  expect(metrics.dark.highFrequencyEnergy).toBeLessThan(metrics.base.highFrequencyEnergy * 0.65)
 })

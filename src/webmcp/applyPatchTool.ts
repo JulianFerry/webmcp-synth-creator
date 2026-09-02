@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { CommandError, CommandService } from '../commands/CommandService'
-import { SUPPORTED_PATCH_PATHS } from '../patch/paths'
+import { AGENT_EDITABLE_PATCH_PATHS, isAgentEditablePatchPath } from '../patch/paths'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
 
 const documentedApplyPatchInput = {
@@ -52,7 +52,7 @@ export function createApplyPatchTool(commandService: CommandService): WebMcpTool
             type: 'object',
             examples: documentedApplyPatchInput.changes,
             properties: {
-              path: { type: 'string', enum: [...SUPPORTED_PATCH_PATHS] },
+              path: { type: 'string', enum: [...AGENT_EDITABLE_PATCH_PATHS] },
               value: {
                 description:
                   'JSON value for the selected path. The path-specific type and bounds are validated before commit.',
@@ -79,12 +79,30 @@ export function createApplyPatchTool(commandService: CommandService): WebMcpTool
     },
     async execute(input, context) {
       context?.signal.throwIfAborted()
+      const changes = Array.isArray(input.changes) ? input.changes : []
+      if (
+        changes.some(
+          (change) =>
+            change === null ||
+            typeof change !== 'object' ||
+            !isAgentEditablePatchPath((change as Record<string, unknown>).path),
+        )
+      ) {
+        return {
+          ok: false,
+          error: {
+            code: 'INVALID_APPLY_PATCH_INPUT',
+            message:
+              'Modulation routing is not agent-editable. Use the same LFO enable, shape, rate, phase, and smoothing controls exposed by the Workbench UI.',
+          },
+        }
+      }
       try {
         const result = commandService.applyPatch(
           {
             type: 'apply_patch',
             reason: input.reason as string,
-            changes: input.changes as Array<{ path: never; value: unknown }>,
+            changes: changes as Array<{ path: never; value: unknown }>,
           },
           { source: 'webmcp' },
         )

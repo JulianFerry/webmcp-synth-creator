@@ -1,0 +1,42 @@
+diff --git a/third_party/JUCE/modules/juce_core/native/juce_linux_SystemStats.cpp b/third_party/JUCE/modules/juce_core/native/juce_linux_SystemStats.cpp
+index cd3068e..22ec4bd 100644
+--- a/third_party/JUCE/modules/juce_core/native/juce_linux_SystemStats.cpp
++++ b/third_party/JUCE/modules/juce_core/native/juce_linux_SystemStats.cpp
+@@ -139,8 +139,13 @@ static String getLocaleValue (nl_item key)
+     return result;
+ }
+ 
++#if defined (__EMSCRIPTEN__)
++String SystemStats::getUserLanguage()     { return "en"; }
++String SystemStats::getUserRegion()       { return "US"; }
++#else
+ String SystemStats::getUserLanguage()     { return getLocaleValue (_NL_IDENTIFICATION_LANGUAGE); }
+ String SystemStats::getUserRegion()       { return getLocaleValue (_NL_IDENTIFICATION_TERRITORY); }
++#endif
+ String SystemStats::getDisplayLanguage()  { return getUserLanguage() + "-" + getUserRegion(); }
+ 
+ //==============================================================================
+diff --git a/third_party/JUCE/modules/juce_core/native/juce_posix_SharedCode.h b/third_party/JUCE/modules/juce_core/native/juce_posix_SharedCode.h
+index 982db86..ab48418 100644
+--- a/third_party/JUCE/modules/juce_core/native/juce_posix_SharedCode.h
++++ b/third_party/JUCE/modules/juce_core/native/juce_posix_SharedCode.h
+@@ -59,7 +59,9 @@ void JUCE_CALLTYPE Process::terminate()
+ }
+ 
+ 
+-#if JUCE_MAC || JUCE_LINUX
++#if defined (__EMSCRIPTEN__)
++bool Process::setMaxNumberOfFileHandles (int) noexcept { return false; }
++#elif JUCE_MAC || JUCE_LINUX
+ bool Process::setMaxNumberOfFileHandles (int newMaxNumber) noexcept
+ {
+     rlimit lim;
+@@ -928,7 +930,7 @@ void JUCE_CALLTYPE Thread::setCurrentThreadName (const String& name)
+     {
+         [[NSThread currentThread] setName: juceStringToNS (name)];
+     }
+-   #elif JUCE_LINUX || JUCE_ANDROID
++   #elif (JUCE_LINUX || JUCE_ANDROID) && ! defined (__EMSCRIPTEN__)
+     #if ((JUCE_LINUX && (__GLIBC__ * 1000 + __GLIBC_MINOR__) >= 2012) \
+           || JUCE_ANDROID && __ANDROID_API__ >= 9)
+      pthread_setname_np (pthread_self(), name.toRawUTF8());

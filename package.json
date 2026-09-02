@@ -2,14 +2,17 @@
   "name": "wavetable-workbench",
   "version": "0.1.0",
   "private": true,
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:preview": "npm run build && PLAYWRIGHT_PREVIEW=1 playwright test --project=chromium tests/e2e/startup-audition.spec.ts tests/e2e/vertical-slice.spec.ts tests/e2e/vital-import.spec.ts tests/e2e/responsive.spec.ts tests/e2e/workbench-tabs.spec.ts"
   },
   "dependencies": {
     "react": "^19.1.1",

@@ -2,7 +2,12 @@ import { VitalImportError } from './VitalPresetImporter'
 
 export const MAX_VITAL_IMPORT_BYTES = 5 * 1024 * 1024
 
-export async function readVitalImportFile(file: File): Promise<unknown> {
+export interface VitalImportFile {
+  document: unknown
+  originalJson: string
+}
+
+export async function readVitalImportFile(file: File): Promise<VitalImportFile> {
   const name = file.name.trim()
   if (name.length < 1 || name.length > 255 || name.includes('/') || name.includes('\\')) {
     throw new VitalImportError('Choose a .vital file with a safe filename')
@@ -17,7 +22,7 @@ export async function readVitalImportFile(file: File): Promise<unknown> {
 
   const text = await file.text()
   try {
-    return JSON.parse(text) as unknown
+    return { document: JSON.parse(text) as unknown, originalJson: text }
   } catch {
     throw new VitalImportError('The selected .vital file is not valid JSON')
   }

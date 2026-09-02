@@ -1,53 +1,10 @@
 import { expect, test } from '@playwright/test'
 
-import { createDefaultPatch } from '../../src/patch/defaults'
-import {
-  mapPhaseOneVitalParameters,
-  mapStructuredVitalParameters,
-} from '../../src/vital/parameterMap'
-
-function syntheticVitalFixture(): string {
-  const patch = createDefaultPatch()
-  const modulationValues = Object.fromEntries(
-    Array.from({ length: 16 }, (_, index) => index + 1).flatMap((slot) =>
-      ['amount', 'bipolar', 'stereo', 'power', 'bypass'].map((field) => [
-        `modulation_${slot}_${field}`,
-        0,
-      ]),
-    ),
-  )
-  return JSON.stringify({
-    author: '',
-    comments: '',
-    preset_name: 'Init',
-    preset_style: 'Init',
-    synth_version: 'phase-1-e2e-version',
-    settings: {
-      ...Object.fromEntries(
-        Object.keys({
-          ...mapPhaseOneVitalParameters(patch),
-          ...mapStructuredVitalParameters(patch),
-        }).map((key) => [key, 0]),
-      ),
-      ...modulationValues,
-      wavetables: [{}, {}, {}],
-      lfos: [{}],
-      modulations: Array.from({ length: 16 }, () => ({ source: '', destination: '' })),
-    },
-  })
-}
+const expectDevelopmentTrace = process.env.PLAYWRIGHT_PREVIEW !== '1'
 
 test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vital export', async ({
   page,
 }) => {
-  await page.route('**/fixtures/vital/init.vital', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: syntheticVitalFixture(),
-    }),
-  )
-
   await page.addInitScript(() => {
     type Tool = {
       name: string
@@ -158,9 +115,9 @@ test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vit
         .map((event) => event.stage) ?? []
     )
   }, result.correlationId)
-  expect(correlatedStages).toEqual([
-    'request_received',
-    'patch_committed',
-    'audio_diff_applied',
-  ])
+  expect(correlatedStages).toEqual(
+    expectDevelopmentTrace
+      ? ['request_received', 'patch_committed', 'audio_diff_applied']
+      : [],
+  )
 })

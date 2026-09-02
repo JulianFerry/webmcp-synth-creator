@@ -10,7 +10,6 @@ import {
   REVERB_DECAY_MIN_SECONDS,
   TEMPO_SYNC_DIVISIONS,
 } from './limits'
-import { isAllowedModulationRoute } from './modulation'
 import { EFFECT_IDS } from './effects'
 import type { PatchState } from './types'
 
@@ -68,7 +67,6 @@ export const SUPPORTED_PATCH_PATHS = [
   'lfo1.rate',
   'lfo1.phase',
   'lfo1.smooth',
-  'modulations',
   'voice.polyphony',
   'voice.legato',
   'voice.glideSeconds',
@@ -87,6 +85,15 @@ export const SUPPORTED_PATCH_PATHS = [
 ] as const
 
 export type SupportedPatchPath = (typeof SUPPORTED_PATCH_PATHS)[number]
+
+export const AGENT_EDITABLE_PATCH_PATHS = SUPPORTED_PATCH_PATHS
+
+export function isAgentEditablePatchPath(path: unknown): path is SupportedPatchPath {
+  return (
+    typeof path === 'string' &&
+    (AGENT_EDITABLE_PATCH_PATHS as readonly string[]).includes(path)
+  )
+}
 
 const unitInterval = z.number().finite().min(0).max(1)
 const seconds = (maximum: number) => z.number().finite().min(0).max(maximum)
@@ -133,36 +140,6 @@ const lfoPoints = z
       }
     }
   })
-const modulationRoute = z
-  .object({
-    id: z.string().min(1).max(64),
-    source: z.enum(['lfo1', 'modEnvelope']),
-    destination: z.enum([
-      'oscillator1.level',
-      'oscillator1.wavetablePosition',
-      'oscillator1.pitch',
-      'oscillator2.level',
-      'oscillator2.wavetablePosition',
-      'oscillator2.pitch',
-      'oscillator3.level',
-      'oscillator3.wavetablePosition',
-      'oscillator3.pitch',
-      'filter.cutoff',
-    ]),
-    amount: z.number().finite().min(-1).max(1),
-    bipolar: z.boolean(),
-  })
-  .strict()
-  .superRefine((route, context) => {
-    if (!isAllowedModulationRoute(route.source, route.destination)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Unsupported modulation route: ${route.source} -> ${route.destination}`,
-        path: ['destination'],
-      })
-    }
-  })
-
 const pathValueSchemas: Record<SupportedPatchPath, ZodTypeAny> = {
   'metadata.name': z.string().trim().min(1).max(80),
   'metadata.category': patchCategory,
@@ -222,7 +199,6 @@ const pathValueSchemas: Record<SupportedPatchPath, ZodTypeAny> = {
   'lfo1.rate': lfoRate,
   'lfo1.phase': unitInterval,
   'lfo1.smooth': z.boolean(),
-  modulations: z.array(modulationRoute).max(16),
   'voice.polyphony': z.number().int().min(1).max(16),
   'voice.legato': z.boolean(),
   'voice.glideSeconds': seconds(5),

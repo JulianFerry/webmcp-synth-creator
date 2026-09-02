@@ -64,6 +64,8 @@ describe('VitalPresetAdapter import', () => {
 
       expectSupportedRoundTrip(source, imported.patch)
       expect(imported.sourceVersion).toBe('1.0.7')
+      expect(imported.backing.hiddenEffects).toEqual([])
+      expect(imported.backing.affectedControls).toEqual([])
       expect(imported.warnings).toEqual([
         expect.stringContaining('tags or modulation route IDs'),
       ])
@@ -127,7 +129,7 @@ describe('VitalPresetAdapter import', () => {
     const wrongRouting = cloneDocument(exported)
     wrongRouting.settings.osc_1_destination = 1
     expect(adapter.importPatch(wrongRouting).warnings).toContain(
-      'Oscillator routing outside Filter 1 was collapsed into the workbench signal path.',
+      'Oscillator routing outside the effects input was collapsed into the workbench signal path.',
     )
 
     const filterTwo = cloneDocument(exported)
@@ -213,8 +215,10 @@ describe('VitalPresetAdapter import', () => {
       13,
     ])
     expect(imported.patch.wavetableData['vital-osc-1-legacy-audio-table'].frames).toHaveLength(1)
-    expect(imported.patch.modulations).toEqual([
-      expect.objectContaining({ source: 'lfo1', destination: 'oscillator1.pitch' }),
+    expect(imported.patch.modulations.map(({ destination }) => destination)).toEqual([
+      'oscillator1.level',
+      'oscillator2.level',
+      'oscillator3.level',
     ])
     expect(imported.warnings).toEqual(
       expect.arrayContaining([
@@ -253,9 +257,33 @@ describe('VitalPresetAdapter import', () => {
     expect(phaseImport.warnings[0]).toContain('exact compatibility path rejected')
   })
 
-  it('refuses to export filter models that the pinned importer cannot represent truthfully', () => {
-    const patch = createDefaultPatch()
-    patch.filter.type = 'highpass'
-    expect(() => realAdapter().exportPatch(patch)).toThrow(/supports only.*lowpass/i)
+  it('lossily migrates the previous Filter 1 export shape into the effects-chain filter', () => {
+    const adapter = realAdapter()
+    const legacy = cloneDocument(adapter.exportPatch(createDefaultPatch()).document)
+    legacy.settings.filter_fx_on = 0
+    legacy.settings.filter_1_on = 1
+    legacy.settings.filter_1_cutoff = 72
+    legacy.settings.filter_1_resonance = 0.61
+    legacy.settings.osc_1_destination = 0
+    legacy.settings.osc_2_destination = 0
+    legacy.settings.osc_3_destination = 0
+    ;(legacy.settings.modulations as Array<Record<string, unknown>>)[1].destination =
+      'filter_1_cutoff'
+
+    const imported = adapter.importPatch(legacy)
+    expect(imported.patch.filter).toMatchObject({
+      enabled: true,
+      type: 'lowpass',
+      cutoffHz: 523,
+      resonance: 0.61,
+    })
+    expect(imported.patch.modulations.map(({ destination }) => destination)).toEqual([
+      'oscillator1.level',
+      'oscillator2.level',
+      'oscillator3.level',
+    ])
+    expect(imported.warnings).toContain(
+      'Legacy Filter 1 was moved into the workbench effects-chain filter.',
+    )
   })
 })

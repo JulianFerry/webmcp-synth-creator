@@ -216,36 +216,48 @@ This is important for:
 
 ---
 
-## 3.4 Browser playback is a preview
+## 3.4 Browser playback uses Vital DSP
 
-Wavetable Workbench is **not a browser reimplementation of Vital**.
-
-The browser synth exists so the user can rapidly audition the patch while iterating.
-
-The exported `.vital` preset is the authoritative implementation of the final sound.
+Wavetable Workbench runs the pinned Vital synthesis engine in a browser
+`AudioWorklet`. Browser playback and `.vital` export consume the same serialized
+document produced by `VitalPresetAdapter`; there is no independent browser
+synthesis mapping.
 
 ```text
                    PatchState
                        │
-              ┌────────┴────────┐
-              ↓                 ↓
-      BrowserSynthAdapter   VitalPresetAdapter
-              ↓                 ↓
-       Web Audio preview       .vital
+              VitalPresetAdapter
+                       │
+                Vital document
+                 ┌─────┴─────┐
+                 ↓           ↓
+          Vital WASM DSP    .vital
+                 ↓           ↓
+          browser audio   desktop Vital
 ```
 
-The browser should preserve the important perceptual direction of edits.
+The browser and native same-source renderer are covered by automated fidelity
+tests. Desktop Vital 1.0.7 listening remains the final interoperability check.
 
-It does not need to reproduce Vital's:
+---
 
-- filter models
-- drive behavior
-- distortion curves
-- reverb algorithm
-- internal oversampling
-- every modulation detail
+## 3.5 Imported Vital presets retain native state
 
-with sample-level accuracy.
+Imported `.vital` files have two coordinated layers:
+
+```text
+Imported Vital JSON
+  ├─ unchanged native backing document → Vital WASM and export
+  └─ best-effort PatchState projection → UI, commands, WebMCP and history
+```
+
+Unsupported samples, extra oscillators or modulators, macros, effects, filter models,
+and modulation routes remain loaded and audible. Workbench controls expose only the
+PatchState projection. Supported edits patch the corresponding native controls or owned
+resource slot without rebuilding from Init or deleting unsupported state. An untouched
+import exports byte-for-byte unchanged. A compact notice above the workbench lists active effects
+outside the editable controls and visible controls affected by hidden native modulation such as
+macros. Projection diagnostics remain internal instead of filling the notice.
 
 ---
 
@@ -264,7 +276,7 @@ The AI:
 1. interprets the description,
 2. creates a sound-design plan,
 3. produces a valid `PatchState`,
-4. applies it to the browser synth,
+4. applies it to the Vital WASM renderer,
 5. makes the result immediately playable.
 
 ---
@@ -444,7 +456,7 @@ The exported instrument behaves recognizably like the patch developed during the
 
 The agent must not manipulate raw Vital JSON.
 
-The browser synth must not maintain an independent version of the patch.
+The Vital renderer must not maintain an independent canonical version of the patch.
 
 The Vital exporter must not maintain another independent representation.
 
@@ -665,7 +677,7 @@ Recommended logical cutoff range:
 20 Hz .. 20,000 Hz
 ```
 
-The browser and Vital adapters each convert this value to their own implementation.
+The shared Vital adapter converts this value once for both browser playback and export.
 
 ---
 
@@ -720,35 +732,25 @@ Direct mouse editing is not required for the challenge submission.
 
 # 9. Modulation routes
 
-Logical modulation:
+Workbench modulation routing is fixed rather than preset-specific. Every PatchState is
+normalized to three equal, unipolar LFO 1 routes:
 
-```ts
-type ModulationSource =
-  | "lfo1"
-  | "modEnvelope"
-
-type ModulationDestination =
-  | "oscillator1.level"
-  | "oscillator1.wavetablePosition"
-  | "oscillator1.pitch"
-  | "oscillator2.level"
-  | "oscillator2.wavetablePosition"
-  | "oscillator2.pitch"
-  | "filter.cutoff"
-
-interface ModulationRoute {
-  id: string
-  source: ModulationSource
-  destination: ModulationDestination
-
-  amount: number // -1..1
-  bipolar: boolean
-}
+```text
+LFO 1 -> oscillator 1 level  -0.68
+LFO 1 -> oscillator 2 level  -0.68
+LFO 1 -> oscillator 3 level  -0.68
 ```
 
-For the MVP, this list is **closed**.
+Disabled oscillators ignore their route, so the same LFO shape gates the complete audible
+oscillator mix for every patch. The LFO enable switch bypasses or enables all three routes
+together. Shape, rate, phase, and smoothing therefore have identical meaning in every
+curated, calibration, imported-projection, or agent-created patch.
 
-The agent may only use these destinations.
+Routes and depth are internal invariants, not UI or WebMCP controls. `get_patch` does not
+expose them, and `apply_patch`, `create_variant`, and `create_patch` cannot replace them.
+Feature-rich imported Vital documents retain additional native routes in opaque backing
+state; changing a visible Workbench LFO control adds the three fixed routes in free native
+slots without removing those preserved routes.
 
 It must not invent:
 
@@ -812,11 +814,8 @@ interface ReverbState {
 }
 ```
 
-Browser playback may use a simple approximation.
-
-Vital export maps these values into sensible Vital reverb parameters.
-
-Exact algorithmic equivalence is not required.
+The shared adapter maps these values into Vital reverb parameters. Browser
+playback and desktop export then use Vital's reverb implementation.
 
 ---
 
@@ -869,9 +868,9 @@ Do not allow this question to block the basic synth. A handful of deterministic 
 
 ---
 
-# 14. Browser synth
+# 14. Browser Vital renderer
 
-The browser synth exists for fast audition.
+The browser renderer exists for fast, faithful audition through the pinned Vital DSP.
 
 Required:
 
@@ -884,38 +883,23 @@ Required:
 - one point-based LFO
 - modulation routing
 - delay
-- simple reverb
+- Vital reverb
 
 ---
 
-## 14.1 Wavetable playback
+## 14.1 Runtime and update model
 
-The browser adapter must derive oscillator sound from the same wavetable assets referenced in `PatchState`.
+`VitalWasmRenderer` owns main-thread readiness, revisions, note state, preview
+reflection, and a fixed 120 BPM audition tempo. `VitalWorkletHost` compiles the
+module on the main thread, waits for the processor's `ready` event, and only then
+connects the node. The processor owns the Vital engine and uses the observed
+render-quantum length with preallocated buffers and no hot-path logging.
 
-### OPEN QUESTION — Browser oscillator implementation
-
-Choose after a quick prototype:
-
-**Option A:** Web Audio `PeriodicWave`
-
-Advantages:
-
-- native Web Audio
-- low implementation cost
-- automatic band-limited oscillator behavior
-
-**Option B:** custom `AudioWorklet`
-
-Advantages:
-
-- greater control over wavetable interpolation
-- more predictable implementation
-
-Decision criterion:
-
-> Choose the simplest implementation that makes the reference demo sound convincing and responds quickly to patch edits.
-
-Do not build a custom DSP engine merely for architectural elegance.
+Scalar edits and previews use adapter-derived incremental control operations.
+Structural changes use the exact adapter-generated Vital document through the
+incremental state loader. Full state loading is reserved for filter topology, LFO
+points, wavetable identity/data, and modulation topology. The runtime does not
+insert an output mute around either update path.
 
 ---
 
@@ -1129,7 +1113,7 @@ Do not return the full raw `.vital` document.
 
 ### Draft tool description
 
-> Read the current logical synth patch. Use this before editing when you need to understand the existing sound design. Returns the supported oscillator, envelope, filter, LFO, modulation, voice and effect state in musical units. This is the authoritative state the agent should reason from; do not infer the patch from previous conversation text.
+> Read the current editable synth projection. Use this before editing when you need to understand the existing sound design. Returns supported oscillator, envelope, filter, LFO, voice and effect state in musical units. Preserved native Vital features may also affect the sound but are intentionally not agent-editable.
 
 Return a compact but complete logical patch summary.
 
@@ -1141,7 +1125,7 @@ Mark as read-only.
 
 ### Draft tool description
 
-> Replace or modify LFO 1's point-based shape. Use this for structural rhythmic requests such as “shorten the second pulse,” “make the gate less regular,” or “move the final pulse later.” Preserve the current LFO rate and modulation routes unless the request explicitly changes them. Points use normalized x/y coordinates from 0 to 1.
+> Replace or modify LFO 1's point-based shape. Use this for structural rhythmic requests such as “shorten the second pulse,” “make the gate less regular,” or “move the final pulse later.” Preserve the current LFO rate and retained modulation routes. Points use normalized x/y coordinates from 0 to 1.
 
 For ordinary changes involving LFO plus other parameters, use `apply_patch` instead.
 
@@ -1184,7 +1168,8 @@ All pure reads must use the appropriate read-only hint.
 
 ### `create_patch`
 
-Creates an initial patch from a structured patch proposal.
+Creates an editable patch projection from a structured proposal while applying the fixed
+global LFO routing and retaining any imported native backing state.
 
 ### `load_preset`
 
@@ -1525,13 +1510,17 @@ wavetable-workbench/
 │   │   └── diff.ts
 │   │
 │   ├── audio/
-│   │   ├── BrowserSynth.ts
-│   │   ├── oscillator.ts
-│   │   ├── envelope.ts
+│   │   ├── SynthRenderer.ts
+│   │   ├── preview.ts
+│   │   ├── reflection.ts
+│   │   ├── tempo.ts
 │   │   ├── lfo.ts
-│   │   ├── filter.ts
-│   │   ├── delay.ts
-│   │   └── reverb.ts
+│   │   ├── units.ts
+│   │   └── vital/
+│   │       ├── VitalWasmRenderer.ts
+│   │       ├── VitalWorkletHost.ts
+│   │       ├── vitalProcessor.ts
+│   │       └── VitalEngine.ts
 │   │
 │   ├── vital/
 │   │   ├── exportVital.ts
@@ -1617,6 +1606,15 @@ Choose one:
 - other static hosting known to work correctly with the WebMCP browser environment
 
 The project should remain largely client-side.
+
+### Licensing and distribution
+
+The combined application is distributed under `GPL-3.0-or-later`. The production
+bundle includes a modified build of Vital from pinned commit
+`636ca0ef517a4db087a6a08a6a8a5e704e21f836`, plus `LICENSE`, `NOTICE`, and the
+Vital Init fixture. `NOTICE` and `wasm/vital/UPSTREAM.json` identify every
+incorporated source area and local patch. The repository, pinned fetch script,
+patches, and build scripts are the corresponding source distribution.
 
 ---
 
@@ -1742,7 +1740,7 @@ Check:
 - one point-based LFO
 - supported modulation routes
 - delay
-- simple reverb
+- Vital reverb
 - playable browser preview
 - natural-language initial generation
 - `apply_patch`
@@ -1806,13 +1804,11 @@ These constitute the product argument.
 
 # 41. Explicit non-goals
 
-## No full Vital implementation
+## No Vital user interface or desktop host
 
-The browser synth is intentionally constrained.
-
-## No embedded Vital engine
-
-The app exports compatible presets instead.
+The app embeds only Vital's headless synthesis/state layer. It does not port
+Vital's editor, OpenGL interface, preset browser, plugin host, standalone shell,
+desktop file services, or account services.
 
 ## No large preset dataset requirement
 
@@ -1862,8 +1858,8 @@ Possible later features:
 - semantic preset retrieval
 - larger CC0 wavetable libraries
 - AI chooses whether to generate or retrieve
-- user-imported Vital presets
-- conversational editing of imported patches
+- broader editable projections for imported Vital features
+- user-facing controls for selected preserved native features
 
 ---
 
@@ -2014,7 +2010,7 @@ This becomes the baseline.
 Agent → WebMCP → PatchState → .vital → Vital
 ```
 
-works, even if the browser synth is still crude.
+works end to end through the shared Vital state boundary.
 
 ---
 
@@ -2096,7 +2092,7 @@ Read-only graph is enough.
 
 ### Delay
 
-### Simple reverb
+### Vital reverb
 
 End-of-day proof:
 
@@ -2373,11 +2369,10 @@ Vercel, Netlify, or another static host?
 
 ---
 
-## Q3. Browser oscillator implementation
+## Q3. Browser oscillator implementation — resolved
 
-`PeriodicWave`-based implementation or an `AudioWorklet` wavetable oscillator?
-
-Prototype quickly before deciding.
+Use the pinned Vital DSP compiled to WebAssembly inside an `AudioWorklet`; do not
+maintain a separate `PeriodicWave` renderer.
 
 ---
 

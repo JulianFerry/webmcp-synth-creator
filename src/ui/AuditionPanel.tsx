@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
 
-import type { BrowserSynthState } from '../audio/BrowserSynth'
+import type { SynthRendererState } from '../audio/SynthRenderer'
+
 interface AuditionPanelProps {
-  audio: BrowserSynthState
+  audio: SynthRendererState
   onNoteOn: (midi: number, velocity?: number, requestedAtMs?: number) => Promise<void>
   onNoteOff: (midi: number) => void
   onReleaseAll: () => void

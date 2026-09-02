@@ -64,13 +64,13 @@ describe('VitalPresetAdapter', () => {
       synth_version: 'phase-1-test-version',
     })
     expect(exported.document.settings).toMatchObject({
-      filter_1_cutoff: 69,
+      filter_fx_cutoff: 69,
       osc_1_level: Math.sqrt(0.62 * 0.5),
       osc_1_unison_detune: Math.sqrt(patch.oscillators[0].unisonDetune * 12),
       osc_1_wave_frame: 0.62 * 256,
-      osc_1_destination: 0,
-      osc_2_destination: 0,
-      osc_3_destination: 0,
+      osc_1_destination: 3,
+      osc_2_destination: 3,
+      osc_3_destination: 3,
       untouched_fixture_value: 99,
     })
     expect(

@@ -45,6 +45,29 @@ describe('curated preset and generated wavetable registries', () => {
 
       const routeIds = patch.modulations.map(({ id }) => id)
       const routePairs = patch.modulations.map(({ source, destination }) => `${source}:${destination}`)
+      expect(patch.modulations).toEqual([
+        {
+          id: 'workbench-lfo-oscillator-1-level',
+          source: 'lfo1',
+          destination: 'oscillator1.level',
+          amount: -0.68,
+          bipolar: false,
+        },
+        {
+          id: 'workbench-lfo-oscillator-2-level',
+          source: 'lfo1',
+          destination: 'oscillator2.level',
+          amount: -0.68,
+          bipolar: false,
+        },
+        {
+          id: 'workbench-lfo-oscillator-3-level',
+          source: 'lfo1',
+          destination: 'oscillator3.level',
+          amount: -0.68,
+          bipolar: false,
+        },
+      ])
       expect(new Set(routeIds).size).toBe(routeIds.length)
       expect(new Set(routePairs).size).toBe(routePairs.length)
     }

@@ -1,4 +1,5 @@
 import type { PatchState } from '../patch/types'
+import type { ImportedVitalBacking } from '../vital/VitalPresetAdapter'
 import type { PatchDiff } from './diff'
 
 export interface HistoryEntry {
@@ -6,6 +7,10 @@ export interface HistoryEntry {
   after: PatchState
   changed: PatchDiff
   reason: string
+  vitalBackingTransition?: {
+    before: ImportedVitalBacking | null
+    after: ImportedVitalBacking | null
+  }
 }
 
 export class PatchHistory {
@@ -19,26 +24,26 @@ export class PatchHistory {
   }
 
   push(entry: HistoryEntry): void {
-    this.past.push(structuredClone(entry))
+    this.past.push(cloneHistoryEntry(entry))
     this.future.length = 0
     if (this.past.length > this.limit) this.past.shift()
   }
 
   peekUndo(): HistoryEntry | undefined {
     const entry = this.past.at(-1)
-    return entry ? structuredClone(entry) : undefined
+    return entry ? cloneHistoryEntry(entry) : undefined
   }
 
   peekRedo(): HistoryEntry | undefined {
     const entry = this.future.at(-1)
-    return entry ? structuredClone(entry) : undefined
+    return entry ? cloneHistoryEntry(entry) : undefined
   }
 
   undo(): HistoryEntry | undefined {
     const entry = this.past.pop()
     if (!entry) return undefined
     this.future.push(entry)
-    return structuredClone(entry)
+    return cloneHistoryEntry(entry)
   }
 
   redo(): HistoryEntry | undefined {
@@ -46,7 +51,7 @@ export class PatchHistory {
     if (!entry) return undefined
     this.past.push(entry)
     if (this.past.length > this.limit) this.past.shift()
-    return structuredClone(entry)
+    return cloneHistoryEntry(entry)
   }
 
   pop(): HistoryEntry | undefined {
@@ -54,11 +59,11 @@ export class PatchHistory {
   }
 
   getPast(): HistoryEntry[] {
-    return structuredClone(this.past)
+    return this.past.map(publicHistoryEntry)
   }
 
   getFuture(): HistoryEntry[] {
-    return structuredClone(this.future)
+    return this.future.map(publicHistoryEntry)
   }
 
   get canUndo(): boolean {
@@ -76,4 +81,22 @@ export class PatchHistory {
   get futureSize(): number {
     return this.future.length
   }
+}
+
+function publicHistoryEntry(entry: HistoryEntry): HistoryEntry {
+  const publicEntry = cloneHistoryEntry(entry)
+  delete publicEntry.vitalBackingTransition
+  return publicEntry
+}
+
+function cloneHistoryEntry(entry: HistoryEntry): HistoryEntry {
+  const cloned = structuredClone({
+    before: entry.before,
+    after: entry.after,
+    changed: entry.changed,
+    reason: entry.reason,
+  })
+  return entry.vitalBackingTransition === undefined
+    ? cloned
+    : { ...cloned, vitalBackingTransition: entry.vitalBackingTransition }
 }

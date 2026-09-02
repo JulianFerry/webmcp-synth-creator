@@ -1,0 +1,26 @@
+diff --git a/third_party/JUCE/modules/juce_core/juce_core.cpp b/third_party/JUCE/modules/juce_core/juce_core.cpp
+index 914cae6..fad822e 100644
+--- a/third_party/JUCE/modules/juce_core/juce_core.cpp
++++ b/third_party/JUCE/modules/juce_core/juce_core.cpp
+@@ -91,7 +91,7 @@
+  #include <net/if.h>
+  #include <sys/ioctl.h>
+ 
+- #if ! JUCE_ANDROID
++ #if ! JUCE_ANDROID && ! defined (__EMSCRIPTEN__)
+   #include <execinfo.h>
+  #endif
+ #endif
+diff --git a/third_party/JUCE/modules/juce_core/system/juce_SystemStats.cpp b/third_party/JUCE/modules/juce_core/system/juce_SystemStats.cpp
+index 8471271..88015b7 100644
+--- a/third_party/JUCE/modules/juce_core/system/juce_SystemStats.cpp
++++ b/third_party/JUCE/modules/juce_core/system/juce_SystemStats.cpp
+@@ -138,7 +138,7 @@ String SystemStats::getStackBacktrace()
+ {
+     String result;
+ 
+-   #if JUCE_ANDROID || JUCE_MINGW
++   #if JUCE_ANDROID || JUCE_MINGW || defined (__EMSCRIPTEN__)
+     jassertfalse; // sorry, not implemented yet!
+ 
+    #elif JUCE_WINDOWS

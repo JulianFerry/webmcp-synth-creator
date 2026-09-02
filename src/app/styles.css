@@ -1576,7 +1576,9 @@ h2 {
 }
 
 .notice-banner {
-  margin-top: 14px;
+  position: relative;
+  z-index: 2;
+  margin: 0 0 8px;
   padding: 12px 14px;
   border: 1px solid var(--analysis);
   border-radius: 6px;

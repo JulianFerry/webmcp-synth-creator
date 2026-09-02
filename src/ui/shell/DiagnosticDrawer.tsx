@@ -1,4 +1,4 @@
-import type { BrowserSynthState } from '../../audio/BrowserSynth'
+import type { SynthRendererState } from '../../audio/SynthRenderer'
 import type { PatchState, PatchSummary } from '../../patch/types'
 import type { VariantId } from '../../session/SessionService'
 import type { CapabilityStatus, VitalFixtureStatus } from '../../app/appStore'
@@ -7,7 +7,7 @@ import { WebMcpStatus } from '../WebMcpStatus'
 
 interface DiagnosticDrawerProps {
   applyDarker: () => void
-  audio: BrowserSynthState
+  audio: SynthRendererState
   canRedo: boolean
   canUndo: boolean
   changed: Record<string, { before: unknown; after: unknown }>
@@ -50,6 +50,9 @@ export function TelemetryRegion(props: DiagnosticDrawerProps) {
             data-effective-decay={audio.effective.ampEnvelope.decaySeconds} data-effective-detune={audio.effective.oscillators[0].unisonDetune}
             data-effective-fine={audio.effective.oscillators[0].fineTuneCents} data-effective-glide={audio.effective.voice.glideSeconds}
             data-effective-level={audio.effective.oscillators[0].level} data-effective-position={audio.effective.oscillators[0].wavetablePosition}
+            data-effective-oscillator-3-enabled={audio.effective.oscillators[2].enabled}
+            data-effective-oscillator-3-level={audio.effective.oscillators[2].level}
+            data-effective-oscillator-3-position={audio.effective.oscillators[2].wavetablePosition}
             data-effective-release={audio.effective.ampEnvelope.releaseSeconds} data-effective-resonance={audio.effective.filter.resonance}
             data-effective-spread={audio.effective.oscillators[0].stereoSpread} data-effective-sustain={audio.effective.ampEnvelope.sustainLevel}
             data-effective-transpose={audio.effective.oscillators[0].transposeSemitones} data-effective-unison={audio.effective.oscillators[0].unisonVoices}
@@ -58,6 +61,7 @@ export function TelemetryRegion(props: DiagnosticDrawerProps) {
             data-draft-release={audio.draft.ampEnvelope.releaseSeconds} data-held={audio.held}
             data-position={audio.wavetablePosition} data-preview-count={previewPaths.length}
             data-preview-paths={previewPaths.sort().join(',')} data-preview-position={audio.previewWavetablePositions[0] ?? ''}
+            data-preview-position-3={audio.previewWavetablePositions[2] ?? ''}
             data-testid="audio-adapter-state"
           ><span>Audio engine</span><strong data-testid="audio-lifecycle">{audio.lifecycle}</strong><small>{audio.activeVoiceCount} active / {audio.polyphony} max / {audio.stolenVoiceCount} stolen</small></div>
           <div className={`status-cell status-${props.vitalStatus}`} data-testid="vital-status"><span>Vital fixture</span><strong>{props.vitalStatus}</strong><small>{props.vitalError ?? 'Pinned Init loaded'}</small></div>
@@ -70,7 +74,7 @@ export function TelemetryRegion(props: DiagnosticDrawerProps) {
               <div><dt>Filter</dt><dd>{props.summary.filter.cutoffHz.toLocaleString()} Hz</dd></div>
               <div><dt>Polyphony</dt><dd>{props.summary.voice.polyphony}</dd></div>
               <div><dt>LFO</dt><dd>{props.summary.lfo1.pointCount} pts</dd></div>
-              <div><dt>Routes</dt><dd>{props.summary.modulations.length}</dd></div>
+              <div><dt>Routes</dt><dd>{props.patch.modulations.length}</dd></div>
               <div><dt>Variant</dt><dd data-testid="current-variant">{props.currentVariant}</dd></div>
               <div><dt>Transactions</dt><dd data-testid="transaction-count">{props.transactionCount}</dd></div>
               <div><dt>Undo depth</dt><dd data-testid="history-size">{props.historySize}</dd></div>

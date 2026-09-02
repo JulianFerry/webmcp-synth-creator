@@ -1,0 +1,30 @@
+{
+  "repository": "https://github.com/mtytel/vital.git",
+  "commit": "636ca0ef517a4db087a6a08a6a8a5e704e21f836",
+  "commitShort": "636ca0e",
+  "license": {
+    "spdx": "GPL-3.0-or-later",
+    "file": "vendor/vital/LICENSE"
+  },
+  "sourceDirectories": [
+    "src/common",
+    "src/common/wavetable",
+    "src/synthesis",
+    "src/unity_build"
+  ],
+  "juceModules": [
+    "juce_audio_basics",
+    "juce_audio_formats",
+    "juce_core",
+    "juce_data_structures",
+    "juce_dsp",
+    "juce_events"
+  ],
+  "appliedPatches": [
+    "patches/0001-juce-emscripten-platform-guards.patch",
+    "patches/0002-juce-disable-backtraces.patch",
+    "patches/0003-juce-wasm-linux-fallbacks.patch",
+    "patches/0004-vital-skip-installed-check.patch",
+    "patches/0005-vital-optional-wavetable-render.patch"
+  ]
+}

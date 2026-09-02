@@ -5,7 +5,7 @@ import type { LfoPoint } from '../patch/types'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
 
 const documentedSetLfoShapeInput = {
-  reason: 'Shorten the second pulse while preserving the current rate and routes',
+  reason: 'Shorten the second pulse while preserving the current rate',
   points: [
     { x: 0, y: 0 },
     { x: 0.02, y: 1 },
@@ -41,7 +41,7 @@ export function createSetLfoShapeTool(commandService: CommandService): WebMcpToo
     name: 'set_lfo_shape',
     title: 'Edit the point-based LFO shape',
     description:
-      'Edit LFO 1 points for a focused rhythmic change. Preserve its enabled state, rate, and modulation routes unless the request explicitly requires apply_patch.',
+      'Edit the global LFO 1 points for a focused rhythmic change. Preserve its enabled state and rate; destination and depth are fixed across all Workbench patches.',
     inputSchema: {
       type: 'object',
       examples: [documentedSetLfoShapeInput],

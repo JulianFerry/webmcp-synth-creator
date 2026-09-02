@@ -2,7 +2,9 @@ import { defineConfig, devices } from '@playwright/test'
 import { createHash } from 'node:crypto'
 
 const workspacePort = 4100 + Number.parseInt(createHash('sha256').update(process.cwd()).digest('hex').slice(0, 4), 16) % 1000
-const baseURL = `http://127.0.0.1:${workspacePort}`
+const port = Number(process.env.PLAYWRIGHT_PORT ?? workspacePort)
+const baseURL = `http://127.0.0.1:${port}`
+const previewBuild = process.env.PLAYWRIGHT_PREVIEW === '1'
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -17,14 +19,19 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'vital-performance',
+      testMatch: /vital-performance\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
       name: 'chromium',
+      testIgnore: /vital-performance\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
   ],
   webServer: {
-    command: 'npm run dev -- --strictPort --port $PORT',
+    command: `npm run ${previewBuild ? 'preview' : 'dev'} -- --port ${port} --strictPort`,
     url: baseURL,
-    env: { ...process.env, PORT: String(workspacePort) },
     reuseExistingServer: !process.env.CI,
   },
 })

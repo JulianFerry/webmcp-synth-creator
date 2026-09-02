@@ -114,8 +114,8 @@ test('AHDSR exposes hold and combines decay with sustain while LFO handles alter
   ])
   expect(Math.abs(envelopeBox!.width - lfoBox!.width)).toBeLessThan(1)
   expect(Math.abs(envelopeBox!.height - lfoBox!.height)).toBeLessThan(1)
-  expect(envelopeBox!.height).toBeLessThanOrEqual(126)
-  expect(envelopeBox!.height).toBeGreaterThanOrEqual(118)
+  expect(envelopeBox!.height).toBeGreaterThanOrEqual(96)
+  expect(envelopeBox!.height).toBeLessThanOrEqual(100)
   expect(envelopeBox!.width / envelopePanel!.width).toBeGreaterThan(.94)
   expect(lfoBox!.width / lfoPanel!.width).toBeGreaterThan(.94)
   for (const graph of [envelopeGraph, lfoGraph.locator('svg')]) {

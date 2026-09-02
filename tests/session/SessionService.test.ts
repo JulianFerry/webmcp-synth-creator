@@ -1,8 +1,12 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { CommandError, CommandService } from '../../src/commands/CommandService'
 import { createDefaultPatch } from '../../src/patch/defaults'
 import { SessionError, SessionService } from '../../src/session/SessionService'
+import { VitalPresetAdapter } from '../../src/vital/VitalPresetAdapter'
 
 function createHarness(historyLimit = 30) {
   const session = new SessionService(createDefaultPatch(), undefined, historyLimit)
@@ -188,5 +192,51 @@ describe('variant-local session state', () => {
     })
     expect(discarded.patch).toEqual(originalA)
     expect(session.getState().variants.B).toBeUndefined()
+  })
+
+  it('keeps imported Vital backing variant-local and restores it across replacement history', () => {
+    const { commands, session } = createHarness()
+    const adapter = new VitalPresetAdapter(
+      JSON.parse(readFileSync(resolve(process.cwd(), 'fixtures/vital/init.vital'), 'utf8')),
+    )
+    const importedDocument = adapter.exportPatch(createDefaultPatch()).document
+    importedDocument.preset_name = 'Backed Native Patch'
+    importedDocument.settings.osc_1_destination = 1
+    const imported = adapter.importPatch(importedDocument, {
+      originalJson: JSON.stringify(importedDocument, null, 2),
+    })
+
+    commands.createPatch(
+      {
+        type: 'create_patch',
+        reason: 'Import a native-backed preset',
+        patch: imported.patch,
+      },
+      { source: 'ui' },
+      imported.backing,
+    )
+    expect(session.getVitalBackingInfo()?.preservesUnsupportedFeatures).toBe(true)
+
+    commands.applyPatch({
+      type: 'apply_patch',
+      reason: 'Edit the projection without dropping native state',
+      changes: [{ path: 'filter.cutoffHz', value: 2_400 }],
+    })
+    expect(session.getVitalBacking()).not.toBeNull()
+    commands.undo()
+    expect(session.getVitalBacking()).not.toBeNull()
+    commands.undo()
+    expect(session.getVitalBacking()).toBeNull()
+    commands.redo()
+    expect(session.getVitalBackingInfo()?.preservesUnsupportedFeatures).toBe(true)
+
+    createWideVariant(commands)
+    expect(session.getVitalBacking('B')).not.toBeNull()
+    commands.selectVariant('A')
+    expect(session.getVitalBacking('A')).not.toBeNull()
+    commands.loadPreset({ type: 'load_preset', presetId: 'glass-pluck' })
+    expect(session.getVitalBacking('A')).toBeNull()
+    commands.undo()
+    expect(session.getVitalBacking('A')).not.toBeNull()
   })
 })
