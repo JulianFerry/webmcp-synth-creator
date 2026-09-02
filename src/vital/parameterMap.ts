@@ -1,82 +1,20 @@
 import type { TempoSyncDivision } from '../patch/limits'
-import type { EnvelopeState, PatchState } from '../patch/types'
+import type { PatchState } from '../patch/types'
+import { FORCED_VITAL_BINDINGS, mapVitalScalarValues } from './bindings'
 import { encodeVitalEffectOrder } from './effectOrder'
 import { mapVitalFxFilterType } from './filter'
 import { mapVitalLfoRate } from './lfo'
-import {
-  encodeVitalDelaySeconds,
-  encodeVitalEnvelopeSeconds,
-  encodeVitalGlideSeconds,
-  encodeVitalOscillatorLevel,
-  encodeVitalReverbDecaySeconds,
-  encodeVitalUnisonDetune,
-} from './units'
-
-function frequencyToMidiNote(frequencyHz: number): number {
-  return 69 + 12 * Math.log2(frequencyHz / 440)
-}
-
-function mapVitalEnvelope(prefix: 'env_1' | 'env_2', envelope: EnvelopeState) {
-  return {
-    [`${prefix}_attack`]: encodeVitalEnvelopeSeconds(envelope.attackSeconds, 'attack'),
-    [`${prefix}_hold`]: encodeVitalEnvelopeSeconds(envelope.holdSeconds, 'hold'),
-    [`${prefix}_decay`]: encodeVitalEnvelopeSeconds(envelope.decaySeconds, 'decay'),
-    [`${prefix}_sustain`]: envelope.sustainLevel,
-    [`${prefix}_release`]: encodeVitalEnvelopeSeconds(envelope.releaseSeconds, 'release'),
-  }
-}
+import { encodeVitalDelaySeconds } from './units'
 
 export function mapPhaseOneVitalParameters(patch: PatchState): Record<string, number> {
-  const first = patch.oscillators[0]
-  const second = patch.oscillators[1]
-  const third = patch.oscillators[2]
-  const filterType = mapVitalFxFilterType(patch.filter.type)
+  const filterType = mapVitalFxFilterType(patch.filter.type, patch.filter.slope)
 
   return {
-    polyphony: patch.voice.polyphony,
-    legato: Number(patch.voice.legato),
-    velocity_track: patch.voice.velocitySensitivity,
-    portamento_time: encodeVitalGlideSeconds(patch.voice.glideSeconds),
-    osc_1_on: Number(first.enabled),
-    osc_1_destination: 3,
-    osc_1_level: encodeVitalOscillatorLevel(first.level),
-    osc_1_wave_frame: first.wavetablePosition * 256,
-    osc_1_transpose: first.transposeSemitones,
-    osc_1_tune: first.fineTuneCents / 100,
-    osc_1_unison_voices: first.unisonVoices,
-    osc_1_unison_detune: encodeVitalUnisonDetune(first.unisonDetune),
-    osc_1_stereo_spread: first.stereoSpread,
-    osc_1_random_phase: first.randomPhase,
-    osc_2_on: Number(second.enabled),
-    osc_2_destination: 3,
-    osc_2_level: encodeVitalOscillatorLevel(second.level),
-    osc_2_wave_frame: second.wavetablePosition * 256,
-    osc_2_transpose: second.transposeSemitones,
-    osc_2_tune: second.fineTuneCents / 100,
-    osc_2_unison_voices: second.unisonVoices,
-    osc_2_unison_detune: encodeVitalUnisonDetune(second.unisonDetune),
-    osc_2_stereo_spread: second.stereoSpread,
-    osc_2_random_phase: second.randomPhase,
-    osc_3_on: Number(third.enabled),
-    osc_3_destination: 3,
-    osc_3_level: encodeVitalOscillatorLevel(third.level),
-    osc_3_wave_frame: third.wavetablePosition * 256,
-    osc_3_transpose: third.transposeSemitones,
-    osc_3_tune: third.fineTuneCents / 100,
-    osc_3_unison_voices: third.unisonVoices,
-    osc_3_unison_detune: encodeVitalUnisonDetune(third.unisonDetune),
-    osc_3_stereo_spread: third.stereoSpread,
-    osc_3_random_phase: third.randomPhase,
-    ...mapVitalEnvelope('env_1', patch.ampEnvelope),
-    filter_1_on: 0,
-    filter_2_on: 0,
-    filter_fx_on: Number(patch.filter.enabled),
-    filter_fx_cutoff: frequencyToMidiNote(patch.filter.cutoffHz),
-    filter_fx_resonance: patch.filter.resonance,
+    ...mapVitalScalarValues(patch),
+    ...Object.fromEntries(FORCED_VITAL_BINDINGS.map(({ key, value }) => [key, value])),
     filter_fx_model: filterType.model,
     filter_fx_style: filterType.style,
     filter_fx_blend: filterType.blend,
-    filter_fx_mix: 1,
   }
 }
 
@@ -101,29 +39,15 @@ export function mapStructuredVitalParameters(patch: PatchState): Record<string, 
 
   return {
     effect_chain_order: encodeVitalEffectOrder(patch.effects.order),
-    eq_on: 0,
-    flanger_on: 0,
-    phaser_on: 0,
-    ...mapVitalEnvelope('env_2', patch.modEnvelope),
     lfo_1_sync: lfoRate.sync,
-    lfo_1_sync_type: 0,
     lfo_1_tempo: lfoRate.tempo,
     lfo_1_frequency: lfoRate.frequency,
-    lfo_1_phase: patch.lfo1.phase,
-    lfo_1_smooth_time: patch.lfo1.smooth ? -5 : -8.5,
-    delay_on: Number(delay.enabled),
-    delay_dry_wet: delay.mix,
-    delay_feedback: delay.feedback,
     delay_sync: delaySync,
     delay_aux_sync: delaySync,
     delay_tempo: VITAL_DELAY_TEMPO_INDEX[delayDivision],
     delay_aux_tempo: VITAL_DELAY_TEMPO_INDEX[delayDivision],
     delay_frequency: delayFrequency,
     delay_aux_frequency: delayFrequency,
-    reverb_on: Number(patch.effects.reverb.enabled),
-    reverb_dry_wet: patch.effects.reverb.mix,
-    reverb_decay_time: encodeVitalReverbDecaySeconds(patch.effects.reverb.decaySeconds),
-    reverb_size: patch.effects.reverb.size,
   }
 }
 

@@ -41,11 +41,14 @@ import {
   decodeVitalDelaySeconds,
   decodeVitalEnvelopeSeconds,
   decodeVitalGlideSeconds,
-  decodeVitalOscillatorLevel,
   decodeVitalReverbDecaySeconds,
-  decodeVitalUnisonDetune,
 } from './units'
 import { buildVitalWavetable } from './wavetable'
+import {
+  decodeVitalScalarValues,
+  VITAL_BOUND_SETTING_KEYS,
+  type VitalScalarPath,
+} from './bindings'
 
 export class VitalImportError extends Error {
   constructor(message: string) {
@@ -79,79 +82,20 @@ const TOP_LEVEL_MUTABLE_KEYS = new Set([
 ])
 
 const SUPPORTED_SETTING_KEYS = new Set([
-  'polyphony',
-  'legato',
-  'velocity_track',
-  'portamento_time',
-  'osc_1_on',
-  'osc_1_destination',
-  'osc_1_level',
-  'osc_1_wave_frame',
-  'osc_1_transpose',
-  'osc_1_tune',
-  'osc_1_unison_voices',
-  'osc_1_unison_detune',
-  'osc_1_stereo_spread',
-  'osc_1_random_phase',
-  'osc_2_on',
-  'osc_2_destination',
-  'osc_2_level',
-  'osc_2_wave_frame',
-  'osc_2_transpose',
-  'osc_2_tune',
-  'osc_2_unison_voices',
-  'osc_2_unison_detune',
-  'osc_2_stereo_spread',
-  'osc_2_random_phase',
-  'osc_3_on',
-  'osc_3_destination',
-  'osc_3_level',
-  'osc_3_wave_frame',
-  'osc_3_transpose',
-  'osc_3_tune',
-  'osc_3_unison_voices',
-  'osc_3_unison_detune',
-  'osc_3_stereo_spread',
-  'osc_3_random_phase',
-  'env_1_attack',
-  'env_1_hold',
-  'env_1_decay',
-  'env_1_sustain',
-  'env_1_release',
-  'env_2_attack',
-  'env_2_hold',
-  'env_2_decay',
-  'env_2_sustain',
-  'env_2_release',
-  'filter_1_on',
-  'filter_2_on',
-  'filter_fx_on',
-  'filter_fx_cutoff',
-  'filter_fx_resonance',
+  ...VITAL_BOUND_SETTING_KEYS,
   'filter_fx_model',
   'filter_fx_style',
   'filter_fx_blend',
-  'filter_fx_mix',
   'effect_chain_order',
   'lfo_1_sync',
-  'lfo_1_sync_type',
   'lfo_1_tempo',
   'lfo_1_frequency',
-  'lfo_1_phase',
-  'lfo_1_smooth_time',
-  'delay_on',
-  'delay_dry_wet',
-  'delay_feedback',
   'delay_sync',
   'delay_aux_sync',
   'delay_tempo',
   'delay_aux_tempo',
   'delay_frequency',
   'delay_aux_frequency',
-  'reverb_on',
-  'reverb_dry_wet',
-  'reverb_decay_time',
-  'reverb_size',
   'wavetables',
   'lfos',
   'modulations',
@@ -531,46 +475,51 @@ function parseWavetable(value: unknown, slot: number, version: string): Wavetabl
   return { id: safeWavetableId(name, slot), name, frames }
 }
 
-function parseEnvelope(settings: Record<string, unknown>, prefix: 'env_1' | 'env_2'): EnvelopeState {
+type DecodedVitalScalars = Record<VitalScalarPath, unknown>
+
+function scalar<T>(values: DecodedVitalScalars, path: VitalScalarPath): T {
+  return values[path] as T
+}
+
+function parseEnvelope(values: DecodedVitalScalars, prefix: 'ampEnvelope' | 'modEnvelope'): EnvelopeState {
   return {
-    delaySeconds: 0,
-    attackSeconds: decodeVitalEnvelopeSeconds(setting(settings, `${prefix}_attack`)),
-    holdSeconds: decodeVitalEnvelopeSeconds(setting(settings, `${prefix}_hold`)),
-    decaySeconds: decodeVitalEnvelopeSeconds(setting(settings, `${prefix}_decay`)),
-    sustainLevel: setting(settings, `${prefix}_sustain`),
-    releaseSeconds: decodeVitalEnvelopeSeconds(setting(settings, `${prefix}_release`)),
-    attackCurve: 0,
-    decayCurve: -0.1,
-    releaseCurve: -0.1,
+    delaySeconds: scalar(values, `${prefix}.delaySeconds`),
+    attackSeconds: scalar(values, `${prefix}.attackSeconds`),
+    holdSeconds: scalar(values, `${prefix}.holdSeconds`),
+    decaySeconds: scalar(values, `${prefix}.decaySeconds`),
+    sustainLevel: scalar(values, `${prefix}.sustainLevel`),
+    releaseSeconds: scalar(values, `${prefix}.releaseSeconds`),
+    attackCurve: scalar(values, `${prefix}.attackCurve`),
+    decayCurve: scalar(values, `${prefix}.decayCurve`),
+    releaseCurve: scalar(values, `${prefix}.releaseCurve`),
   }
 }
 
 function parseOscillator(
   settings: Record<string, unknown>,
+  values: DecodedVitalScalars,
   index: 1 | 2 | 3,
   wavetableId: string,
 ): OscillatorState {
   const prefix = `osc_${index}`
+  const logicalIndex = (index - 1) as 0 | 1 | 2
+  const oscillatorScalar = <T>(field: Exclude<keyof OscillatorState, 'wavetableId'>): T =>
+    scalar(values, `oscillators.${logicalIndex}.${field}` as VitalScalarPath)
   if (setting(settings, `${prefix}_destination`) !== 3) {
     throw new VitalImportError(`Oscillator ${index} must route to Vital's effects input`)
   }
   return {
-    enabled: numericBoolean(setting(settings, `${prefix}_on`), `${prefix}_on`),
+    enabled: oscillatorScalar('enabled'),
     wavetableId,
-    wavetablePosition: setting(settings, `${prefix}_wave_frame`) / 256,
-    level: decodeVitalOscillatorLevel(setting(settings, `${prefix}_level`)),
-    transposeSemitones: integer(setting(settings, `${prefix}_transpose`), `${prefix}_transpose`),
-    fineTuneCents: setting(settings, `${prefix}_tune`) * 100,
-    unisonVoices: integer(
-      setting(settings, `${prefix}_unison_voices`),
-      `${prefix}_unison_voices`,
-    ),
-    unisonDetune: decodeVitalUnisonDetune(
-      setting(settings, `${prefix}_unison_detune`),
-    ),
-    stereoSpread: setting(settings, `${prefix}_stereo_spread`),
-    randomPhase: setting(settings, `${prefix}_random_phase`),
-    pan: 0.5,
+    wavetablePosition: oscillatorScalar('wavetablePosition'),
+    level: oscillatorScalar('level'),
+    transposeSemitones: oscillatorScalar('transposeSemitones'),
+    fineTuneCents: oscillatorScalar('fineTuneCents'),
+    unisonVoices: oscillatorScalar('unisonVoices'),
+    unisonDetune: oscillatorScalar('unisonDetune'),
+    stereoSpread: oscillatorScalar('stereoSpread'),
+    randomPhase: oscillatorScalar('randomPhase'),
+    pan: oscillatorScalar('pan'),
   }
 }
 
@@ -592,6 +541,7 @@ function parseLfo(
   value: unknown,
   settings: Record<string, unknown>,
   enabled: boolean,
+  scalars: DecodedVitalScalars,
 ): LfoState {
   const lfo = record(value, 'Vital LFO 1')
   assertExactKeys(lfo, ['name', 'num_points', 'points', 'powers', 'smooth'], 'Vital LFO 1')
@@ -606,11 +556,6 @@ function parseLfo(
     throw new VitalImportError('Vital LFO 1 point arrays do not match num_points')
   }
   if (typeof lfo.smooth !== 'boolean') throw new VitalImportError('Vital LFO 1 smooth must be boolean')
-  const expectedSmoothTime = lfo.smooth ? -5 : -8.5
-  if (Math.abs(setting(settings, 'lfo_1_smooth_time') - expectedSmoothTime) > 1e-6) {
-    throw new VitalImportError('Vital LFO 1 smoothing is outside the supported canonical mapping')
-  }
-
   return {
     enabled,
     points: Array.from({ length: pointCount }, (_, index) => ({
@@ -621,9 +566,9 @@ function parseLfo(
       power: finiteNumber(powers[index], `Vital LFO 1 point ${index + 1} power`),
     })),
     rate: parseRate(settings),
-    phase: setting(settings, 'lfo_1_phase'),
+    phase: scalar(scalars, 'lfo1.phase'),
     smooth: lfo.smooth,
-    smoothing: lfo.smooth ? 5 / 14 : 1.5 / 14,
+    smoothing: scalar(scalars, 'lfo1.smoothing'),
   }
 }
 
@@ -712,7 +657,7 @@ function decodeFilterCutoff(value: number): number {
   return Math.round(440 * 2 ** ((value - 69) / 12))
 }
 
-function parseFxFilterType(settings: Record<string, unknown>): FilterType {
+function parseFxFilterType(settings: Record<string, unknown>) {
   try {
     return decodeVitalFxFilterType({
       model: integer(setting(settings, 'filter_fx_model'), 'filter_fx_model'),
@@ -748,6 +693,7 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
   const settings = record(document.settings, 'Vital settings')
   const templateSettings = record(template.settings, 'Template Vital settings')
   assertUnsupportedSettingsUnchanged(settings, templateSettings)
+  const scalars = decodeVitalScalarValues(settings)
 
   if (setting(settings, 'filter_1_on') !== 0 || setting(settings, 'filter_2_on') !== 0) {
     throw new VitalImportError('Filter 1 and Filter 2 must be off for PatchState compatibility')
@@ -812,7 +758,7 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
 
   const delayMode = delaySync === 0 ? 'free' : 'sync'
   const patchCandidate = {
-    version: 2,
+    version: 3,
     metadata: {
       name,
       category,
@@ -820,30 +766,47 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
       tags: ['vital-import'],
     },
     oscillators: [
-      parseOscillator(settings, 1, firstWavetable.id),
-      parseOscillator(settings, 2, secondWavetable.id),
-      parseOscillator(settings, 3, thirdWavetable.id),
+      parseOscillator(settings, scalars, 1, firstWavetable.id),
+      parseOscillator(settings, scalars, 2, secondWavetable.id),
+      parseOscillator(settings, scalars, 3, thirdWavetable.id),
     ],
-    ampEnvelope: parseEnvelope(settings, 'env_1'),
-    modEnvelope: parseEnvelope(settings, 'env_2'),
+    ampEnvelope: parseEnvelope(scalars, 'ampEnvelope'),
+    modEnvelope: parseEnvelope(scalars, 'modEnvelope'),
     filter: {
-      enabled: numericBoolean(setting(settings, 'filter_fx_on'), 'filter_fx_on'),
-      type: parseFxFilterType(settings),
-      cutoffHz: decodeFilterCutoff(setting(settings, 'filter_fx_cutoff')),
-      resonance: setting(settings, 'filter_fx_resonance'),
+      enabled: scalar(scalars, 'filter.enabled'),
+      ...parseFxFilterType(settings),
+      cutoffHz: scalar(scalars, 'filter.cutoffHz'),
+      resonance: scalar(scalars, 'filter.resonance'),
+      drive: scalar(scalars, 'filter.drive'),
+      keytrack: scalar(scalars, 'filter.keytrack'),
     },
-    lfo1: parseLfo(importedLfos[0], settings, modulation.lfoEnabled),
+    lfo1: parseLfo(importedLfos[0], settings, modulation.lfoEnabled, scalars),
     modulations: modulation.routes,
     voice: {
-      polyphony: integer(setting(settings, 'polyphony'), 'polyphony'),
-      legato: numericBoolean(setting(settings, 'legato'), 'legato'),
-      glideSeconds: decodeVitalGlideSeconds(setting(settings, 'portamento_time')),
-      velocitySensitivity: setting(settings, 'velocity_track'),
+      polyphony: scalar(scalars, 'voice.polyphony'),
+      legato: scalar(scalars, 'voice.legato'),
+      glideSeconds: scalar(scalars, 'voice.glideSeconds'),
+      velocitySensitivity: scalar(scalars, 'voice.velocitySensitivity'),
+      transposeSemitones: scalar(scalars, 'voice.transposeSemitones'),
     },
     effects: {
       order: parseEffectOrder(settings),
+      distortion: {
+        enabled: scalar(scalars, 'effects.distortion.enabled'),
+        type: scalar(scalars, 'effects.distortion.type'),
+        drive: scalar(scalars, 'effects.distortion.drive'),
+        mix: scalar(scalars, 'effects.distortion.mix'),
+      },
+      chorus: {
+        enabled: scalar(scalars, 'effects.chorus.enabled'),
+        voices: scalar(scalars, 'effects.chorus.voices'),
+        rate: scalar(scalars, 'effects.chorus.rate'),
+        depth: scalar(scalars, 'effects.chorus.depth'),
+        feedback: scalar(scalars, 'effects.chorus.feedback'),
+        mix: scalar(scalars, 'effects.chorus.mix'),
+      },
       delay: {
-        enabled: numericBoolean(setting(settings, 'delay_on'), 'delay_on'),
+        enabled: scalar(scalars, 'effects.delay.enabled'),
         mode: delayMode,
         ...(delayMode === 'sync'
           ? { division: parseDelayDivision(delaySync, delayTempo) }
@@ -851,14 +814,17 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
         ...(delayMode === 'sync'
           ? { timeSeconds: decodeVitalDelaySeconds(delayFrequency) }
           : {}),
-        feedback: setting(settings, 'delay_feedback'),
-        mix: setting(settings, 'delay_dry_wet'),
+        feedback: scalar(scalars, 'effects.delay.feedback'),
+        mix: scalar(scalars, 'effects.delay.mix'),
       },
       reverb: {
-        enabled: numericBoolean(setting(settings, 'reverb_on'), 'reverb_on'),
-        mix: setting(settings, 'reverb_dry_wet'),
-        decaySeconds: decodeVitalReverbDecaySeconds(setting(settings, 'reverb_decay_time')),
-        size: setting(settings, 'reverb_size'),
+        enabled: scalar(scalars, 'effects.reverb.enabled'),
+        mix: scalar(scalars, 'effects.reverb.mix'),
+        decaySeconds: scalar(scalars, 'effects.reverb.decaySeconds'),
+        size: scalar(scalars, 'effects.reverb.size'),
+        predelay: scalar(scalars, 'effects.reverb.predelay'),
+        lowCut: scalar(scalars, 'effects.reverb.lowCut'),
+        highCut: scalar(scalars, 'effects.reverb.highCut'),
       },
     },
     wavetableData,
@@ -939,7 +905,7 @@ function parseLossyFxFilterType(
     blend: lossySetting(settings, templateSettings, `${prefix}_blend`, warnings),
   }
   try {
-    return decodeVitalFxFilterType(values)
+    return decodeVitalFxFilterType(values).type
   } catch {
     warnOnce(warnings, 'The original filter model was mapped to the workbench low-pass filter.')
     return 'lowpass'
