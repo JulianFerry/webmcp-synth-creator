@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { getPresetPatch, listPresets } from '../../src/presets/registry'
+import { listTemplatePatches } from '../../src/presets/templates'
 import { VitalPresetAdapter } from '../../src/vital/VitalPresetAdapter'
 import { VITAL_MODULATION_DESTINATIONS, VITAL_MODULATION_SOURCES } from '../../src/vital/modulations'
 import { VITAL_FRAME_SAMPLE_COUNT } from '../../src/wavetables/render'
@@ -15,6 +16,19 @@ function realAdapter(): VitalPresetAdapter {
 }
 
 describe('curated preset Vital structure', () => {
+  it.each(listTemplatePatches().map(({ category, patch }) => [category, patch] as const))(
+    'strictly round-trips the validated %s template',
+    (_category, patch) => {
+      const adapter = realAdapter()
+      const exported = adapter.exportPatch(patch)
+      const imported = adapter.importPatch(exported.document)
+      expect(imported.warnings).toEqual([
+        'Vital has no PatchState tags or modulation route IDs; import uses a vital-import tag and generated route IDs. Custom wavetable IDs are regenerated unless the table exactly matches the built-in registry.',
+      ])
+      expect(adapter.exportPatch(imported.patch).document.settings).toEqual(exported.document.settings)
+    },
+  )
+
   it.each(listPresets().map(({ id }) => [id] as const))(
     'exports %s with matching tables, envelopes, LFO, routes, and effects',
     (presetId) => {

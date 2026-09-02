@@ -4,6 +4,9 @@ import { CommandService } from '../../src/commands/CommandService'
 import { PatchHistory } from '../../src/commands/history'
 import { LatencyTrace } from '../../src/dev/latencyTrace'
 import { createDefaultPatch } from '../../src/patch/defaults'
+import { ARTICULATION_PRESETS } from '../../src/ops/articulationAndLayer'
+import { normalizedToCutoffHz, normalizedToReverbDecaySeconds } from '../../src/ops/normalization'
+import { getTemplatePatch } from '../../src/presets/templates'
 import { SessionService } from '../../src/session/SessionService'
 import type {
   ModelContextGateway,
@@ -59,6 +62,7 @@ describe('WebMCP tool registration', () => {
       'create_patch',
       'list_presets',
       'load_preset',
+      'describe_patch',
     ])
 
     const getPatch = gateway.registrations[0].tool
@@ -480,23 +484,128 @@ describe('WebMCP tool registration', () => {
       'lfo', 'modulations', 'voice', 'effects', 'wavetables',
     ], 1)
 
-    const createdPatch = session.getPatch()
-    createdPatch.metadata.name = 'Created Glass Variant'
-    createdPatch.filter.cutoffHz = 7600
     const created = await tool('create_patch').execute({
-      reason: 'Create a complete glass variation',
-      patch: createdPatch,
+      description: 'Create a bright, wide percussion patch',
+      attributes: { category: 'percussion', brightness: 0.8, width: 0.7, attack: 0.1 },
     })
     expect(created).toMatchObject({
-      changed: {
-        'metadata.name': { before: 'Glass Pluck', after: 'Created Glass Variant' },
-        'filter.cutoffHz': { before: 9200, after: 7600 },
-      },
-      current: { metadata: { name: 'Created Glass Variant' } },
+      current: { metadata: { name: 'Percussion Template', category: 'pluck' } },
       session: { currentVariant: 'A', canUndo: true },
+      description: expect.any(String),
     })
     expect(commands.historySize).toBe(2)
-    expectAffectedSections(created, ['metadata', 'filter'], 2)
+    expect((created as { undo_step: number }).undo_step).toBe(2)
+    expect(session.getPatch().metadata.description).toBe('Create a bright, wide percussion patch')
+    expect(session.getPatch().oscillators[0].unisonVoices).toBeGreaterThan(1)
+  })
+
+  it('creates every template category and applies every normalized attribute in one transaction', async () => {
+    for (const category of ['bass', 'pad', 'pluck', 'lead', 'keys', 'strings', 'brass', 'vocal', 'bell', 'arp', 'ambient', 'cinematic', 'fx', 'percussion']) {
+      const gateway = new CapturingGateway()
+      const { commands, session } = createHarness()
+      await registerTools(gateway, session, commands)
+      const createPatch = gateway.registrations.find(({ tool }) => tool.name === 'create_patch')!.tool
+      const result = await createPatch.execute({
+        description: `${category} attribute coverage`,
+        attributes: { category, brightness: 0.8, movement: 0.4, width: 0.7, space: 0.6, drive: 0.5, attack: 0.2, release: 0.8 },
+      }) as { undo_step: number }
+
+      expect(result.undo_step).toBe(1)
+      expect(commands.historySize).toBe(1)
+      expect(session.getPatch().metadata.tags).toContain(category)
+      expect(session.getPatch().metadata.description).toBe(`${category} attribute coverage`)
+    }
+  })
+
+  it.each([
+    ['brightness', { brightness: 0.8 }, (patch: ReturnType<typeof getTemplatePatch>) => {
+      expect(patch.filter).toMatchObject({ enabled: true, type: 'lowpass', slope: 24, cutoffHz: normalizedToCutoffHz(0.76) })
+    }],
+    ['movement', { movement: 0.4 }, (patch: ReturnType<typeof getTemplatePatch>) => {
+      expect(patch.lfo1).toMatchObject({ enabled: true, rate: { mode: 'sync', division: '1/1' }, smoothing: 0.4 })
+      expect(patch.modulations).toEqual([expect.objectContaining({ source: 'lfo1', destination: 'oscillator1.wavetablePosition', amount: 0.24, bipolar: true })])
+    }],
+    ['width', { width: 0.7 }, (patch: ReturnType<typeof getTemplatePatch>) => {
+      expect(patch.oscillators[0]).toMatchObject({ unisonVoices: 7, unisonDetune: 0.7 * 0.7, stereoSpread: 0.3 + 0.7 * 0.7 })
+      expect(patch.effects.chorus).toMatchObject({ enabled: true, mix: 0.7 * 0.5 })
+    }],
+    ['space', { space: 0.6 }, (patch: ReturnType<typeof getTemplatePatch>) => {
+      expect(patch.effects.reverb).toMatchObject({ enabled: true, mix: 0.6 * 0.75, decaySeconds: normalizedToReverbDecaySeconds(0.6), predelay: 0.1 })
+    }],
+    ['drive', { drive: 0.5 }, (patch: ReturnType<typeof getTemplatePatch>) => {
+      expect(patch.effects.distortion).toMatchObject({ enabled: true, type: 'soft_clip', drive: 0.5, mix: 0.7 })
+      expect(patch.filter.drive).toBe(0.2)
+    }],
+  ] as const)('applies the %s create_patch attribute with its exact semantic effect', async (_name, attribute, assertPatch) => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const createPatch = gateway.registrations.find(({ tool }) => tool.name === 'create_patch')!.tool
+
+    const result = await createPatch.execute({ description: `${_name} only`, attributes: { category: 'pad', ...attribute } }) as { undo_step: number }
+    assertPatch(session.getPatch())
+    expect(result.undo_step).toBe(1)
+    expect(commands.historySize).toBe(1)
+  })
+
+  it.each([
+    ['attack-only', { attack: 0.1 }, ARTICULATION_PRESETS.sustain],
+    ['release-only', { release: 0.8 }, ARTICULATION_PRESETS.bell],
+  ] as const)('maps %s through articulation selection to the full envelope in one transaction', async (_name, attribute, envelope) => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const createPatch = gateway.registrations.find(({ tool }) => tool.name === 'create_patch')!.tool
+
+    const result = await createPatch.execute({ description: _name, attributes: attribute }) as { undo_step: number }
+    expect(session.getPatch().ampEnvelope).toEqual(envelope)
+    expect(result.undo_step).toBe(1)
+    expect(commands.historySize).toBe(1)
+  })
+
+  it('defaults create_patch to the pad template in one transaction', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const createPatch = gateway.registrations.find(({ tool }) => tool.name === 'create_patch')!.tool
+
+    const result = await createPatch.execute({ description: 'Default category' }) as { undo_step: number }
+    expect(session.getPatch()).toEqual({ ...getTemplatePatch('pad'), metadata: { ...getTemplatePatch('pad').metadata, description: 'Default category' } })
+    expect(result.undo_step).toBe(1)
+    expect(commands.historySize).toBe(1)
+  })
+
+  it('normalizes create_patch validation errors without committing', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const createPatch = gateway.registrations.find(({ tool }) => tool.name === 'create_patch')!.tool
+    const before = session.getPatch()
+
+    for (const input of [
+      {},
+      { description: '' },
+      { description: 'bad category', attributes: { category: 'drums' } },
+      { description: 'bad amount', attributes: { brightness: 2 } },
+      { description: 'unknown attribute', attributes: { mystery: 0.5 } },
+    ]) {
+      await expect(createPatch.execute(input)).resolves.toMatchObject({ ok: false, error: { code: 'INVALID_CREATE_PATCH_INPUT' } })
+    }
+    expect(commands.historySize).toBe(0)
+    expect(session.getPatch()).toEqual(before)
+  })
+
+  it('executes describe_patch read-only against current state', async () => {
+    const gateway = new CapturingGateway()
+    const { commands, session } = createHarness()
+    await registerTools(gateway, session, commands)
+    const describeTool = gateway.registrations.find(({ tool }) => tool.name === 'describe_patch')!.tool
+    expect(describeTool.annotations.readOnlyHint).toBe(true)
+
+    const before = session.getPatch()
+    await expect(describeTool.execute({})).resolves.toEqual({ description: expect.any(String) })
+    expect(session.getPatch()).toEqual(before)
+    expect(commands.historySize).toBe(0)
   })
 
   it('returns one normalized write error for duplicate B, empty undo, and empty redo', async () => {
@@ -604,6 +713,7 @@ describe('WebMCP tool registration', () => {
       },
       list_presets: {},
       load_preset: { presetId: 'glass-pluck' },
+      describe_patch: {},
     }
 
     await Promise.all(

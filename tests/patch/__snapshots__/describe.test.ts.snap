@@ -1,0 +1,26 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`describePatch > deterministically describes all curated presets and templates 1`] = `
+{
+  "ethereal-gate": "Bright airy saw pad. Soft attack, long release; shaped pad envelope. Gated at 1/8 with an uneven pulse for oscillator1.level. Wide detuned unison, light reverb, light delay. Second layer an octave up at low level.",
+  "glass-pluck": "Bright forward-positioned glassy pluck. Fast attack, long release; decaying keys envelope. Narrow tightly tuned unison, light reverb, light delay. Second layer an octave up at low level.",
+  "midnight-pad": "Warm forward-positioned warm saw pad. Soft attack, long release; shaped pad envelope. Wide detuned unison, light reverb, light delay. Second layer an octave up at low level.",
+  "rhythmic-pulse": "Warm digital rhythmic. Fast attack, short release; shaped sustain envelope. Gated at 1/16 with an uneven pulse for oscillator1.level. Narrow tightly tuned unison, light reverb, light delay. Sub layer an octave down at low level.",
+  "template:ambient": "Warm pure sine atmosphere. Soft attack, long release; sustained pad envelope. Wide detuned unison, heavy reverb.",
+  "template:arp": "Warm pure sine rhythmic. Soft attack, long release; sustained pad envelope. Wide detuned unison, heavy reverb.",
+  "template:bass": "Dark pure sine bass. Fast attack, short release; sustained sustain envelope.",
+  "template:bell": "Warm pure sine keys. Soft attack, long release; sustained pad envelope. Wide detuned unison, heavy reverb.",
+  "template:brass": "Warm pure sine keys. Soft attack, long release; sustained pad envelope. Wide detuned unison, heavy reverb.",
+  "template:cinematic": "Warm pure sine atmosphere. Soft attack, long release; sustained pad envelope. Wide detuned unison, heavy reverb.",
+  "template:fx": "Warm pure sine atmosphere. Soft attack, long release; sustained pad envelope. Wide detuned unison, heavy reverb.",
+  "template:keys": "Warm pure sine keys. Fast attack, short release; sustained sustain envelope.",
+  "template:lead": "Warm pure sine lead. Fast attack, short release; sustained sustain envelope.",
+  "template:pad": "Warm pure sine pad. Soft attack, long release; sustained pad envelope. Wide detuned unison, heavy reverb.",
+  "template:percussion": "Warm pure sine pluck. Soft attack, long release; sustained pad envelope. Wide detuned unison, heavy reverb.",
+  "template:pluck": "Bright pure sine pluck. Fast attack, short release; decaying pluck envelope. Narrow tightly tuned unison, light reverb, light delay.",
+  "template:strings": "Warm pure sine keys. Fast attack, short release; sustained sustain envelope.",
+  "template:vocal": "Warm pure sine keys. Soft attack, long release; sustained pad envelope. Wide detuned unison, heavy reverb.",
+  "warm-mono-bass": "Dark forward-positioned saw bass. Fast attack, short release; shaped sustain envelope. Sub layer an octave down at low level.",
+  "wide-lead": "Warm metallic lead. Fast attack, medium release; shaped pad envelope. Modulated at 5.2 Hz with an uneven pulse for oscillator1.pitch. Wide detuned unison, light reverb, light delay. Second oscillator layer at supporting level.",
+}
+`;

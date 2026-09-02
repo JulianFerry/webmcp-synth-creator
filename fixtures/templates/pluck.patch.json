@@ -1,0 +1,136 @@
+{
+  "version": 3,
+  "metadata": {
+    "name": "Pluck Template",
+    "category": "pluck",
+    "description": "Known-valid pluck base template.",
+    "tags": ["pluck"]
+  },
+  "oscillators": [
+    {
+      "enabled": true,
+      "wavetableId": "sine",
+      "wavetablePosition": 0,
+      "level": 0.75,
+      "transposeSemitones": 0,
+      "fineTuneCents": 0,
+      "unisonVoices": 3,
+      "unisonDetune": 0.1,
+      "stereoSpread": 0.5,
+      "randomPhase": 0.2,
+      "pan": 0.5
+    },
+    {
+      "enabled": false,
+      "wavetableId": "sine",
+      "wavetablePosition": 0,
+      "level": 0,
+      "transposeSemitones": 0,
+      "fineTuneCents": 0,
+      "unisonVoices": 1,
+      "unisonDetune": 0,
+      "stereoSpread": 0,
+      "randomPhase": 0,
+      "pan": 0.5
+    },
+    {
+      "enabled": false,
+      "wavetableId": "sine",
+      "wavetablePosition": 0,
+      "level": 0,
+      "transposeSemitones": 0,
+      "fineTuneCents": 0,
+      "unisonVoices": 1,
+      "unisonDetune": 0,
+      "stereoSpread": 0,
+      "randomPhase": 0,
+      "pan": 0.5
+    }
+  ],
+  "ampEnvelope": {
+    "delaySeconds": 0,
+    "attackSeconds": 0,
+    "holdSeconds": 0,
+    "decaySeconds": 0.18,
+    "sustainLevel": 0,
+    "releaseSeconds": 0.12,
+    "attackCurve": 0,
+    "decayCurve": -0.6,
+    "releaseCurve": 0
+  },
+  "modEnvelope": {
+    "delaySeconds": 0,
+    "attackSeconds": 0,
+    "holdSeconds": 0,
+    "decaySeconds": 0.2,
+    "sustainLevel": 0,
+    "releaseSeconds": 0.1,
+    "attackCurve": 0,
+    "decayCurve": 0,
+    "releaseCurve": 0
+  },
+  "filter": {
+    "enabled": true,
+    "type": "lowpass",
+    "cutoffHz": 8200,
+    "resonance": 0.25,
+    "slope": 12,
+    "drive": 0,
+    "keytrack": 0.5
+  },
+  "lfo1": {
+    "enabled": false,
+    "points": [
+      { "x": 0, "y": 0 },
+      { "x": 1, "y": 1 }
+    ],
+    "rate": { "mode": "sync", "division": "1/4" },
+    "phase": 0,
+    "smooth": false,
+    "smoothing": 0
+  },
+  "modulations": [],
+  "voice": {
+    "polyphony": 8,
+    "legato": false,
+    "glideSeconds": 0,
+    "velocitySensitivity": 0.8,
+    "transposeSemitones": 0
+  },
+  "effects": {
+    "order": ["distortion", "filter", "compressor", "chorus", "delay", "reverb"],
+    "distortion": {
+      "enabled": false,
+      "type": "soft_clip",
+      "drive": 0,
+      "mix": 0.4
+    },
+    "chorus": {
+      "enabled": false,
+      "voices": 2,
+      "rate": 0.2,
+      "depth": 0.3,
+      "feedback": 0,
+      "mix": 0
+    },
+    "delay": {
+      "enabled": true,
+      "mode": "sync",
+      "division": "1/8",
+      "feedback": 0.25,
+      "mix": 0.15
+    },
+    "reverb": {
+      "enabled": true,
+      "mix": 0.18,
+      "decaySeconds": 1.2,
+      "size": 0.35,
+      "predelay": 0,
+      "lowCut": 0.1,
+      "highCut": 0.9
+    }
+  },
+  "wavetableData": {
+    "sine": { "id": "sine", "name": "Sine", "frames": [{ "harmonics": [1] }] }
+  }
+}

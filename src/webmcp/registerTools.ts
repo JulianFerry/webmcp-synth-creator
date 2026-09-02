@@ -3,6 +3,7 @@ import { SessionService } from '../session/SessionService'
 import { createApplyPatchTool } from './applyPatchTool'
 import { createCreatePatchTool } from './createPatchTool'
 import { createCreateVariantTool } from './createVariantTool'
+import { createDescribePatchTool } from './describePatchTool'
 import { createGetPatchTool } from './getPatchTool'
 import { createGetSessionStateTool } from './getSessionStateTool'
 import type { ModelContextGateway, WebMcpToolDefinition } from './ModelContextGateway'
@@ -51,6 +52,7 @@ export async function registerTools(
     createCreatePatchTool(commandService),
     createListPresetsTool(),
     createLoadPresetTool(commandService),
+    createDescribePatchTool(session),
   ]
 
   try {
