@@ -121,16 +121,20 @@ test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vit
   const download = await downloadPromise
   expect(download.suggestedFilename()).toBe('airy-night.vital')
 
-  const correlatedStages = await page.evaluate((correlationId) => {
-    return (
-      window.__WAVETABLE_WORKBENCH_TRACE__?.getEvents()
-        .filter((event) => event.correlationId === correlationId)
-        .map((event) => event.stage) ?? []
-    )
-  }, result.correlationId)
-  expect(correlatedStages).toEqual([
-    'request_received',
-    'patch_committed',
-    'audio_diff_applied',
-  ])
+  // The latency trace is installed behind import.meta.env.DEV, so the global is
+  // absent from a production bundle and these stages are unobservable there.
+  if (process.env.PLAYWRIGHT_PREVIEW !== '1') {
+    const correlatedStages = await page.evaluate((correlationId) => {
+      return (
+        window.__WEBMCP_SYNTH_CREATOR_TRACE__?.getEvents()
+          .filter((event) => event.correlationId === correlationId)
+          .map((event) => event.stage) ?? []
+      )
+    }, result.correlationId)
+    expect(correlatedStages).toEqual([
+      'request_received',
+      'patch_committed',
+      'audio_diff_applied',
+    ])
+  }
 })

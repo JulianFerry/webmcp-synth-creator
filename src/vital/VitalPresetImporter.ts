@@ -69,7 +69,7 @@ export interface VitalImportOptions {
   sourceFilename?: string
 }
 
-const APP_AUTHOR = 'Wavetable Workbench'
+const APP_AUTHOR = 'WebMCP Synth Creator'
 const MAX_HARMONICS = 128
 const HARMONIC_NOISE_FLOOR = 1e-5
 const WAVEFORM_TOLERANCE = 3e-4

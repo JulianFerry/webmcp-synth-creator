@@ -2,8 +2,9 @@ import { defineConfig, devices } from '@playwright/test'
 import { createHash } from 'node:crypto'
 
 const workspacePort = 4100 + Number.parseInt(createHash('sha256').update(process.cwd()).digest('hex').slice(0, 4), 16) % 1000
+const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL
 const port = Number(process.env.PLAYWRIGHT_PORT ?? workspacePort)
-const baseURL = `http://127.0.0.1:${port}`
+const baseURL = externalBaseURL ?? `http://127.0.0.1:${port}`
 const previewBuild = process.env.PLAYWRIGHT_PREVIEW === '1'
 
 export default defineConfig({
@@ -29,9 +30,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: `npm run ${previewBuild ? 'preview' : 'dev'} -- --port ${port} --strictPort`,
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: externalBaseURL
+    ? undefined
+    : {
+        command: `npm run ${previewBuild ? 'preview' : 'dev'} -- --port ${port} --strictPort`,
+        url: baseURL,
+        reuseExistingServer: !process.env.CI,
+      },
 })

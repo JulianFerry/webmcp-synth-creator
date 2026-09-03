@@ -95,7 +95,7 @@ test('desktop keeps oscillators, permanent sidebar, and footer in one workstatio
     window: (window as HTMLElement).clientWidth,
   }))
   expect(spectrogramWidths.canvas).toBeCloseTo(spectrogramWidths.window - 5, 0)
-  await expect(page.locator('.sidebar-title')).toHaveText('WAVETABLE WORKBENCH')
+  await expect(page.locator('.sidebar-title')).toHaveText('SYNTH CREATOR')
   const sidebarHeadings = page.locator('.sidebar-section-heading > span')
   await expect(sidebarHeadings).toHaveText(['Preset', 'A/B compare'])
   for (const heading of await sidebarHeadings.all()) {

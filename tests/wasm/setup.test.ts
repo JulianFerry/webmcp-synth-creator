@@ -12,7 +12,7 @@ function runSetup(...args: string[]) {
     encoding: 'utf8',
     env: {
       ...process.env,
-      EMSDK_DIR: '/tmp/wavetable-workbench-test-emsdk',
+      EMSDK_DIR: '/tmp/webmcp-synth-creator-test-emsdk',
       EMSDK_VERSION: '3.1.64',
     },
   })

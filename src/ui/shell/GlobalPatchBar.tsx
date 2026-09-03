@@ -11,7 +11,7 @@ interface GlobalPatchBarProps {
 export function GlobalPatchBar({ header, history }: GlobalPatchBarProps) {
   return (
     <header aria-label="Global patch toolbar" className="global-patch-bar" role="toolbar">
-      <h1 className="app-brand">Wavetable Workbench</h1>
+      <h1 className="app-brand">Synth Creator</h1>
       <HistoryControls {...history} />
       <PatchHeader {...header} />
     </header>

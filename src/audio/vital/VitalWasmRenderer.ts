@@ -601,9 +601,9 @@ export class VitalWasmRenderer implements SynthRenderer {
 
   private publishNoteTiming(timing: NoteOnTimingMeasurement): void {
     const timingGlobal = globalThis as typeof globalThis & {
-      __WAVETABLE_WORKBENCH_NOTE_TIMING__?: NoteOnTimingMeasurement
+      __WEBMCP_SYNTH_CREATOR_NOTE_TIMING__?: NoteOnTimingMeasurement
     }
-    timingGlobal.__WAVETABLE_WORKBENCH_NOTE_TIMING__ = structuredClone(timing)
+    timingGlobal.__WEBMCP_SYNTH_CREATOR_NOTE_TIMING__ = structuredClone(timing)
   }
 
   private nextRevision(): number {

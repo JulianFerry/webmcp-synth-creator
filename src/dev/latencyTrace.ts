@@ -38,7 +38,7 @@ export class LatencyTrace {
     }
     this.events.push(event)
     this.listeners.forEach((listener) => listener(event))
-    console.debug('[wavetable-workbench:latency]', event)
+    console.debug('[webmcp-synth-creator:latency]', event)
   }
 
   getEvents(): LatencyTraceEvent[] {
@@ -58,7 +58,7 @@ export class LatencyTrace {
 export const latencyTrace = new LatencyTrace(import.meta.env.DEV)
 
 if (import.meta.env.DEV && typeof window !== 'undefined') {
-  Object.defineProperty(window, '__WAVETABLE_WORKBENCH_TRACE__', {
+  Object.defineProperty(window, '__WEBMCP_SYNTH_CREATOR_TRACE__', {
     configurable: true,
     value: latencyTrace,
   })

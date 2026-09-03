@@ -266,7 +266,7 @@ export function helpArticleFor(element: Element): HelpArticle {
     return article('Audition', `${name} preview`, 'Starts or stops a persistent audition pattern so you can hear edits without holding a key.', 'Note plays C3, Chord plays C minor, and Arp cycles through the chord tones.')
   }
   if (closest(element, '.workbench-tab')) {
-    const name = element.textContent?.replace(/^\s*0\d\s*/, '').trim() || 'Workbench'
+    const name = element.textContent?.replace(/^\s*0\d\s*/, '').trim() || 'Synth Creator'
     return article('Workspace navigation', `${name} tab`, `Shows the ${name.toLowerCase()} editing workspace. Switching tabs does not interrupt held notes or preview patterns.`)
   }
   if (closest(element, '[role="slider"].graph-handle')) {
@@ -322,5 +322,5 @@ export function helpArticleFor(element: Element): HelpArticle {
     const name = ariaLabel || element.textContent?.trim().replace(/\s+/g, ' ') || 'Button'
     return article('Action', name, 'Runs the labeled workbench action when activated.')
   }
-  return article('Workbench action', ariaLabel || 'Workbench control', 'Runs this labeled action in the current patch or session.')
+  return article('Synth Creator action', ariaLabel || 'Synth Creator control', 'Runs this labeled action in the current patch or session.')
 }

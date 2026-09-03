@@ -44,7 +44,7 @@ export function decodeVitalLfoPointValue(value: number): number {
   return 1 - value
 }
 
-export function buildVitalLfo(lfo: LfoState, name = 'Wavetable Workbench LFO 1'): VitalLfo {
+export function buildVitalLfo(lfo: LfoState, name = 'WebMCP Synth Creator LFO 1'): VitalLfo {
   return {
     name,
     num_points: lfo.points.length,

@@ -5,14 +5,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 EMSDK_VERSION="${EMSDK_VERSION:-3.1.64}"
-EMSDK_DIR="${EMSDK_DIR:-${XDG_CACHE_HOME:-${HOME}/.cache}/wavetable-workbench/emsdk}"
+EMSDK_DIR="${EMSDK_DIR:-${XDG_CACHE_HOME:-${HOME}/.cache}/webmcp-synth-creator/emsdk}"
 DRY_RUN=false
 
 usage() {
   cat <<'EOF'
 Usage: bash wasm/vital/setup.sh [--dry-run]
 
-Perform first-time setup for Wavetable Workbench:
+Perform first-time setup for WebMCP Synth Creator:
   1. Install missing macOS build packages with Homebrew.
   2. Install and activate the pinned Emscripten SDK.
   3. Install npm dependencies.
@@ -91,7 +91,7 @@ install_macos_build_tools() {
   run brew install "${missing[@]}"
 }
 
-printf 'Setting up Wavetable Workbench from %s\n' "${REPOSITORY_ROOT}"
+printf 'Setting up WebMCP Synth Creator from %s\n' "${REPOSITORY_ROOT}"
 
 if [[ "${DRY_RUN}" == false ]]; then
   require_tool git 'Install the Xcode Command Line Tools with: xcode-select --install'

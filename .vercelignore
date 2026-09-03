@@ -1,0 +1,9 @@
+.git/
+.github/
+.humanlayer/
+node_modules/
+playwright-report/
+prototype/
+test-results/
+tests/
+SPEC.md

@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  VITAL_CACHE_DIR: ${{ github.workspace }}/.vital-cache
+
+jobs:
+  vital-wasm:
+    name: Vital WASM artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      cache-key: ${{ steps.key.outputs.value }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Derive artifact cache key
+        id: key
+        run: |
+          value="vital-wasm-${{ runner.os }}-$(cat \
+            wasm/vital/UPSTREAM.json \
+            wasm/vital/CMakeLists.txt \
+            wasm/vital/bridge.cpp \
+            wasm/vital/build.sh \
+            wasm/vital/fetch-source.sh \
+            wasm/vital/native/CMakeLists.txt \
+            wasm/vital/native/build.sh \
+            wasm/vital/patches/*.patch \
+            scripts/build-vital-wasm.sh | sha256sum | cut -c1-16)"
+          echo "value=${value}" >> "$GITHUB_OUTPUT"
+      - name: Restore artifact cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            wasm/vital/build
+            wasm/vital/native/build
+          key: ${{ steps.key.outputs.value }}
+      - name: Build Vital WASM and the native fidelity reference
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: VITAL_BUILD_NATIVE=1 bash scripts/build-vital-wasm.sh
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vital-wasm
+          path: |
+            wasm/vital/build/
+            wasm/vital/native/build/vital-native-render
+          retention-days: 1
+
+  quality:
+    name: Quality and build
+    runs-on: ubuntu-latest
+    needs: vital-wasm
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Download Vital artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: vital-wasm
+          path: wasm/vital
+      - name: Restore the native reference permission bit
+        run: chmod +x wasm/vital/native/build/vital-native-render
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Type-check
+        run: npm run typecheck
+      - name: Run unit tests
+        run: npm run test:unit
+      - name: Build production bundle
+        run: npm run build
+      - name: Enforce bundle budget
+        run: npm run check:bundle
+
+  e2e:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    needs: vital-wasm
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Download Vital artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: vital-wasm
+          path: wasm/vital
+      - name: Restore the native reference permission bit
+        run: chmod +x wasm/vital/native/build/vital-native-render
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run production preview tests
+        run: npm run test:e2e:preview
+      - name: Run deployment smoke tests
+        run: PLAYWRIGHT_PREVIEW=1 npm run test:e2e:deployment -- --project=chromium
+      - name: Upload failure traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7

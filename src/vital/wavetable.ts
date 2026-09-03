@@ -58,7 +58,7 @@ export function buildVitalWavetable(
   })
 
   return {
-    author: 'Wavetable Workbench',
+    author: 'WebMCP Synth Creator',
     full_normalize: true,
     groups: [
       {

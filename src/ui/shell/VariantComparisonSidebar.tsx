@@ -184,7 +184,7 @@ export function VariantComparisonSidebar({ audition, canCopyBetweenVariants, pat
   useEffect(() => stopVariantPreview, [stopVariantPreview])
 
   return <aside aria-label="Variant comparison" className="workbench-sidebar">
-    <h1 className="sidebar-title"><span>WAVETABLE</span> <strong>WORKBENCH</strong></h1>
+    <h1 className="sidebar-title"><span>SYNTH</span> <strong>CREATOR</strong></h1>
     <VitalTransferControls {...transfer} />
     <section className="variant-comparison">
       <div className="sidebar-section-heading"><span>A/B compare</span><strong>A / B</strong></div>
