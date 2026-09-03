@@ -54,7 +54,10 @@ ensure_host_tools() {
   [[ ${#missing[@]} -eq 0 ]] && return 0
 
   printf 'Installing host build tools: %s\n' "${missing[*]}"
-  python3 -m pip install --quiet --user "${missing[@]}"
+  # Some build images (Vercel) ship a uv-managed Python that refuses plain
+  # --user installs under PEP 668, so fall back to an explicit override.
+  python3 -m pip install --quiet --user "${missing[@]}" ||
+    python3 -m pip install --quiet --user --break-system-packages "${missing[@]}"
   PATH="$(python3 -c 'import site; print(site.USER_BASE)')/bin:${PATH}"
   export PATH
 }
