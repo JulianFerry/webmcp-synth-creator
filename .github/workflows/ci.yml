@@ -74,7 +74,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - name: Download Vital artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: vital-wasm
           path: wasm/vital
@@ -107,7 +107,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - name: Download Vital artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: vital-wasm
           path: wasm/vital
