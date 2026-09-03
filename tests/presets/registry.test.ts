@@ -67,6 +67,27 @@ describe('curated preset and generated wavetable registries', () => {
           amount: -0.68,
           bipolar: false,
         },
+        {
+          id: 'workbench-lfo2-oscillator-1-position',
+          source: 'lfo2',
+          destination: 'oscillator1.wavetablePosition',
+          amount: 0,
+          bipolar: true,
+        },
+        {
+          id: 'workbench-lfo2-oscillator-2-position',
+          source: 'lfo2',
+          destination: 'oscillator2.wavetablePosition',
+          amount: 0,
+          bipolar: true,
+        },
+        {
+          id: 'workbench-lfo2-oscillator-3-position',
+          source: 'lfo2',
+          destination: 'oscillator3.wavetablePosition',
+          amount: 0,
+          bipolar: true,
+        },
       ])
       expect(new Set(routeIds).size).toBe(routeIds.length)
       expect(new Set(routePairs).size).toBe(routePairs.length)
@@ -99,6 +120,7 @@ describe('curated preset and generated wavetable registries', () => {
       'soft-square',
       'warm-saw',
       'hollow',
+      'harsh',
       'airy',
       'glass',
       'metallic',

@@ -1,6 +1,7 @@
 import type { EnvelopeState, FilterState } from '../patch/types'
 import { FILTER_CUTOFF_MAX_HZ, FILTER_CUTOFF_MIN_HZ } from '../patch/limits'
 import { WHOLE_NUMBER_LOGARITHMIC_PARAMETER_SCALE } from './controls/parameterScale'
+import { envelopeCurvePosition } from '../audio/lfo'
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value))
@@ -27,6 +28,11 @@ export function buildWaveformPath(
 
 export interface EnvelopePlotGeometry {
   path: string
+  linePath: string
+  attackPath: string
+  decayPath: string
+  releasePath: string
+  delayEndX: number
   attackEndX: number
   holdEndX: number
   decayEndX: number
@@ -39,24 +45,53 @@ function phaseWidth(seconds: number, maximum: number): number {
   return 4 + 14 * Math.sqrt(clamp(seconds, 0, maximum) / maximum)
 }
 
-export function createEnvelopePlot(envelope: EnvelopeState): EnvelopePlotGeometry {
-  const attackEndX = 4 + phaseWidth(envelope.attackSeconds, 3)
+export function createEnvelopePlot(
+  envelope: EnvelopeState,
+  { includeDelayPhase = true }: { includeDelayPhase?: boolean } = {},
+): EnvelopePlotGeometry {
+  const delayEndX = includeDelayPhase ? 4 + phaseWidth(envelope.delaySeconds, 4) : 4
+  const attackEndX = delayEndX + phaseWidth(envelope.attackSeconds, 3)
   const holdEndX = attackEndX + phaseWidth(envelope.holdSeconds, 4)
   const decayEndX = holdEndX + phaseWidth(envelope.decaySeconds, 5)
   const sustainY = 29 - clamp(envelope.sustainLevel, 0, 1) * 26
   const releaseStartX = Math.min(decayEndX + 14, 76)
   const releaseEndX = Math.min(96, releaseStartX + phaseWidth(envelope.releaseSeconds, 8))
 
+  const curvedPhase = (startX: number, endX: number, startY: number, endY: number, curve: number) =>
+    Array.from({ length: 9 }, (_, index) => {
+      const progress = index / 8
+      const curved = envelopeCurvePosition(progress, curve)
+      return `${index === 0 ? 'M' : 'L'}${point(startX + (endX - startX) * progress)} ${point(startY + (endY - startY) * curved)}`
+    }).join(' ')
+
+  const attackPath = curvedPhase(delayEndX, attackEndX, 29, 3, envelope.attackCurve)
+  const decayPath = curvedPhase(holdEndX, decayEndX, 3, sustainY, envelope.decayCurve)
+  const releasePath = curvedPhase(releaseStartX, releaseEndX, sustainY, 29, envelope.releaseCurve)
+
   return {
     path: [
       'M4 29',
-      `L${point(attackEndX)} 3`,
+      ...(includeDelayPhase ? [`L${point(delayEndX)} 29`] : []),
+      attackPath.replace(/^M/, 'L'),
       `L${point(holdEndX)} 3`,
-      `L${point(decayEndX)} ${point(sustainY)}`,
+      decayPath.replace(/^M/, 'L'),
       `L${point(releaseStartX)} ${point(sustainY)}`,
-      `L${point(releaseEndX)} 29`,
+      releasePath.replace(/^M/, 'L'),
       'L96 29',
     ].join(' '),
+    linePath: [
+      ...(includeDelayPhase ? [`M4 29 L${point(delayEndX)} 29`] : []),
+      attackPath,
+      `M${point(attackEndX)} 3 L${point(holdEndX)} 3`,
+      decayPath,
+      `M${point(decayEndX)} ${point(sustainY)} L${point(releaseStartX)} ${point(sustainY)}`,
+      releasePath,
+      `M${point(releaseEndX)} 29 L96 29`,
+    ].join(' '),
+    attackPath,
+    decayPath,
+    releasePath,
+    delayEndX,
     attackEndX,
     holdEndX,
     decayEndX,

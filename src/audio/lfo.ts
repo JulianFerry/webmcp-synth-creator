@@ -1,5 +1,5 @@
 import type { EnvelopeState, LfoPoint, LfoRate, LfoState } from '../patch/types'
-import type { TempoSyncDivision } from '../patch/limits'
+import { STRAIGHT_LFO_DIVISIONS, type TempoSyncDivision } from '../patch/limits'
 import { vitalPowerScale } from './units'
 
 export const DEFAULT_TEMPO_BPM = 120
@@ -29,7 +29,20 @@ export function syncDivisionSeconds(
 }
 
 export function lfoRateHz(rate: LfoRate, bpm = DEFAULT_TEMPO_BPM): number {
-  return rate.mode === 'free' ? rate.hz : 1 / syncDivisionSeconds(rate.division, bpm)
+  return 1 / syncDivisionSeconds(rate.division, bpm)
+}
+
+/** Maps legacy free-running rates using the workbench's fixed 120 BPM playback tempo. */
+export function nearestStraightLfoDivision(
+  hz: number,
+  bpm = DEFAULT_TEMPO_BPM,
+): (typeof STRAIGHT_LFO_DIVISIONS)[number] {
+  const safeHz = Number.isFinite(hz) && hz > 0 ? hz : 1 / syncDivisionSeconds('1/4', bpm)
+  return STRAIGHT_LFO_DIVISIONS.reduce((nearest, division) => {
+    const distance = Math.abs(Math.log2(safeHz / lfoRateHz({ mode: 'sync', division }, bpm)))
+    const nearestDistance = Math.abs(Math.log2(safeHz / lfoRateHz({ mode: 'sync', division: nearest }, bpm)))
+    return distance < nearestDistance ? division : nearest
+  })
 }
 
 function curvePosition(position: number, power: number, smooth: boolean): number {
@@ -67,13 +80,50 @@ export function evaluateLfo(
   elapsedSeconds: number,
   bpm = DEFAULT_TEMPO_BPM,
 ): number {
-  const phase = wrapPhase(lfo.phase + Math.max(0, elapsedSeconds) * lfoRateHz(lfo.rate, bpm))
+  const phase = lfoPhaseAtTime(lfo, elapsedSeconds, bpm)
   return evaluateLfoPoints(lfo.points, phase, lfo.smooth)
+}
+
+export function lfoPhaseAtTime(
+  lfo: Pick<LfoState, 'phase' | 'rate'>,
+  elapsedSeconds: number,
+  bpm = DEFAULT_TEMPO_BPM,
+): number {
+  return wrapPhase(lfo.phase + Math.max(0, elapsedSeconds) * lfoRateHz(lfo.rate, bpm))
+}
+
+export function evaluateLfoCycle(
+  lfo: Pick<LfoState, 'phase' | 'rate'>,
+  elapsedSeconds: number,
+  bpm = DEFAULT_TEMPO_BPM,
+): { phase: number; visitedStartPhase: number } {
+  const startPhase = wrapPhase(lfo.phase)
+  const unwrappedPhase = startPhase + Math.max(0, elapsedSeconds) * lfoRateHz(lfo.rate, bpm)
+  return {
+    phase: wrapPhase(unwrappedPhase),
+    visitedStartPhase: unwrappedPhase < 1 ? startPhase : 0,
+  }
 }
 
 export interface EnvelopeReleaseState {
   elapsedSeconds: number
   startValue: number
+}
+
+export function envelopeCurvePosition(progress: number, curve: number): number {
+  return vitalPowerScale(progress, curve * 20)
+}
+
+export function envelopeCurveFromMidpoint(midpoint: number): number {
+  const clamped = Math.max(0, Math.min(1, midpoint))
+  const minimum = envelopeCurvePosition(0.5, 1)
+  const maximum = envelopeCurvePosition(0.5, -1)
+  if (clamped <= minimum) return 1
+  if (clamped >= maximum) return -1
+  if (Math.abs(clamped - 0.5) < Number.EPSILON) return 0
+
+  const curve = Math.log((1 - clamped) / clamped) / 10
+  return Math.abs(curve * 20) < 0.01 ? 0 : Math.max(-1, Math.min(1, curve))
 }
 
 export function evaluateEnvelope(
@@ -87,19 +137,23 @@ export function evaluateEnvelope(
     const releaseProgress = (elapsed - release.elapsedSeconds) / envelope.releaseSeconds
     return Math.max(
       0,
-      release.startValue * (1 - vitalPowerScale(releaseProgress, -2)),
+      release.startValue * (1 - envelopeCurvePosition(releaseProgress, envelope.releaseCurve)),
     )
   }
 
-  if (envelope.attackSeconds > 0 && elapsed < envelope.attackSeconds) {
-    return elapsed / envelope.attackSeconds
+  if (elapsed < envelope.delaySeconds) return 0
+  const afterDelay = elapsed - envelope.delaySeconds
+
+  if (envelope.attackSeconds > 0 && afterDelay < envelope.attackSeconds) {
+    return envelopeCurvePosition(afterDelay / envelope.attackSeconds, envelope.attackCurve)
   }
-  const afterAttack = elapsed - envelope.attackSeconds
+  const afterAttack = afterDelay - envelope.attackSeconds
   if (afterAttack < envelope.holdSeconds) return 1
   const afterHold = afterAttack - envelope.holdSeconds
   if (envelope.decaySeconds > 0 && afterHold < envelope.decaySeconds) {
     const decayProgress = afterHold / envelope.decaySeconds
-    return 1 + (envelope.sustainLevel - 1) * vitalPowerScale(decayProgress, -2)
+    return 1 +
+      (envelope.sustainLevel - 1) * envelopeCurvePosition(decayProgress, envelope.decayCurve)
   }
   return envelope.sustainLevel
 }

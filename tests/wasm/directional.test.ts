@@ -102,6 +102,7 @@ describe.skipIf(artifact === null)('Vital WASM directional acoustics', () => {
     base.oscillators[1].unisonVoices = 1
     base.oscillators[1].enabled = false
     base.ampEnvelope = {
+      ...base.ampEnvelope,
       attackSeconds: 0.01,
       holdSeconds: 0,
       decaySeconds: 0.03,
@@ -173,6 +174,7 @@ describe.skipIf(artifact === null)('Vital WASM directional acoustics', () => {
       patch.oscillators[0].randomPhase = 0
       patch.oscillators[1].enabled = false
       patch.ampEnvelope = {
+        ...patch.ampEnvelope,
         attackSeconds: 0.005,
         holdSeconds: 0,
         decaySeconds: 0.02,
@@ -188,6 +190,7 @@ describe.skipIf(artifact === null)('Vital WASM directional acoustics', () => {
     const ungated = createBase()
     const gated = structuredClone(ungated)
     gated.lfo1 = {
+      ...gated.lfo1,
       enabled: true,
       points: [
         { x: 0, y: 0 },
@@ -212,7 +215,13 @@ describe.skipIf(artifact === null)('Vital WASM directional acoustics', () => {
     }
     const dryReverb = createBase()
     const wetReverb = structuredClone(dryReverb)
-    wetReverb.effects.reverb = { enabled: true, mix: 0.55, decaySeconds: 1.8, size: 0.8 }
+    wetReverb.effects.reverb = {
+      ...wetReverb.effects.reverb,
+      enabled: true,
+      mix: 0.55,
+      decaySeconds: 1.8,
+      size: 0.8,
+    }
 
     const [
       ungatedRender,

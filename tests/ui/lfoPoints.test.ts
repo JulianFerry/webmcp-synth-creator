@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deleteLfoPoint, insertLfoPoint, MAX_LFO_POINTS, moveLfoCurvePoint, moveLfoPoint, setLfoCurvePower } from '../../src/ui/editors/lfoPoints'
+import { deleteLfoPoint, insertLfoPoint, MAX_LFO_POINTS, moveLfoCurvePoint, moveLfoPoint, setLfoCurvePower } from '../../src/patch/lfoPoints'
 
 describe('LFO point editing', () => {
   const points = [{ x: 0, y: 0 }, { x: .5, y: 1 }, { x: 1, y: 0 }]
@@ -8,6 +8,11 @@ describe('LFO point editing', () => {
     const moved = moveLfoPoint(points, 1, { x: 2, y: -1 })
     expect(moved[1].x).toBeLessThan(points[2].x)
     expect(moved[1].y).toBe(0)
+  })
+
+  it('pins the first and last point x coordinates', () => {
+    expect(moveLfoPoint(points, 0, { x: 0.5, y: 0.25 })[0]).toEqual({ x: 0, y: 0.25 })
+    expect(moveLfoPoint(points, 2, { x: 0.5, y: 0.75 })[2]).toEqual({ x: 1, y: 0.75 })
   })
 
   it('inserts in x order and preserves the two point minimum', () => {

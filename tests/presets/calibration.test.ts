@@ -33,11 +33,15 @@ describe('browser/Vital calibration ladder', () => {
     })
     expect(patch.oscillators[1]).toMatchObject({ enabled: false, level: 1 })
     expect(patch.ampEnvelope).toEqual({
+      delaySeconds: 0,
       attackSeconds: 0,
       holdSeconds: 0,
       decaySeconds: 0,
       sustainLevel: 1,
       releaseSeconds: 0.005,
+      attackCurve: 0,
+      decayCurve: -0.1,
+      releaseCurve: -0.1,
     })
     expect(patch.filter.enabled).toBe(false)
     expect(patch.lfo1.enabled).toBe(false)
@@ -45,6 +49,9 @@ describe('browser/Vital calibration ladder', () => {
       'oscillator1.level',
       'oscillator2.level',
       'oscillator3.level',
+      'oscillator1.wavetablePosition',
+      'oscillator2.wavetablePosition',
+      'oscillator3.wavetablePosition',
     ])
     expect(patch.effects.delay.enabled).toBe(false)
     expect(patch.effects.reverb.enabled).toBe(false)
@@ -85,6 +92,9 @@ describe('browser/Vital calibration ladder', () => {
       'oscillator1.level',
       'oscillator2.level',
       'oscillator3.level',
+      'oscillator1.wavetablePosition',
+      'oscillator2.wavetablePosition',
+      'oscillator3.wavetablePosition',
     ])
     expect(CALIBRATION_G_PATCH.oscillators[1]).toMatchObject({
       enabled: true,

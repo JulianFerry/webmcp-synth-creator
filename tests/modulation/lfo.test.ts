@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   evaluateEnvelope,
   evaluateLfo,
+  evaluateLfoCycle,
   evaluateLfoPoints,
   lfoRateHz,
   syncDivisionSeconds,
@@ -80,10 +81,9 @@ describe('point LFO evaluation', () => {
     expect(syncDivisionSeconds(division, 120)).toBeCloseTo(expected)
   })
 
-  it('maps free rates, wraps phase, and evaluates phase offsets', () => {
+  it('maps synchronized rates, wraps phase, and evaluates phase offsets', () => {
     expect(lfoRateHz({ mode: 'sync', division: '1/8' }, 120)).toBe(4)
     expect(lfoRateHz({ mode: 'sync', division: '1/8T' }, 120)).toBe(6)
-    expect(lfoRateHz({ mode: 'free', hz: 3.25 }, 120)).toBe(3.25)
     expect(wrapPhase(-0.25)).toBe(0.75)
     expect(wrapPhase(2.25)).toBe(0.25)
 
@@ -93,21 +93,39 @@ describe('point LFO evaluation', () => {
         { x: 0, y: 0 },
         { x: 1, y: 1 },
       ],
-      rate: { mode: 'free', hz: 1 },
+      rate: { mode: 'sync', division: '1/2' },
       phase: 0.75,
       smooth: false,
+      smoothing: 1.5 / 14,
+      target: 'position',
+      scope: 'all',
+      depth: 0.5,
     }
     expect(evaluateLfo(lfo, 0.5)).toBeCloseTo(0.25)
+  })
+
+  it('tracks only the visited portion of the current cycle from configured phase', () => {
+    const configured = { phase: 0.25, rate: { mode: 'sync' as const, division: '1/2' as const } }
+    const beforeWrap = evaluateLfoCycle(configured, 0.2)
+    expect(beforeWrap.phase).toBeCloseTo(0.45)
+    expect(beforeWrap.visitedStartPhase).toBe(0.25)
+    const afterWrap = evaluateLfoCycle(configured, 0.8)
+    expect(afterWrap.phase).toBeCloseTo(0.05)
+    expect(afterWrap.visitedStartPhase).toBe(0)
   })
 })
 
 describe('modulation envelope evaluation', () => {
   const envelope: EnvelopeState = {
+    delaySeconds: 0,
     attackSeconds: 0.2,
     holdSeconds: 0.1,
     decaySeconds: 0.4,
     sustainLevel: 0.25,
     releaseSeconds: 0.5,
+    attackCurve: 0,
+    decayCurve: -0.1,
+    releaseCurve: -0.1,
   }
 
   it('evaluates attack, hold, decay, sustain, and release phases', () => {

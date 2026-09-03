@@ -7,12 +7,12 @@ interface ThemeColorValue {
 
 export const PATCH_COLORS = {
   A: { hex: '#27b3c2', rgb: [39, 179, 194] },
-  B: { hex: '#7e5ac7', rgb: [126, 90, 199] },
+  B: { hex: '#8261c8', rgb: [130, 97, 200] },
 } as const satisfies Record<PatchVariant, { hex: string; rgb: readonly [number, number, number] }>
 
 export const SIDEBAR_PATCH_COLORS = {
   A: { hex: '#27b3c2', rgb: [39, 179, 194] },
-  B: { hex: '#7e5ac7', rgb: [126, 90, 199] },
+  B: { hex: '#8261c8', rgb: [130, 97, 200] },
 } as const satisfies Record<PatchVariant, { hex: string; rgb: readonly [number, number, number] }>
 
 export function themedGraphColor(element: Element): ThemeColorValue | null {

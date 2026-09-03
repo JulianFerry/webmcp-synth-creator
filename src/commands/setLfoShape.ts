@@ -6,12 +6,14 @@ export function createSetLfoShapeTransaction(
   currentPatch: PatchState,
 ): ApplyPatchCommand {
   const command = parseSetLfoShapeCommand(commandInput)
+  const lfoKey = `lfo${command.lfo ?? 1}` as const
+  const currentLfo = currentPatch[lfoKey]
   const changes: ApplyPatchCommand['changes'] = [
-    { path: 'lfo1.points', value: structuredClone(command.points) },
+    { path: `${lfoKey}.points`, value: structuredClone(command.points) },
   ]
 
-  if (command.smooth !== undefined && command.smooth !== currentPatch.lfo1.smooth) {
-    changes.push({ path: 'lfo1.smooth', value: command.smooth })
+  if (command.smooth !== undefined && command.smooth !== currentLfo.smooth) {
+    changes.push({ path: `${lfoKey}.smooth`, value: command.smooth })
   }
 
   return {

@@ -4,13 +4,15 @@ import { applyPatchChanges } from '../commands/applyPatch'
 import { diffSupportedPaths, type PatchDiff } from '../commands/diff'
 import type { HistoryEntry } from '../commands/history'
 import { parseApplyPatchCommand } from '../patch/schemas'
-import type { ApplyPatchCommand, PatchState } from '../patch/types'
+import type { PatchState } from '../patch/types'
+import type { Change } from '../ops/types'
 import type { VariantId } from './SessionService'
 
 export interface CreateVariantCommand {
   type: 'create_variant'
   reason: string
-  changes: ApplyPatchCommand['changes']
+  comparisonAxis: string
+  changes: Change[]
   replaceExisting?: boolean
 }
 
@@ -24,6 +26,7 @@ export interface VariantCreationTransaction {
   changed: PatchDiff
   historyEntry: HistoryEntry
   replaceExisting: boolean
+  comparisonAxis: string
 }
 
 export function createVariantTransaction(
@@ -31,11 +34,12 @@ export function createVariantTransaction(
   commandInput: CreateVariantCommand,
 ): VariantCreationTransaction {
   const replaceExisting = z.boolean().optional().parse(commandInput.replaceExisting) ?? false
+  const comparisonAxis = z.string().trim().min(1).max(200).parse(commandInput.comparisonAxis)
   const command = parseApplyPatchCommand({
     type: 'apply_patch',
     reason: commandInput.reason,
     changes: commandInput.changes,
-  })
+  }, currentPatch)
   const patch = applyPatchChanges(currentPatch, command)
   const changed = diffSupportedPaths(
     currentPatch,
@@ -53,6 +57,7 @@ export function createVariantTransaction(
       reason: command.reason,
     },
     replaceExisting,
+    comparisonAxis,
   }
 }
 

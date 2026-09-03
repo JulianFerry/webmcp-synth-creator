@@ -12,32 +12,114 @@ consume the same adapter-generated Vital document.
 
 ## Prerequisites
 
-- Node.js 22, with npm (the deployment and CI version is pinned in `.nvmrc`)
-- emsdk `3.1.64`, CMake `3.22` or newer, Ninja, Git, and gzip to build the ignored Vital WASM artifact
-- Chrome with WebMCP testing enabled, plus the [Model Context Tool Inspector][inspector], for the WebMCP workflow
-- Desktop Vital 1.0.7 only for manual export and fidelity checks
+Required before running the setup script:
 
-## Install and run
+- macOS or Linux with Bash
+- Node.js `^20.19.0` or `>=22.12.0`, with npm (CI and Vercel pin the version in `.nvmrc`)
+- Git and gzip
+- Internet access to clone emsdk and the pinned Vital source
+- On macOS, the Xcode Command Line Tools (`xcode-select --install`)
+- On macOS, [Homebrew](https://brew.sh/) if CMake, Ninja, or Python 3 is not already installed
 
-From the repository root:
+The setup script installs and activates emsdk `3.1.64`. It also installs missing
+CMake, Ninja, and Python 3 packages through Homebrew on macOS. On Linux, install
+CMake `3.22` or newer, Ninja, and Python 3 with the system package manager before
+running setup.
+
+Chrome and desktop Vital are not required to compile the project. They are used
+for these optional workflows:
+
+- Chrome with WebMCP testing enabled and the [Model Context Tool Inspector][inspector] for WebMCP
+- Desktop Vital 1.0.7 for manual export, listening, and fidelity checks
+
+## First-time setup
+
+Clone the repository, enter it, and run the automated setup from the repository
+root:
+
+```bash
+git clone https://github.com/JulianFerry/webmcp-synth-creator.git
+cd webmcp-synth-creator
+npm run setup:first-run
+```
+
+`setup:first-run` performs the complete reproducible build bootstrap:
+
+1. Verifies the supported Node.js version and required host tools.
+2. Installs missing CMake, Ninja, and Python 3 packages with Homebrew on macOS.
+3. Clones emsdk into the user cache, then installs and activates emsdk `3.1.64`.
+4. Runs `npm ci` from `package-lock.json`.
+5. Fetches `mtytel/vital` at commit `636ca0ef517a4db087a6a08a6a8a5e704e21f836`.
+6. Applies the checked-in patches from `wasm/vital/patches/`.
+7. Builds `wasm/vital/build/vital.mjs` and `wasm/vital/build/vital.wasm`.
+8. Runs `npm run build` to verify and create the production distribution.
+
+The emsdk checkout defaults to:
+
+```text
+${XDG_CACHE_HOME:-$HOME/.cache}/webmcp-synth-creator/emsdk
+```
+
+Use another location by setting `EMSDK_DIR`:
+
+```bash
+EMSDK_DIR="$HOME/tools/emsdk" npm run setup:first-run
+```
+
+The SDK version can be overridden for toolchain investigation, but normal builds
+should use the pinned default:
+
+```bash
+EMSDK_VERSION=3.1.64 npm run setup:first-run
+```
+
+Preview every command without downloading, installing, or building anything:
+
+```bash
+npm run setup:first-run -- --dry-run
+```
+
+The Vital checkout and generated build artifacts are deliberately ignored by
+Git. Every fresh clone must run first-time setup or the equivalent manual steps.
+Rerunning the script is safe: emsdk and the Vital checkout are reused, while npm
+dependencies and the Vital WASM build are recreated deterministically.
+
+### Manual setup
+
+Use these steps instead of `setup:first-run` when managing emsdk yourself:
 
 ```bash
 npm ci
-source /path/to/emsdk/emsdk_env.sh
+
+git clone https://github.com/emscripten-core/emsdk.git "$HOME/tools/emsdk"
+"$HOME/tools/emsdk/emsdk" install 3.1.64
+"$HOME/tools/emsdk/emsdk" activate 3.1.64
+source "$HOME/tools/emsdk/emsdk_env.sh"
+
 bash wasm/vital/fetch-source.sh
 bash wasm/vital/build.sh
+npm run build
+```
+
+If an emsdk checkout already exists, omit the clone command and use its path for
+the install, activate, and `source` commands. More Vital-specific and native
+reference details are in [`wasm/vital/README.md`](wasm/vital/README.md).
+
+## Development
+
+After first-time setup, start Vite from the repository root:
+
+```bash
 npm run dev -- --strictPort
 ```
 
-Install and activate emsdk `3.1.64` before sourcing `emsdk_env.sh`; exact commands
-and native-reference details are in [`wasm/vital/README.md`](wasm/vital/README.md).
-The fetched checkout and generated artifacts are intentionally ignored, so a
-fresh clone must run the two Vital build commands before starting the app or
-creating a production distribution. To bootstrap the toolchain automatically
-instead, run `bash scripts/build-vital-wasm.sh`, which is what CI and Vercel use.
+Open the URL printed by Vite. The checked-in development configuration uses
+`http://127.0.0.1:4173`. `--strictPort` makes startup fail instead of silently
+selecting another port when `4173` is occupied.
 
-Open the URL printed by Vite. The checked-in development configuration currently
-uses `http://127.0.0.1:4173`.
+The generated WASM artifacts must remain under `wasm/vital/build/` for browser
+audio. Vite development can start without them, but Vital playback is unavailable
+and the console reports that the module is missing.
 
 Set a safe output level, then click **Hold C2** (MIDI note 48) to start audio. Browser autoplay
 rules require this direct user gesture; a WebMCP tool call cannot start audio.
@@ -199,31 +281,97 @@ The exporter clones `fixtures/vital/init.vital`; dependency installation does
 not create or replace it. See [`fixtures/vital/README.md`](fixtures/vital/README.md)
 for fixture evidence, provenance limitations, and compatibility records.
 
-## Checks
+## Build
 
-Install Playwright's Chromium binary once if needed, then run the checked-in
-scripts:
+After first-time setup, create a production distribution with:
 
 ```bash
-npx playwright install chromium
-bash wasm/vital/fetch-source.sh
-bash wasm/vital/build.sh
-bash wasm/vital/native/build.sh
-npm run test:unit
-npm run test:e2e
-npm run test:e2e:preview
-npm run lint
-npm run typecheck
 npm run build
 ```
 
-The normal end-to-end suite starts its own Vite development server.
-`npm run test:e2e:preview` first creates a clean `dist/`, then runs the production
-preview coverage for gesture-gated playback, quick previews, WebMCP edits,
-import/export, effects, and responsive layouts. `npm run build` type-checks the project
-and writes the production bundle to `dist/`. A production build fails if the Vital
-module is absent and distributes `vital.mjs`, `vital.wasm`,
-`fixtures/vital/init.vital`, `LICENSE`, and `NOTICE`.
+The build first runs TypeScript with `--noEmit`, then creates the optimized Vite
+bundle in `dist/`. It intentionally fails when either generated Vital artifact is
+missing. A successful distribution contains:
+
+- The application HTML, JavaScript, CSS, and AudioWorklet assets
+- `dist/wasm/vital/build/vital.mjs`
+- `dist/wasm/vital/build/vital.wasm`
+- `dist/fixtures/vital/init.vital`
+- `dist/LICENSE` and `dist/NOTICE`
+
+Run the production output locally with:
+
+```bash
+npm run preview
+```
+
+The preview server uses `http://127.0.0.1:4173` by default. Build output under
+`dist/` is generated and ignored by Git.
+
+### Rebuild Vital WASM
+
+Rebuild the engine after changing `wasm/vital/bridge.cpp`, CMake configuration,
+or a patch under `wasm/vital/patches/`. Activate the emsdk environment in the
+current shell first:
+
+```bash
+source "${XDG_CACHE_HOME:-$HOME/.cache}/webmcp-synth-creator/emsdk/emsdk_env.sh"
+bash wasm/vital/fetch-source.sh
+bash wasm/vital/build.sh
+npm run build
+```
+
+`fetch-source.sh` verifies the exact pinned commit and applies each checked-in
+patch idempotently. `build.sh` performs a clean release build and reports raw and
+gzip-compressed artifact sizes.
+
+### Build the native fidelity reference
+
+The native renderer is required only for the same-source WASM fidelity suite:
+
+```bash
+source "${XDG_CACHE_HOME:-$HOME/.cache}/webmcp-synth-creator/emsdk/emsdk_env.sh"
+bash wasm/vital/fetch-source.sh
+bash wasm/vital/native/build.sh
+```
+
+On Apple Silicon this native target builds for `x86_64`, so Rosetta 2 is required.
+The output is `wasm/vital/native/build/vital-native-render` and is ignored by Git.
+
+## Checks
+
+First-time setup already runs type checking and the production build. To run the
+complete local verification matrix, install Playwright's Chromium binary once and
+then execute:
+
+```bash
+npx playwright install chromium
+npm run typecheck
+npm run lint
+npm run test:unit
+npm run test:e2e
+npm run test:e2e:preview
+```
+
+`npm run test:unit` includes the WASM and native fidelity tests when their ignored
+artifacts are present; artifact-dependent suites are skipped when they are absent.
+`npm run test:e2e` starts its own Vite development server. The preview suite runs
+a fresh production build before exercising gesture-gated playback, WebMCP,
+import/export, effects, and responsive layouts against `vite preview`.
+
+Individual commands:
+
+| Command | Purpose |
+|---|---|
+| `npm run setup:first-run` | Install dependencies, fetch Vital, build WASM, and verify production output |
+| `npm run dev -- --strictPort` | Start the development server on the configured port |
+| `npm run build` | Type-check and create `dist/` |
+| `npm run preview` | Serve the existing production bundle locally |
+| `npm run typecheck` | Run TypeScript without emitting files |
+| `npm run lint` | Run ESLint with zero warnings allowed |
+| `npm run test:unit` | Run Vitest, including available WASM/native suites |
+| `npm run test:e2e` | Run all Playwright tests against the development server |
+| `npm run test:e2e:preview` | Build and run the selected production-preview Playwright tests |
 
 ## License and source
 
@@ -238,9 +386,15 @@ pinned fetch/build commands aligned.
 
 ## Troubleshooting
 
-- **The server does not start:** use a supported Node.js version, rerun `npm ci`, and inspect Vite's terminal output. With `--strictPort`, a busy configured port is an error; without it, use the alternate URL Vite prints.
-- **Vital WASM is unavailable:** activate emsdk `3.1.64`, confirm CMake and Ninja are on `PATH`, then rerun `bash wasm/vital/fetch-source.sh` and `bash wasm/vital/build.sh`.
+- **Node.js is unsupported:** install Node.js `^20.19.0` or `>=22.12.0`, verify `node --version`, and rerun `npm run setup:first-run`.
+- **Homebrew is missing:** install it from [brew.sh](https://brew.sh/) or install CMake, Ninja, and Python 3 manually before rerunning setup.
+- **The emsdk directory is invalid:** set `EMSDK_DIR` to an empty path or an existing emsdk Git checkout. The script refuses to overwrite an unrelated directory.
+- **The Vital checkout is at the wrong commit:** remove the ignored `vendor/vital/` checkout and rerun `npm run setup:first-run`; the fetch script checks commit `636ca0e` before building.
+- **`emcmake` is unavailable during a manual build:** source the active SDK's `emsdk_env.sh` in the same terminal, then rerun `bash wasm/vital/build.sh`.
+- **`npm run build` reports a missing `vital.mjs` or `vital.wasm`:** run `npm run setup:first-run`, or activate emsdk and run the manual WASM rebuild commands. The production check is intentional; generated binaries are not stored in Git.
+- **The server does not start:** rerun `npm ci` and inspect Vite's terminal output. With `--strictPort`, stop the process using port `4173` before retrying.
 - **Audio is suspended or silent:** click **Hold C2** directly, check the tab mute state and output device, then reload and try the gesture again.
+- **Playwright cannot find Chromium:** run `npx playwright install chromium`; on Linux, the environment may also need `npx playwright install-deps chromium`.
 - **WebMCP is unavailable or no tools appear:** confirm the testing flag is enabled, relaunch Chrome, keep the workbench as the active top-level tab, reload it, and reopen the Inspector. Browser flags and extension UI can change, so consult the current [Chrome WebMCP documentation][webmcp-docs] if the named controls have moved.
 - **Vital export is disabled:** confirm `fixtures/vital/init.vital` exists and the app reports **Vital fixture ready**; check the browser console and network panel for fixture loading errors.
 

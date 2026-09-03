@@ -3,97 +3,24 @@ import { z, type ZodTypeAny } from 'zod'
 import {
   DELAY_TIME_MAX_SECONDS,
   DELAY_TIME_MIN_SECONDS,
+  ENVELOPE_DELAY_MAX_SECONDS,
   ENVELOPE_HOLD_MAX_SECONDS,
   FILTER_CUTOFF_MAX_HZ,
   FILTER_CUTOFF_MIN_HZ,
   REVERB_DECAY_MAX_SECONDS,
   REVERB_DECAY_MIN_SECONDS,
+  REVERB_PREDELAY_MAX_SECONDS,
   TEMPO_SYNC_DIVISIONS,
 } from './limits'
 import { EFFECT_IDS } from './effects'
 import type { PatchState } from './types'
 
-export const SUPPORTED_PATCH_PATHS = [
-  'metadata.name',
-  'metadata.category',
-  'metadata.description',
-  'metadata.tags',
-  'oscillators.0.enabled',
-  'oscillators.0.wavetableId',
-  'oscillators.0.wavetablePosition',
-  'oscillators.0.level',
-  'oscillators.0.transposeSemitones',
-  'oscillators.0.fineTuneCents',
-  'oscillators.0.unisonVoices',
-  'oscillators.0.unisonDetune',
-  'oscillators.0.stereoSpread',
-  'oscillators.0.randomPhase',
-  'oscillators.1.enabled',
-  'oscillators.1.wavetableId',
-  'oscillators.1.wavetablePosition',
-  'oscillators.1.level',
-  'oscillators.1.transposeSemitones',
-  'oscillators.1.fineTuneCents',
-  'oscillators.1.unisonVoices',
-  'oscillators.1.unisonDetune',
-  'oscillators.1.stereoSpread',
-  'oscillators.1.randomPhase',
-  'oscillators.2.enabled',
-  'oscillators.2.wavetableId',
-  'oscillators.2.wavetablePosition',
-  'oscillators.2.level',
-  'oscillators.2.transposeSemitones',
-  'oscillators.2.fineTuneCents',
-  'oscillators.2.unisonVoices',
-  'oscillators.2.unisonDetune',
-  'oscillators.2.stereoSpread',
-  'oscillators.2.randomPhase',
-  'ampEnvelope.attackSeconds',
-  'ampEnvelope.holdSeconds',
-  'ampEnvelope.decaySeconds',
-  'ampEnvelope.sustainLevel',
-  'ampEnvelope.releaseSeconds',
-  'modEnvelope.attackSeconds',
-  'modEnvelope.holdSeconds',
-  'modEnvelope.decaySeconds',
-  'modEnvelope.sustainLevel',
-  'modEnvelope.releaseSeconds',
-  'filter.enabled',
-  'filter.type',
-  'filter.cutoffHz',
-  'filter.resonance',
-  'lfo1.enabled',
-  'lfo1.points',
-  'lfo1.rate',
-  'lfo1.phase',
-  'lfo1.smooth',
-  'voice.polyphony',
-  'voice.legato',
-  'voice.glideSeconds',
-  'voice.velocitySensitivity',
-  'effects.order',
-  'effects.delay.enabled',
-  'effects.delay.mode',
-  'effects.delay.division',
-  'effects.delay.timeSeconds',
-  'effects.delay.feedback',
-  'effects.delay.mix',
-  'effects.reverb.enabled',
-  'effects.reverb.mix',
-  'effects.reverb.decaySeconds',
-  'effects.reverb.size',
-] as const
-
-export type SupportedPatchPath = (typeof SUPPORTED_PATCH_PATHS)[number]
-
-export const AGENT_EDITABLE_PATCH_PATHS = SUPPORTED_PATCH_PATHS
-
-export function isAgentEditablePatchPath(path: unknown): path is SupportedPatchPath {
-  return (
-    typeof path === 'string' &&
-    (AGENT_EDITABLE_PATCH_PATHS as readonly string[]).includes(path)
-  )
-}
+export const FILTER_TYPES = ['lowpass', 'highpass', 'bandpass', 'notch'] as const
+export const FILTER_SLOPES = [12, 24] as const
+export const DISTORTION_TYPES = ['soft_clip', 'hard_clip', 'sine_fold', 'bit_crush'] as const
+export const COMPRESSOR_BANDS = ['multiband', 'low', 'high'] as const
+export const LFO_TARGETS = ['level', 'position', 'pitch', 'cutoff'] as const
+export const LFO_SCOPES = ['all', 1, 2, 3] as const
 
 const unitInterval = z.number().finite().min(0).max(1)
 const seconds = (maximum: number) => z.number().finite().min(0).max(maximum)
@@ -116,15 +43,10 @@ const lfoPoint = z
     power: z.number().finite().min(-1).max(1).optional(),
   })
   .strict()
-const lfoRate = z.discriminatedUnion('mode', [
-  z
-    .object({
-      mode: z.literal('sync'),
-      division: z.enum(TEMPO_SYNC_DIVISIONS),
-    })
-    .strict(),
-  z.object({ mode: z.literal('free'), hz: z.number().finite().min(0.01).max(40) }).strict(),
-])
+const lfoRate = z.object({
+  mode: z.literal('sync'),
+  division: z.enum(TEMPO_SYNC_DIVISIONS),
+}).strict()
 const lfoPoints = z
   .array(lfoPoint)
   .min(2)
@@ -140,84 +62,147 @@ const lfoPoints = z
       }
     }
   })
-const pathValueSchemas: Record<SupportedPatchPath, ZodTypeAny> = {
-  'metadata.name': z.string().trim().min(1).max(80),
-  'metadata.category': patchCategory,
-  'metadata.description': z.string().trim().min(1).max(500),
-  'metadata.tags': z.array(z.string().trim().min(1).max(32)).max(12),
-  'oscillators.0.enabled': z.boolean(),
-  'oscillators.0.wavetableId': z.string().trim().min(1).max(64),
-  'oscillators.0.wavetablePosition': unitInterval,
-  'oscillators.0.level': unitInterval,
-  'oscillators.0.transposeSemitones': z.number().int().min(-24).max(24),
-  'oscillators.0.fineTuneCents': z.number().finite().min(-100).max(100),
-  'oscillators.0.unisonVoices': z.number().int().min(1).max(8),
-  'oscillators.0.unisonDetune': unitInterval,
-  'oscillators.0.stereoSpread': unitInterval,
-  'oscillators.0.randomPhase': unitInterval,
-  'oscillators.1.enabled': z.boolean(),
-  'oscillators.1.wavetableId': z.string().trim().min(1).max(64),
-  'oscillators.1.wavetablePosition': unitInterval,
-  'oscillators.1.level': unitInterval,
-  'oscillators.1.transposeSemitones': z.number().int().min(-24).max(24),
-  'oscillators.1.fineTuneCents': z.number().finite().min(-100).max(100),
-  'oscillators.1.unisonVoices': z.number().int().min(1).max(8),
-  'oscillators.1.unisonDetune': unitInterval,
-  'oscillators.1.stereoSpread': unitInterval,
-  'oscillators.1.randomPhase': unitInterval,
-  'oscillators.2.enabled': z.boolean(),
-  'oscillators.2.wavetableId': z.string().trim().min(1).max(64),
-  'oscillators.2.wavetablePosition': unitInterval,
-  'oscillators.2.level': unitInterval,
-  'oscillators.2.transposeSemitones': z.number().int().min(-24).max(24),
-  'oscillators.2.fineTuneCents': z.number().finite().min(-100).max(100),
-  'oscillators.2.unisonVoices': z.number().int().min(1).max(8),
-  'oscillators.2.unisonDetune': unitInterval,
-  'oscillators.2.stereoSpread': unitInterval,
-  'oscillators.2.randomPhase': unitInterval,
-  'ampEnvelope.attackSeconds': seconds(10),
-  'ampEnvelope.holdSeconds': seconds(ENVELOPE_HOLD_MAX_SECONDS),
-  'ampEnvelope.decaySeconds': seconds(10),
-  'ampEnvelope.sustainLevel': unitInterval,
-  'ampEnvelope.releaseSeconds': seconds(20),
-  'modEnvelope.attackSeconds': seconds(10),
-  'modEnvelope.holdSeconds': seconds(ENVELOPE_HOLD_MAX_SECONDS),
-  'modEnvelope.decaySeconds': seconds(10),
-  'modEnvelope.sustainLevel': unitInterval,
-  'modEnvelope.releaseSeconds': seconds(20),
-  'filter.enabled': z.boolean(),
-  'filter.type': z.enum(['lowpass', 'highpass', 'bandpass', 'notch']),
-  'filter.cutoffHz': z
-    .number()
-    .int()
-    .finite()
-    .min(FILTER_CUTOFF_MIN_HZ)
-    .max(FILTER_CUTOFF_MAX_HZ),
-  'filter.resonance': unitInterval,
-  'lfo1.enabled': z.boolean(),
-  'lfo1.points': lfoPoints,
-  'lfo1.rate': lfoRate,
-  'lfo1.phase': unitInterval,
-  'lfo1.smooth': z.boolean(),
-  'voice.polyphony': z.number().int().min(1).max(16),
-  'voice.legato': z.boolean(),
-  'voice.glideSeconds': seconds(5),
-  'voice.velocitySensitivity': unitInterval,
-  'effects.order': z.array(z.enum(EFFECT_IDS)).length(EFFECT_IDS.length).refine((order) => new Set(order).size === EFFECT_IDS.length, 'Effect order must contain each effect exactly once'),
-  'effects.delay.enabled': z.boolean(),
-  'effects.delay.mode': z.enum(['sync', 'free']),
-  'effects.delay.division': z.enum(TEMPO_SYNC_DIVISIONS),
-  'effects.delay.timeSeconds': secondsRange(DELAY_TIME_MIN_SECONDS, DELAY_TIME_MAX_SECONDS),
-  'effects.delay.feedback': unitInterval,
-  'effects.delay.mix': unitInterval,
-  'effects.reverb.enabled': z.boolean(),
-  'effects.reverb.mix': unitInterval,
-  'effects.reverb.decaySeconds': secondsRange(
-    REVERB_DECAY_MIN_SECONDS,
-    REVERB_DECAY_MAX_SECONDS,
-  ),
-  'effects.reverb.size': unitInterval,
+export interface PatchPathMetadata {
+  validator: ZodTypeAny
+  unit: string
 }
+
+const metadata = (validator: ZodTypeAny, unit: string): PatchPathMetadata => ({ validator, unit })
+
+export const PATCH_PATH_REGISTRY = {
+  'metadata.name': metadata(z.string().trim().min(1).max(80), 'string'),
+  'metadata.category': metadata(patchCategory, 'enum'),
+  'metadata.description': metadata(z.string().trim().min(1).max(500), 'string'),
+  'metadata.tags': metadata(z.array(z.string().trim().min(1).max(32)).max(12), 'string list'),
+  'oscillators.0.enabled': metadata(z.boolean(), 'boolean'),
+  'oscillators.0.wavetableId': metadata(z.string().trim().min(1).max(64), 'wavetable id'),
+  'oscillators.0.wavetablePosition': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.0.level': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.0.transposeSemitones': metadata(z.number().int().min(-24).max(24), 'semitones'),
+  'oscillators.0.fineTuneCents': metadata(z.number().finite().min(-100).max(100), 'cents'),
+  'oscillators.0.unisonVoices': metadata(z.number().int().min(1).max(8), 'voice count'),
+  'oscillators.0.unisonDetune': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.0.stereoSpread': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.0.randomPhase': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.0.pan': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.1.enabled': metadata(z.boolean(), 'boolean'),
+  'oscillators.1.wavetableId': metadata(z.string().trim().min(1).max(64), 'wavetable id'),
+  'oscillators.1.wavetablePosition': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.1.level': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.1.transposeSemitones': metadata(z.number().int().min(-24).max(24), 'semitones'),
+  'oscillators.1.fineTuneCents': metadata(z.number().finite().min(-100).max(100), 'cents'),
+  'oscillators.1.unisonVoices': metadata(z.number().int().min(1).max(8), 'voice count'),
+  'oscillators.1.unisonDetune': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.1.stereoSpread': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.1.randomPhase': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.1.pan': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.2.enabled': metadata(z.boolean(), 'boolean'),
+  'oscillators.2.wavetableId': metadata(z.string().trim().min(1).max(64), 'wavetable id'),
+  'oscillators.2.wavetablePosition': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.2.level': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.2.transposeSemitones': metadata(z.number().int().min(-24).max(24), 'semitones'),
+  'oscillators.2.fineTuneCents': metadata(z.number().finite().min(-100).max(100), 'cents'),
+  'oscillators.2.unisonVoices': metadata(z.number().int().min(1).max(8), 'voice count'),
+  'oscillators.2.unisonDetune': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.2.stereoSpread': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.2.randomPhase': metadata(unitInterval, 'normalized 0..1'),
+  'oscillators.2.pan': metadata(unitInterval, 'normalized 0..1'),
+  'ampEnvelope.delaySeconds': metadata(seconds(ENVELOPE_DELAY_MAX_SECONDS), 'seconds'),
+  'ampEnvelope.attackSeconds': metadata(seconds(10), 'seconds'),
+  'ampEnvelope.holdSeconds': metadata(seconds(ENVELOPE_HOLD_MAX_SECONDS), 'seconds'),
+  'ampEnvelope.decaySeconds': metadata(seconds(10), 'seconds'),
+  'ampEnvelope.sustainLevel': metadata(unitInterval, 'normalized 0..1'),
+  'ampEnvelope.releaseSeconds': metadata(seconds(20), 'seconds'),
+  'ampEnvelope.attackCurve': metadata(z.number().finite().min(-1).max(1), 'curve -1..1'),
+  'ampEnvelope.decayCurve': metadata(z.number().finite().min(-1).max(1), 'curve -1..1'),
+  'ampEnvelope.releaseCurve': metadata(z.number().finite().min(-1).max(1), 'curve -1..1'),
+  'modEnvelope.delaySeconds': metadata(seconds(ENVELOPE_DELAY_MAX_SECONDS), 'seconds'),
+  'modEnvelope.attackSeconds': metadata(seconds(10), 'seconds'),
+  'modEnvelope.holdSeconds': metadata(seconds(ENVELOPE_HOLD_MAX_SECONDS), 'seconds'),
+  'modEnvelope.decaySeconds': metadata(seconds(10), 'seconds'),
+  'modEnvelope.sustainLevel': metadata(unitInterval, 'normalized 0..1'),
+  'modEnvelope.releaseSeconds': metadata(seconds(20), 'seconds'),
+  'modEnvelope.attackCurve': metadata(z.number().finite().min(-1).max(1), 'curve -1..1'),
+  'modEnvelope.decayCurve': metadata(z.number().finite().min(-1).max(1), 'curve -1..1'),
+  'modEnvelope.releaseCurve': metadata(z.number().finite().min(-1).max(1), 'curve -1..1'),
+  'filter.enabled': metadata(z.boolean(), 'boolean'),
+  'filter.type': metadata(z.enum(FILTER_TYPES), 'enum'),
+  'filter.cutoffHz': metadata(z.number().int().finite().min(FILTER_CUTOFF_MIN_HZ).max(FILTER_CUTOFF_MAX_HZ), 'hertz'),
+  'filter.resonance': metadata(unitInterval, 'normalized 0..1'),
+  'filter.slope': metadata(z.union(FILTER_SLOPES.map((slope) => z.literal(slope)) as [z.ZodLiteral<12>, z.ZodLiteral<24>]), 'dB/octave'),
+  'filter.drive': metadata(unitInterval, 'normalized 0..1'),
+  'filter.keytrack': metadata(unitInterval, 'normalized 0..1'),
+  'filter.velocityToCutoff': metadata(unitInterval, 'normalized 0..1'),
+  'lfo1.enabled': metadata(z.boolean(), 'boolean'),
+  'lfo1.points': metadata(lfoPoints, 'normalized point list'),
+  'lfo1.rate': metadata(lfoRate, 'tempo division'),
+  'lfo1.phase': metadata(unitInterval, 'normalized 0..1'),
+  'lfo1.smooth': metadata(z.boolean(), 'boolean'),
+  'lfo1.smoothing': metadata(unitInterval, 'normalized 0..1'),
+  'lfo1.target': metadata(z.enum(LFO_TARGETS), 'enum'),
+  'lfo1.scope': metadata(z.union([z.literal('all'), z.literal(1), z.literal(2), z.literal(3)]), 'all or oscillator number'),
+  'lfo1.depth': metadata(unitInterval, 'normalized 0..1'),
+  'lfo2.enabled': metadata(z.boolean(), 'boolean'),
+  'lfo2.points': metadata(lfoPoints, 'normalized point list'),
+  'lfo2.rate': metadata(lfoRate, 'tempo division'),
+  'lfo2.phase': metadata(unitInterval, 'normalized 0..1'),
+  'lfo2.smooth': metadata(z.boolean(), 'boolean'),
+  'lfo2.smoothing': metadata(unitInterval, 'normalized 0..1'),
+  'lfo2.target': metadata(z.enum(LFO_TARGETS), 'enum'),
+  'lfo2.scope': metadata(z.union([z.literal('all'), z.literal(1), z.literal(2), z.literal(3)]), 'all or oscillator number'),
+  'lfo2.depth': metadata(unitInterval, 'normalized 0..1'),
+  'voice.polyphony': metadata(z.number().int().min(1).max(16), 'voice count'),
+  'voice.legato': metadata(z.boolean(), 'boolean'),
+  'voice.glideSeconds': metadata(seconds(5), 'seconds'),
+  'voice.velocitySensitivity': metadata(unitInterval, 'normalized 0..1'),
+  'voice.transposeSemitones': metadata(z.number().int().min(-36).max(36), 'semitones'),
+  'effects.order': metadata(z.array(z.enum(EFFECT_IDS)).length(EFFECT_IDS.length).refine((order) => new Set(order).size === EFFECT_IDS.length, 'Effect order must contain each effect exactly once'), 'ordered effect id list'),
+  'effects.distortion.enabled': metadata(z.boolean(), 'boolean'),
+  'effects.distortion.type': metadata(z.enum(DISTORTION_TYPES), 'enum'),
+  'effects.distortion.drive': metadata(unitInterval, 'normalized 0..1'),
+  'effects.distortion.mix': metadata(unitInterval, 'normalized 0..1'),
+  'effects.compressor.enabled': metadata(z.boolean(), 'boolean'),
+  'effects.compressor.bands': metadata(z.enum(COMPRESSOR_BANDS), 'enum'),
+  'effects.compressor.amount': metadata(unitInterval, 'normalized 0..1'),
+  'effects.compressor.attack': metadata(unitInterval, 'normalized 0..1'),
+  'effects.compressor.release': metadata(unitInterval, 'normalized 0..1'),
+  'effects.compressor.mix': metadata(unitInterval, 'normalized 0..1'),
+  'effects.chorus.enabled': metadata(z.boolean(), 'boolean'),
+  'effects.chorus.voices': metadata(z.number().int().min(1).max(4), 'voice count'),
+  'effects.chorus.rate': metadata(unitInterval, 'normalized 0..1'),
+  'effects.chorus.depth': metadata(unitInterval, 'normalized 0..1'),
+  'effects.chorus.feedback': metadata(unitInterval, 'normalized 0..1'),
+  'effects.chorus.mix': metadata(unitInterval, 'normalized 0..1'),
+  'effects.delay.enabled': metadata(z.boolean(), 'boolean'),
+  'effects.delay.mode': metadata(z.enum(['sync', 'free']), 'enum'),
+  'effects.delay.division': metadata(z.enum(TEMPO_SYNC_DIVISIONS), 'tempo division'),
+  'effects.delay.timeSeconds': metadata(secondsRange(DELAY_TIME_MIN_SECONDS, DELAY_TIME_MAX_SECONDS), 'seconds'),
+  'effects.delay.feedback': metadata(unitInterval, 'normalized 0..1'),
+  'effects.delay.mix': metadata(unitInterval, 'normalized 0..1'),
+  'effects.reverb.enabled': metadata(z.boolean(), 'boolean'),
+  'effects.reverb.mix': metadata(unitInterval, 'normalized 0..1'),
+  'effects.reverb.decaySeconds': metadata(secondsRange(REVERB_DECAY_MIN_SECONDS, REVERB_DECAY_MAX_SECONDS), 'seconds'),
+  'effects.reverb.size': metadata(unitInterval, 'normalized 0..1'),
+  'effects.reverb.predelay': metadata(seconds(REVERB_PREDELAY_MAX_SECONDS), 'seconds'),
+  'effects.reverb.lowCut': metadata(unitInterval, 'normalized 0..1'),
+  'effects.reverb.highCut': metadata(unitInterval, 'normalized 0..1'),
+} as const satisfies Record<string, PatchPathMetadata>
+
+export type SupportedPatchPath = keyof typeof PATCH_PATH_REGISTRY
+export const SUPPORTED_PATCH_PATHS = Object.freeze(
+  Object.keys(PATCH_PATH_REGISTRY) as SupportedPatchPath[],
+)
+
+export const AGENT_EDITABLE_PATCH_PATHS = SUPPORTED_PATCH_PATHS
+
+export function isAgentEditablePatchPath(path: unknown): path is SupportedPatchPath {
+  return typeof path === 'string' && AGENT_EDITABLE_PATCH_PATHS.includes(path as SupportedPatchPath)
+}
+
+export const PATCH_PATH_VALUE_SCHEMAS: Readonly<Record<SupportedPatchPath, ZodTypeAny>> =
+  Object.freeze(Object.fromEntries(SUPPORTED_PATCH_PATHS.map((path) => [
+    path, PATCH_PATH_REGISTRY[path].validator,
+  ])) as Record<SupportedPatchPath, ZodTypeAny>)
 
 const supportedPathSet = new Set<string>(SUPPORTED_PATCH_PATHS)
 
@@ -226,7 +211,7 @@ export function isSupportedPatchPath(path: string): path is SupportedPatchPath {
 }
 
 export function parsePatchPathValue(path: SupportedPatchPath, value: unknown): unknown {
-  return pathValueSchemas[path].parse(value)
+  return PATCH_PATH_REGISTRY[path].validator.parse(value)
 }
 
 export function getPatchPathValue(patch: PatchState, path: SupportedPatchPath): unknown {

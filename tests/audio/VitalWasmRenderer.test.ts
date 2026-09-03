@@ -468,6 +468,26 @@ describe('VitalWasmRenderer', () => {
     renderer.dispose()
   })
 
+  it.each(['lfo1.phase', 'lfo2.phase'] as const)('reflects active-note modulation updates for %s', async (path) => {
+    const { commands, host, renderer } = createHarness()
+    await renderer.startAudio()
+    await renderer.noteOn(60)
+
+    commands.applyPatch(
+      {
+        type: 'apply_patch',
+        reason: `Move ${path}`,
+        changes: [{ path, value: 0.42 }],
+      },
+      { source: 'ui' },
+    )
+
+    const update = host.controlUpdates.at(-1)!
+    host.emit({ type: 'controls-applied', revision: update.revision, durationMs: 0.01 })
+    expect(renderer.getState().modulationScheduleVersion).toBe(1)
+    renderer.dispose()
+  })
+
   it('orders note replacement, polyphony stealing, release, and disposal through the host', async () => {
     const { commands, context, host, renderer } = createHarness()
     await renderer.noteOn(60, 0.5)
@@ -499,6 +519,30 @@ describe('VitalWasmRenderer', () => {
     expect(host.calls.slice(-2)).toEqual(['all-off', 'dispose'])
     expect(host.disposed).toBe(true)
     expect(context.state).toBe('closed')
+  })
+
+  it('leaves active audio previews untouched when copying into the inactive variant', async () => {
+    const { commands, host, renderer } = createHarness()
+    await renderer.startAudio()
+    commands.createVariant({
+      type: 'create_variant',
+      reason: 'Create a brighter B',
+      comparisonAxis: 'brightness',
+      changes: [{ path: 'filter.cutoffHz', value: 9_000 }],
+    })
+    commands.selectVariant('A')
+    renderer.previewPatchChange('filter.cutoffHz', 3_200)
+    const controlUpdateCount = host.controlUpdates.length
+
+    commands.copyVariant('A', 'B')
+
+    expect(renderer.getState()).toMatchObject({
+      cutoffHz: 7_200,
+      previewValues: { 'filter.cutoffHz': 3_200 },
+      reflectedPatchName: 'Ethereal Gate',
+    })
+    expect(host.controlUpdates).toHaveLength(controlUpdateCount)
+    renderer.dispose()
   })
 
   it('forwards note, chord, and arpeggiator schedules in UI order', async () => {

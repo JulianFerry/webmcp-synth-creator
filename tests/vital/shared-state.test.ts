@@ -68,6 +68,7 @@ describe('shared Vital state', () => {
     nativeDocument.settings.modulation_6_amount = 0.37
     routes[3] = { source: 'macro_control_2', destination: 'filter_fx_cutoff' }
     nativeDocument.settings.modulation_4_amount = 0.42
+    nativeDocument.settings.modulation_4_bypass = 0
     nativeDocument.settings.macro_control_2 = 0.8
     nativeDocument.settings.effect_chain_order = encodeOrderToFloat([4, 0, 6, 1, 2, 3, 5, 7, 8])
     const lfos = nativeDocument.settings.lfos as Array<Record<string, unknown>>
@@ -79,7 +80,7 @@ describe('shared Vital state', () => {
       sourceFilename: 'preserved-native-state.vital',
     })
     expect(imported.backing.preservesUnsupportedFeatures).toBe(true)
-    expect(imported.backing.hiddenEffects).toEqual(['Compressor', 'Equalizer'])
+    expect(imported.backing.hiddenEffects).toEqual(['Equalizer'])
     expect(imported.backing.affectedControls).toEqual([
       { control: 'filter cutoff', sources: ['Macro 2'] },
     ])

@@ -71,6 +71,57 @@ export function decodeVitalEnvelopeSeconds(value: number): number {
   return value ** 4
 }
 
+// Pinned ranges: docs/vital-parameter-ranges.md.
+export function encodeVitalEnvelopeCurve(curve: number): number {
+  assertRange(curve, -1, 1, 'Envelope curve')
+  return curve * 20
+}
+
+export function decodeVitalEnvelopeCurve(value: number): number {
+  assertRange(value, -20, 20, 'Vital envelope power')
+  return value / 20
+}
+
+export function encodeVitalFilterDrive(drive: number): number {
+  assertRange(drive, 0, 1, 'Filter drive')
+  return drive * 20
+}
+
+export function decodeVitalFilterDrive(value: number): number {
+  assertRange(value, 0, 20, 'Vital filter drive')
+  return value / 20
+}
+
+export function encodeVitalChorusRate(rate: number): number {
+  assertRange(rate, 0, 1, 'Chorus rate')
+  return -6 + rate * 9
+}
+
+export function decodeVitalChorusRate(value: number): number {
+  assertRange(value, -6, 3, 'Vital chorus frequency')
+  return (value + 6) / 9
+}
+
+export function encodeVitalReverbPredelay(seconds: number): number {
+  assertRange(seconds, 0, 0.3, 'Reverb predelay')
+  return seconds
+}
+
+export function decodeVitalReverbPredelay(value: number): number {
+  assertRange(value, 0, 0.3, 'Vital reverb delay')
+  return value
+}
+
+export function encodeVitalLfoSmoothing(smoothing: number): number {
+  assertRange(smoothing, 0, 1, 'LFO smoothing')
+  return -10 + smoothing * 14
+}
+
+export function decodeVitalLfoSmoothing(value: number): number {
+  assertRange(value, -10, 4, 'Vital LFO smooth time')
+  return (value + 10) / 14
+}
+
 export function encodeVitalDelaySeconds(seconds: number): number {
   assertRange(seconds, DELAY_TIME_MIN_SECONDS, DELAY_TIME_MAX_SECONDS, 'Vital delay time')
   return Math.log2(1 / seconds)

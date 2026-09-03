@@ -5,11 +5,21 @@ import { describe, expect, it } from 'vitest'
 
 import {
   decodeVitalDelaySeconds,
+  decodeVitalChorusRate,
+  decodeVitalEnvelopeCurve,
+  decodeVitalFilterDrive,
+  decodeVitalLfoSmoothing,
+  decodeVitalReverbPredelay,
   decodeVitalEnvelopeSeconds,
   decodeVitalOscillatorLevel,
   decodeVitalReverbDecaySeconds,
   decodeVitalUnisonDetune,
   encodeVitalDelaySeconds,
+  encodeVitalChorusRate,
+  encodeVitalEnvelopeCurve,
+  encodeVitalFilterDrive,
+  encodeVitalLfoSmoothing,
+  encodeVitalReverbPredelay,
   encodeVitalEnvelopeSeconds,
   encodeVitalOscillatorLevel,
   encodeVitalReverbDecaySeconds,
@@ -87,5 +97,15 @@ describe('Vital 1.0.7 parameter conversions', () => {
     expect(() => decodeVitalUnisonDetune(Math.sqrt(12.01))).toThrow(
       /exceeds the workbench 100%/,
     )
+  })
+
+  it.each([
+    [encodeVitalEnvelopeCurve, decodeVitalEnvelopeCurve, -0.6],
+    [encodeVitalFilterDrive, decodeVitalFilterDrive, 0.7],
+    [encodeVitalChorusRate, decodeVitalChorusRate, 0.35],
+    [encodeVitalReverbPredelay, decodeVitalReverbPredelay, 0.12],
+    [encodeVitalLfoSmoothing, decodeVitalLfoSmoothing, 0.4],
+  ] as const)('round-trips a Phase 3 scalar conversion', (encode, decode, value) => {
+    expect(decode(encode(value))).toBeCloseTo(value, 10)
   })
 })

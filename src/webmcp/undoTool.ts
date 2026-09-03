@@ -1,5 +1,6 @@
 import { CommandError, CommandService } from '../commands/CommandService'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
+import { writeToolResult } from './writeResult'
 
 export function createUndoTool(commandService: CommandService): WebMcpToolDefinition {
   return {
@@ -19,14 +20,7 @@ export function createUndoTool(commandService: CommandService): WebMcpToolDefini
       context?.signal.throwIfAborted()
       try {
         const result = commandService.undo({ source: 'webmcp' })
-        return {
-          changed: result.changed,
-          summary: result.summary,
-          canUndo: result.canUndo,
-          canRedo: result.canRedo,
-          session: result.session,
-          correlationId: result.correlationId,
-        }
+        return writeToolResult(result)
       } catch (error) {
         if (error instanceof CommandError) {
           return {

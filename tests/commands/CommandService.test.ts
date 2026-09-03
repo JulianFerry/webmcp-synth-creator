@@ -4,6 +4,7 @@ import { CommandError, CommandService } from '../../src/commands/CommandService'
 import { PatchHistory } from '../../src/commands/history'
 import { LatencyTrace } from '../../src/dev/latencyTrace'
 import { createDefaultPatch } from '../../src/patch/defaults'
+import { getTemplatePatch } from '../../src/presets/templates'
 import { SessionService } from '../../src/session/SessionService'
 
 function createHarness() {
@@ -37,12 +38,47 @@ describe('CommandService', () => {
       'filter.cutoffHz': { before: 7200, after: 4200 },
       'oscillators.0.wavetablePosition': { before: 0.62, after: 0.5 },
     })
+    expect(result.current).toMatchObject({
+      filter: { cutoffHz: 4200 },
+      osc1: { wavetablePosition: 0.5 },
+    })
+    expect(result.undoStep).toBe(1)
     expect(session.getPatch().metadata).toEqual(before.metadata)
     expect(before.filter.cutoffHz).toBe(7200)
     expect(trace.getEvents().map((event) => event.stage)).toEqual([
       'request_received',
       'patch_committed',
     ])
+  })
+
+  it('resolves operations before validation and reports concrete musical-unit paths', () => {
+    const { commands } = createHarness()
+
+    const result = commands.applyPatch({
+      type: 'apply_patch',
+      reason: 'Darken the patch while keeping some air',
+      changes: [{ op: 'tone', brightness: 0.2, keep_air: true }],
+    })
+
+    expect(result.changed).toMatchObject({
+      'filter.cutoffHz': { before: 7200, after: expect.any(Number) },
+    })
+    expect(result.current).toEqual({ filter: result.patch.filter })
+    expect(result.undoStep).toBe(1)
+  })
+
+  it('loads the built-in wavetable selected by a timbre operation', () => {
+    const commands = new CommandService(new SessionService(getTemplatePatch('bass')))
+
+    const result = commands.applyPatch({
+      type: 'apply_patch',
+      reason: 'Use the bright built-in wavetable',
+      changes: [{ op: 'timbre', character: 'bright' }],
+    })
+
+    expect(result.patch.oscillators[0].wavetableId).toBe('airy')
+    expect(result.patch.wavetableData.airy).toBeDefined()
+    expect(commands.undo().patch.wavetableData.airy).toBeUndefined()
   })
 
   it('leaves patch, history, and subscribers untouched after atomic validation failure', () => {
@@ -122,5 +158,28 @@ describe('CommandService', () => {
     expect(commands.historySize).toBe(1)
 
     expect(commands.undo().patch.lfo1.enabled).toBe(true)
+  })
+
+  it('creates a complete patch pair while leaving A active and both variants unbacked', () => {
+    const { commands, session } = createHarness()
+    const primary = getTemplatePatch('bass')
+    primary.metadata.name = 'Warm Sub Bass'
+    const alternative = getTemplatePatch('lead')
+    alternative.metadata.name = 'Warm Saw Bass'
+
+    const result = commands.createPatchPair(
+      { type: 'create_patch', reason: 'Warm bass with sub weight', patch: primary },
+      { type: 'create_patch', reason: 'Warm bass with saw harmonics', patch: alternative },
+      'harmonic profile',
+      { source: 'webmcp', correlationId: 'patch-pair-1' },
+    )
+
+    expect(result.session).toMatchObject({ currentVariant: 'A', hasVariantB: true })
+    expect(session.getPatch('A').metadata.name).toBe('Warm Sub Bass')
+    expect(session.getPatch('B').metadata.name).toBe('Warm Saw Bass')
+    expect(session.getVitalBacking('A')).toBeNull()
+    expect(session.getVitalBacking('B')).toBeNull()
+    expect(commands.selectVariant('B').patch.metadata.name).toBe('Warm Saw Bass')
+    expect(session.getSummary().currentVariant).toBe('B')
   })
 })

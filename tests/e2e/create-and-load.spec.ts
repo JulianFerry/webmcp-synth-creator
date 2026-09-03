@@ -62,96 +62,6 @@ async function executeTool<T>(
   )
 }
 
-const customSinePatch = {
-  version: 2,
-  metadata: {
-    name: 'Agent Sine Sketch',
-    category: 'keys',
-    description: 'A complete structured patch created through the injected WebMCP client.',
-    tags: ['clean', 'agent'],
-  },
-  oscillators: [
-    {
-      enabled: true,
-      wavetableId: 'sine',
-      wavetablePosition: 0,
-      level: 0.62,
-      transposeSemitones: 0,
-      fineTuneCents: 0,
-      unisonVoices: 1,
-      unisonDetune: 0,
-      stereoSpread: 0,
-      randomPhase: 0,
-    },
-    {
-      enabled: true,
-      wavetableId: 'sine',
-      wavetablePosition: 0,
-      level: 0.18,
-      transposeSemitones: 12,
-      fineTuneCents: 0,
-      unisonVoices: 1,
-      unisonDetune: 0,
-      stereoSpread: 0,
-      randomPhase: 0,
-    },
-    {
-      enabled: false,
-      wavetableId: 'sine',
-      wavetablePosition: 0,
-      level: 0,
-      transposeSemitones: 0,
-      fineTuneCents: 0,
-      unisonVoices: 1,
-      unisonDetune: 0,
-      stereoSpread: 0,
-      randomPhase: 0,
-    },
-  ],
-  ampEnvelope: {
-    attackSeconds: 0.01,
-    holdSeconds: 0,
-    decaySeconds: 0.4,
-    sustainLevel: 0.7,
-    releaseSeconds: 0.35,
-  },
-  modEnvelope: {
-    attackSeconds: 0.01,
-    holdSeconds: 0,
-    decaySeconds: 0.5,
-    sustainLevel: 0,
-    releaseSeconds: 0.2,
-  },
-  filter: { enabled: true, type: 'lowpass', cutoffHz: 4800, resonance: 0.12 },
-  lfo1: {
-    enabled: false,
-    points: [
-      { x: 0, y: 0 },
-      { x: 0.5, y: 1 },
-      { x: 1, y: 0 },
-    ],
-    rate: { mode: 'sync', division: '1/4' },
-    phase: 0,
-    smooth: true,
-  },
-  voice: { polyphony: 6, legato: false, glideSeconds: 0, velocitySensitivity: 0.4 },
-  effects: {
-    order: ['distortion', 'filter', 'compressor', 'chorus', 'delay', 'reverb'],
-    delay: {
-      enabled: false,
-      mode: 'sync',
-      division: '1/8',
-      timeSeconds: 0.25,
-      feedback: 0.2,
-      mix: 0,
-    },
-    reverb: { enabled: true, mix: 0.16, decaySeconds: 1.8, size: 0.42 },
-  },
-  wavetableData: {
-    sine: { id: 'sine', name: 'Agent Sine', frames: [{ harmonics: [1] }] },
-  },
-}
-
 const curatedStarts = [
   ['midnight-pad', 'Midnight Pad'],
   ['warm-mono-bass', 'Warm Mono Bass'],
@@ -189,16 +99,23 @@ test('create and load complete patches through WebMCP and curated UI paths', asy
   await page.getByTestId('preview-note').click()
   const created = await executeTool<{
     changed: Record<string, unknown>
-    summary: { name: string }
+    current: { metadata: { name: string; description: string } }
     session: { currentVariant: string; canUndo: boolean }
   }>(page, 'create_patch', {
-    reason: 'Create one complete playable sine patch',
-    patch: customSinePatch,
+    description: 'Create one complete playable lead patch',
+    attributes: { category: 'lead' },
+    singleProposal: true,
   })
-  expect(created.summary.name).toBe('Agent Sine Sketch')
+  expect(created.current.metadata).toMatchObject({
+    name: 'Create one complete playable lead patch',
+    description: 'Create one complete playable lead patch',
+  })
   expect(created.session).toMatchObject({ currentVariant: 'A', canUndo: true })
-  expect(created.changed).toHaveProperty('wavetableData')
-  await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', 'Agent Sine Sketch')
+  expect(created.changed['metadata.description']).toBeDefined()
+  await expect(page.locator('.patch-actions')).toHaveAttribute(
+    'data-patch-name',
+    'Create one complete playable lead patch',
+  )
   await expect(page.getByTestId('preset-selector')).toHaveValue('')
   await expect(page.getByTestId('active-voice-count')).toHaveText('1')
   await expect(page.getByTestId('latest-diff')).toContainText('wavetableData')
@@ -215,12 +132,12 @@ test('create and load complete patches through WebMCP and curated UI paths', asy
   }
 
   for (const [presetId, name] of allStarts) {
-    const loaded = await executeTool<{ summary: { name: string }; changed: Record<string, unknown> }>(
+    const loaded = await executeTool<{ current: { metadata: { name: string } }; changed: Record<string, unknown> }>(
       page,
       'load_preset',
       { presetId },
     )
-    expect(loaded.summary.name).toBe(name)
+    expect(loaded.current.metadata.name).toBe(name)
     expect(Object.keys(loaded.changed).length).toBeGreaterThan(0)
     await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', name)
     await expect(page.getByTestId('preset-selector')).toHaveValue(presetId)
@@ -231,8 +148,8 @@ test('create and load complete patches through WebMCP and curated UI paths', asy
     changes: [{ path: 'filter.cutoffHz', value: 5000 }],
   })
   await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-cutoff', '5000')
-  const undone = await executeTool<{ summary: { filter: { cutoffHz: number } } }>(page, 'undo', {})
-  expect(undone.summary.filter.cutoffHz).toBe(7200)
+  const undone = await executeTool<{ current: { filter: { cutoffHz: number } } }>(page, 'undo', {})
+  expect(undone.current.filter.cutoffHz).toBe(7200)
 
   const downloadPromise = page.waitForEvent('download')
   await page.getByTestId('export-vital').click()

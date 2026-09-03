@@ -38,7 +38,7 @@ export function TelemetryRegion(props: DiagnosticDrawerProps) {
             data-detune={patch.oscillators[0].unisonDetune} data-fine={patch.oscillators[0].fineTuneCents}
             data-glide={patch.voice.glideSeconds} data-level={patch.oscillators[0].level}
             data-lfo-enabled={patch.lfo1.enabled} data-lfo-points={patch.lfo1.points.length}
-            data-lfo-rate={patch.lfo1.rate.mode === 'sync' ? patch.lfo1.rate.division : patch.lfo1.rate.hz}
+            data-lfo-rate={patch.lfo1.rate.division}
             data-modulation-version={audio.modulationScheduleVersion} data-route-count={patch.modulations.length}
             data-delay-enabled={patch.effects.delay.enabled} data-reverb-enabled={patch.effects.reverb.enabled}
             data-effects-order={patch.effects.order.join(',')} data-effective-effects-order={audio.effective.effects.order.join(',')}

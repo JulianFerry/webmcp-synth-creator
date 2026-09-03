@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import type { SynthRendererState } from '../audio/SynthRenderer'
 
@@ -21,6 +21,8 @@ const MIDI_BY_KEY = new Map<string, number>(
   KEYBOARD_NOTES.filter((note) => note.key).map((note) => [note.key as string, note.midi]),
 )
 
+type PreviewKind = 'note' | 'chord' | 'arpeggiator'
+
 const NON_EDITABLE_INPUT_TYPES = new Set([
   'button',
   'checkbox',
@@ -34,7 +36,7 @@ const NON_EDITABLE_INPUT_TYPES = new Set([
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false
-  if (target.closest('textarea, select, [contenteditable]:not([contenteditable="false"])')) {
+  if (target.closest('textarea, [contenteditable]:not([contenteditable="false"])')) {
     return true
   }
 
@@ -57,53 +59,116 @@ export function AuditionPanel({
   const activeButtonNotes = useRef(new Set<string>())
   const arpTimer = useRef<number | null>(null)
   const previewGeneration = useRef(0)
+  const lastPreviewKind = useRef<PreviewKind>('note')
+  const quickPreviewActive = useRef(false)
+
+  useEffect(() => {
+    const updateFocusIndicator = (event: KeyboardEvent) => {
+      document.documentElement.toggleAttribute('data-arrow-focus', event.key.startsWith('Arrow'))
+    }
+    const clearFocusIndicator = () => document.documentElement.removeAttribute('data-arrow-focus')
+
+    window.addEventListener('keydown', updateFocusIndicator, true)
+    window.addEventListener('pointerdown', clearFocusIndicator, true)
+    return () => {
+      window.removeEventListener('keydown', updateFocusIndicator, true)
+      window.removeEventListener('pointerdown', clearFocusIndicator, true)
+      clearFocusIndicator()
+    }
+  }, [])
+
+  const stopPreview = useCallback(() => {
+    previewGeneration.current += 1
+    if (arpTimer.current !== null) window.clearTimeout(arpTimer.current)
+    arpTimer.current = null
+    quickPreviewActive.current = false
+    onReleaseAll()
+  }, [onReleaseAll])
+
+  const previewPattern = useCallback((kind: PreviewKind) => {
+    previewGeneration.current += 1
+    const generation = previewGeneration.current
+    if (arpTimer.current !== null) window.clearTimeout(arpTimer.current)
+    arpTimer.current = null
+    lastPreviewKind.current = kind
+    quickPreviewActive.current = true
+    onReleaseAll()
+    if (kind === 'note') void onNoteOn(60, 1, performance.now())
+    if (kind === 'chord') [60, 63, 67].forEach((midi) => void onNoteOn(midi, 1, performance.now()))
+    if (kind === 'arpeggiator') {
+      const notes = [60, 63, 67, 72, 67, 63]
+      let index = 0
+      const tick = () => {
+        if (previewGeneration.current !== generation) return
+        onReleaseAll()
+        void onNoteOn(notes[index], 1, performance.now())
+        index = (index + 1) % notes.length
+        arpTimer.current = window.setTimeout(tick, 180)
+      }
+      tick()
+    }
+  }, [onNoteOn, onReleaseAll])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return
       const key = event.key.toLowerCase()
+      const isSpace = event.key === ' ' || event.code === 'Space'
       const midi = MIDI_BY_KEY.get(key)
-      if (midi === undefined || event.repeat || isEditableTarget(event.target)) return
+      if ((midi === undefined && !isSpace) || isEditableTarget(event.target)) return
       event.preventDefault()
+      event.stopPropagation()
+      if (isSpace) {
+        if (event.repeat) return
+        if (quickPreviewActive.current) stopPreview()
+        else previewPattern(lastPreviewKind.current)
+        return
+      }
+      if (event.repeat) return
+      const note = midi as number
       activeComputerKeys.current.add(key)
-      void onNoteOn(midi, 1, performance.now()).then(() => {
-        if (!activeComputerKeys.current.has(key)) onNoteOff(midi)
+      void onNoteOn(note, 1, performance.now()).then(() => {
+        if (!activeComputerKeys.current.has(key)) onNoteOff(note)
       })
     }
     const handleKeyUp = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return
       const key = event.key.toLowerCase()
+      const isSpace = event.key === ' ' || event.code === 'Space'
+      if (isSpace && !isEditableTarget(event.target)) {
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
       const midi = MIDI_BY_KEY.get(key)
       if (midi === undefined || !activeComputerKeys.current.has(key)) return
       event.preventDefault()
+      event.stopPropagation()
       activeComputerKeys.current.delete(key)
       onNoteOff(midi)
     }
     const releaseKeys = () => {
-      previewGeneration.current += 1
-      if (arpTimer.current !== null) window.clearTimeout(arpTimer.current)
-      arpTimer.current = null
+      stopPreview()
       activeComputerKeys.current.clear()
       activePointerNotes.current.clear()
       activeButtonNotes.current.clear()
-      onReleaseAll()
     }
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') releaseKeys()
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('keydown', handleKeyDown, true)
+    window.addEventListener('keyup', handleKeyUp, true)
     window.addEventListener('blur', releaseKeys)
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('keydown', handleKeyDown, true)
+      window.removeEventListener('keyup', handleKeyUp, true)
       window.removeEventListener('blur', releaseKeys)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       releaseKeys()
     }
-  }, [onNoteOff, onNoteOn, onReleaseAll])
+  }, [onNoteOff, onNoteOn, previewPattern, stopPreview])
 
   const startButtonNote = (midi: number, key: string) => {
     const token = `${midi}:${key}`
@@ -133,35 +198,6 @@ export function AuditionPanel({
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
     onNoteOff(midi)
-  }
-
-  const previewPattern = (kind: 'note' | 'chord' | 'arpeggiator') => {
-    previewGeneration.current += 1
-    const generation = previewGeneration.current
-    if (arpTimer.current !== null) window.clearTimeout(arpTimer.current)
-    arpTimer.current = null
-    onReleaseAll()
-    if (kind === 'note') void onNoteOn(60, 1, performance.now())
-    if (kind === 'chord') [60, 63, 67].forEach((midi) => void onNoteOn(midi, 1, performance.now()))
-    if (kind === 'arpeggiator') {
-      const notes = [60, 63, 67, 72, 67, 63]
-      let index = 0
-      const tick = () => {
-        if (previewGeneration.current !== generation) return
-        onReleaseAll()
-        void onNoteOn(notes[index], 1, performance.now())
-        index = (index + 1) % notes.length
-        arpTimer.current = window.setTimeout(tick, 180)
-      }
-      tick()
-    }
-  }
-
-  const stopPreview = () => {
-    previewGeneration.current += 1
-    if (arpTimer.current !== null) window.clearTimeout(arpTimer.current)
-    arpTimer.current = null
-    onReleaseAll()
   }
 
   return (

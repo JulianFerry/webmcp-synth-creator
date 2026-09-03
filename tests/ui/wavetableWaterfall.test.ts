@@ -37,6 +37,15 @@ describe('wavetable waterfall projection', () => {
     expect(projectWavetableWaterfall(morphing, 2, { width: 100, height: 60 }).marker.frame).toBe(2)
   })
 
+  it('reuses static waveform geometry when only the selected position changes', () => {
+    const viewport = { width: 240, height: 120 }
+    const first = projectWavetableWaterfall(morphing, 0.1, viewport, 16)
+    const second = projectWavetableWaterfall(morphing, 0.9, viewport, 16)
+
+    expect(second.lines).toBe(first.lines)
+    expect(second.selectedLine).not.toBe(first.selectedLine)
+  })
+
   it('projects depth diagonally right for oscillator 3D mode', () => {
     const result = projectWavetableWaterfall(morphing, 0.5, { width: 240, height: 120 }, 16, 8, 'right')
     expect(result.lines[0][0].x).toBeLessThan(result.lines.at(-1)![0].x)

@@ -61,6 +61,7 @@ interface PendingRevision {
 
 const FULL_STATE_PATHS = new Set([
   'lfo1.points',
+  'lfo2.points',
   'oscillators.0.wavetableId',
   'oscillators.1.wavetableId',
   'oscillators.2.wavetableId',
@@ -318,6 +319,7 @@ export class VitalWasmRenderer implements SynthRenderer {
   }
 
   private applyCommittedPatch(event: SessionCommitEvent): void {
+    if (event.affectedVariant !== event.currentVariant) return
     const previewPaths = Object.keys(this.previewValues).filter(isSupportedPatchPath)
     const previousEffectivePatch = this.effectivePatch
     const backingChanged = event.vitalBackingRevision !== this.vitalBackingRevision
@@ -421,8 +423,7 @@ export class VitalWasmRenderer implements SynthRenderer {
     const modulationChanged = changedPaths.some(isModulationPath)
     if (
       changedPaths.some((path) => FULL_STATE_PATHS.has(path)) ||
-      (this.importedBacking !== null && changedPaths.some((path) => path.startsWith('lfo1.'))) ||
-      (changedPaths.includes('modulations') && modulationTopologyChanged(before, after))
+      (this.importedBacking !== null && changedPaths.some((path) => path.startsWith('lfo1.')))
     ) {
       this.loadFullState(after, modulationChanged)
       return
@@ -628,7 +629,7 @@ export class VitalWasmRenderer implements SynthRenderer {
 
 function isModulationPath(path: string): boolean {
   return (
-    path.startsWith('lfo1.') ||
+    /^lfo[12]\./.test(path) ||
     path.startsWith('modEnvelope.') ||
     path === 'modulations' ||
     path.startsWith('filter.') ||
@@ -636,14 +637,6 @@ function isModulationPath(path: string): boolean {
       path,
     )
   )
-}
-
-function modulationTopologyChanged(before: PatchState, after: PatchState): boolean {
-  if (before.modulations.length !== after.modulations.length) return true
-  return before.modulations.some((route, index) => {
-    const next = after.modulations[index]
-    return next === undefined || route.source !== next.source || route.destination !== next.destination
-  })
 }
 
 function latencyMilliseconds(value: unknown): number | null {

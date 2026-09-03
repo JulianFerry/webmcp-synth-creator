@@ -11,6 +11,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "check:bundle": "node scripts/check-bundle-size.mjs",
+    "setup:first-run": "bash wasm/vital/setup.sh",
     "lint": "eslint . --max-warnings=0",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",

@@ -1,7 +1,5 @@
 import { expect, test } from '@playwright/test'
 
-const expectDevelopmentTrace = process.env.PLAYWRIGHT_PREVIEW !== '1'
-
 test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vital export', async ({
   page,
 }) => {
@@ -57,9 +55,11 @@ test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vit
   })
   expect(toolNames).toEqual([
     'get_patch',
+    'get_section',
+    'get_capabilities',
     'apply_patch',
     'set_lfo_shape',
-    'get_session_state',
+    'set_lfo_point',
     'create_variant',
     'select_variant',
     'undo',
@@ -67,6 +67,8 @@ test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vit
     'create_patch',
     'list_presets',
     'load_preset',
+    'describe_patch',
+    'export_patch',
   ])
 
   await page.getByTestId('preview-note').click()
@@ -80,7 +82,7 @@ test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vit
       reason: 'Darken and rename the held patch in one coherent transaction',
       changes: [
         { path: 'metadata.name', value: 'Airy Night' },
-        { path: 'filter.cutoffHz', value: 3200 },
+        { op: 'tone', brightness: 0.5, keep_air: true },
         { path: 'oscillators.0.wavetablePosition', value: 0.25 },
       ],
     })
@@ -88,17 +90,28 @@ test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vit
   const result = JSON.parse(rawResult) as {
     canUndo: boolean
     changed: Record<string, { before: unknown; after: unknown }>
+    current: { filter: { cutoffHz: number } }
+    undo_step: number
     correlationId: string
   }
 
   expect(result.canUndo).toBe(true)
-  expect(result.changed['filter.cutoffHz']).toEqual({ before: 7200, after: 3200 })
+  expect(result.changed['filter.cutoffHz']).toEqual({
+    before: 7200,
+    after: result.current.filter.cutoffHz,
+  })
+  expect(result.undo_step).toBe(1)
   await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', 'Airy Night')
   await page.getByRole('tab', { name: 'Effects' }).click()
-  await expect(page.getByTestId('filter-cutoff')).toHaveText('3,200 Hz')
+  await expect(page.getByTestId('filter-cutoff')).toContainText(
+    result.current.filter.cutoffHz.toLocaleString(),
+  )
   await expect(page.getByTestId('latest-diff')).toContainText('oscillators.0.wavetablePosition')
   await expect(page.getByTestId('undo-available')).toHaveText('available')
-  await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-cutoff', '3200')
+  await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute(
+    'data-cutoff',
+    String(result.current.filter.cutoffHz),
+  )
   await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-position', '0.25')
   await expect(page.getByTestId('active-voice-count')).toHaveText('1')
   await expect(page.getByTestId('export-filename')).toHaveText('airy-night.vital')
@@ -115,9 +128,9 @@ test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vit
         .map((event) => event.stage) ?? []
     )
   }, result.correlationId)
-  expect(correlatedStages).toEqual(
-    expectDevelopmentTrace
-      ? ['request_received', 'patch_committed', 'audio_diff_applied']
-      : [],
-  )
+  expect(correlatedStages).toEqual([
+    'request_received',
+    'patch_committed',
+    'audio_diff_applied',
+  ])
 })

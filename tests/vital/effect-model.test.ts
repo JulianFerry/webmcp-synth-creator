@@ -42,12 +42,8 @@ describe('Vital PatchState v2 effect model', () => {
     ]) {
       expect(fixture.settings).toHaveProperty(key)
     }
-    expect(VITAL_FX_FILTER_TYPES).toEqual({
-      lowpass: { model: 0, style: 0, blend: 0 },
-      highpass: { model: 0, style: 0, blend: 2 },
-      bandpass: { model: 0, style: 0, blend: 1 },
-      notch: { model: 0, style: 2, blend: 1 },
-    })
+    expect(VITAL_FX_FILTER_TYPES['lowpass:12']).toEqual({ model: 0, style: 0, blend: 0 })
+    expect(VITAL_FX_FILTER_TYPES['lowpass:24']).toEqual({ model: 0, style: 1, blend: 0 })
   })
 
   it.each<FilterType>(['lowpass', 'highpass', 'bandpass', 'notch'])(
@@ -74,7 +70,7 @@ describe('Vital PatchState v2 effect model', () => {
         osc_2_destination: 3,
         osc_3_destination: 3,
       })
-      expect(decodeVitalFxFilterType(mapping)).toBe(type)
+      expect(decodeVitalFxFilterType(mapping)).toEqual({ type, slope: 12 })
       expect(adapter.importPatch(exported.document).patch.filter).toEqual(patch.filter)
     },
   )
@@ -136,6 +132,80 @@ describe('Vital PatchState v2 effect model', () => {
     expect(routes).not.toContainEqual({ source: 'env_2', destination: 'filter_fx_cutoff' })
   })
 
+  it('strictly round-trips all PatchState v3 Vital scalars', () => {
+    const adapter = realAdapter()
+    const patch = createDefaultPatch()
+    patch.ampEnvelope = {
+      ...patch.ampEnvelope,
+      delaySeconds: 0.2,
+      attackCurve: 0.25,
+      decayCurve: -0.6,
+      releaseCurve: 0.4,
+    }
+    patch.modEnvelope = {
+      ...patch.modEnvelope,
+      delaySeconds: 0.1,
+      attackCurve: -0.2,
+      decayCurve: 0.3,
+      releaseCurve: -0.4,
+    }
+    patch.oscillators[0].pan = 0.1
+    patch.oscillators[1].pan = 0.5
+    patch.oscillators[2].pan = 0.9
+    patch.filter = { ...patch.filter, slope: 24, drive: 0.65, keytrack: 0.75 }
+    patch.lfo1.smoothing = 0.4
+    patch.voice.transposeSemitones = -7
+    patch.effects.distortion = { enabled: true, type: 'sine_fold', drive: 0.7, mix: 0.6 }
+    patch.effects.chorus = {
+      enabled: true,
+      voices: 3,
+      rate: 0.35,
+      depth: 0.8,
+      feedback: 0.2,
+      mix: 0.45,
+    }
+    patch.effects.compressor = {
+      enabled: true,
+      bands: 'low',
+      amount: 0.65,
+      attack: 0.3,
+      release: 0.7,
+      mix: 0.8,
+    }
+    patch.effects.reverb = {
+      ...patch.effects.reverb,
+      predelay: 0.12,
+      lowCut: 0.2,
+      highCut: 0.85,
+    }
+
+    const imported = adapter.importPatch(adapter.exportPatch(patch).document).patch
+    expect(imported.ampEnvelope).toMatchObject({
+      delaySeconds: expect.closeTo(0.2),
+      attackCurve: 0.25,
+      decayCurve: -0.6,
+      releaseCurve: 0.4,
+    })
+    expect(imported.modEnvelope).toMatchObject({
+      delaySeconds: expect.closeTo(0.1),
+      attackCurve: -0.2,
+      decayCurve: 0.3,
+      releaseCurve: -0.4,
+    })
+    expect(imported.oscillators.map(({ pan }) => pan)).toEqual([
+      expect.closeTo(0.1),
+      0.5,
+      0.9,
+    ])
+    expect(imported.filter).toMatchObject({ slope: 24, drive: 0.65, keytrack: 0.75 })
+    expect(imported.lfo1.smoothing).toBeCloseTo(0.4)
+    expect(imported.voice.transposeSemitones).toBe(-7)
+    expect(imported.effects.distortion).toEqual(patch.effects.distortion)
+    expect(imported.effects.chorus).toEqual(patch.effects.chorus)
+    expect(imported.effects.compressor).toEqual(patch.effects.compressor)
+    expect(imported.effects.reverb).toMatchObject({ predelay: 0.12, lowCut: 0.2, highCut: 0.85 })
+  })
+
   it('round-trips oscillator 3 scalars and wavetable slot with fixed global modulation', () => {
     const adapter = realAdapter()
     const before = createDefaultPatch()
@@ -151,6 +221,7 @@ describe('Vital PatchState v2 effect model', () => {
       unisonDetune: 0.36,
       stereoSpread: 0.72,
       randomPhase: 0.18,
+      pan: 0.5,
     }
     const exported = adapter.exportPatch(patch)
     const routes = exported.document.settings.modulations as Array<Record<string, unknown>>
@@ -203,6 +274,9 @@ describe('Vital PatchState v2 effect model', () => {
       'oscillator1.level',
       'oscillator2.level',
       'oscillator3.level',
+      'oscillator1.wavetablePosition',
+      'oscillator2.wavetablePosition',
+      'oscillator3.wavetablePosition',
     ])
     expect(imported.effects.order).toEqual(patch.effects.order)
   })

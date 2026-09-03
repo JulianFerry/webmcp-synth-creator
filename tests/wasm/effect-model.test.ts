@@ -160,6 +160,66 @@ describe.skipIf(artifact === null)('Vital WASM PatchState v2 effect model', () =
     expect(stereoDifferenceRms(first, last)).toBeGreaterThan(1e-5)
   }, 120_000)
 
+  it('renders a measurably different signal when the free-running chorus rate changes', async () => {
+    const slow = createDefaultPatch()
+    slow.filter.enabled = false
+    slow.lfo1.enabled = false
+    slow.lfo2.enabled = false
+    slow.effects.delay.enabled = false
+    slow.effects.reverb.enabled = false
+    slow.effects.distortion.enabled = false
+    slow.effects.chorus.enabled = true
+    slow.effects.chorus.mix = 1
+    slow.effects.chorus.depth = 1
+    slow.effects.chorus.feedback = 0.5
+    slow.effects.chorus.rate = 0
+    const fast = structuredClone(slow)
+    fast.effects.chorus.rate = 1
+
+    const slowRender = await renderPatch(slow, 1, 0.2)
+    const fastRender = await renderPatch(fast, 1, 0.2)
+
+    expect(slowRender.metrics.nonFiniteSamples).toBe(0)
+    expect(fastRender.metrics.nonFiniteSamples).toBe(0)
+    expect(stereoDifferenceRms(slowRender, fastRender)).toBeGreaterThan(1e-4)
+  }, 120_000)
+
+  it.each([
+    ['distortion', 'centroid', 1] as const,
+    ['chorus', 'rms', 1] as const,
+    ['compressor', 'rms', -1] as const,
+  ])('moves the %s DSP metric directionally when enabled', async (effect, metric, direction) => {
+    const disabled = isolatedEffectPatch()
+    disabled.effects[effect].enabled = false
+    const enabled = structuredClone(disabled)
+    enabled.effects[effect].enabled = true
+
+    const disabledRender = await renderPatch(disabled, 0.8, 0.1)
+    const enabledRender = await renderPatch(enabled, 0.8, 0.1)
+    const disabledMetric = metric === 'rms' ? disabledRender.metrics.rms : spectralCentroid(disabledRender)
+    const enabledMetric = metric === 'rms' ? enabledRender.metrics.rms : spectralCentroid(enabledRender)
+
+    expect((enabledMetric - disabledMetric) * direction).toBeGreaterThan(1e-4)
+  }, 120_000)
+
+  it.each([
+    ['distortion.drive', 'rms'] as const,
+    ['chorus.rate', 'rms'] as const,
+    ['chorus.mix', 'rms'] as const,
+    ['compressor.amount', 'rms'] as const,
+  ])('changes %s monotonically across its normalized range', async (path, metric) => {
+    const values = []
+    for (const amount of [0, 0.5, 1]) {
+      const patch = isolatedEffectPatch()
+      const [effect, field] = path.split('.') as ['distortion' | 'chorus' | 'compressor', string]
+      patch.effects[effect].enabled = true
+      ;(patch.effects[effect] as unknown as Record<string, number>)[field] = amount
+      const render = await renderPatch(patch, 0.8, 0.1)
+      values.push(metric === 'rms' ? render.metrics.rms : spectralCentroid(render))
+    }
+    expectMonotone(values)
+  }, 180_000)
+
   it('accepts adapter-derived FX filter and order controls without a state reload', async () => {
     const engine = await createEngine()
     const before = createDefaultPatch()
@@ -220,6 +280,46 @@ function stereoDifferenceRms(left: VitalOfflineRender, right: VitalOfflineRender
     sumSquares += leftDifference * leftDifference + rightDifference * rightDifference
   }
   return Math.sqrt(sumSquares / Math.max(1, frames * 2))
+}
+
+function isolatedEffectPatch(): PatchState {
+  const patch = createDefaultPatch()
+  patch.filter.enabled = false
+  patch.lfo1.enabled = false
+  patch.lfo2.enabled = false
+  patch.effects.distortion = { enabled: false, type: 'hard_clip', drive: 0.8, mix: 1 }
+  patch.effects.chorus = { enabled: false, voices: 4, rate: 0.5, depth: 1, feedback: 0.5, mix: 1 }
+  patch.effects.compressor = { enabled: false, bands: 'multiband', amount: 0.8, attack: 0.5, release: 0.5, mix: 1 }
+  patch.effects.delay.enabled = false
+  patch.effects.reverb.enabled = false
+  return patch
+}
+
+function spectralCentroid(render: VitalOfflineRender): number {
+  const size = Math.min(4096, render.left.length)
+  let weighted = 0
+  let magnitudeSum = 0
+  for (let bin = 1; bin <= 512; bin += 1) {
+    let real = 0
+    let imaginary = 0
+    for (let sample = 0; sample < size; sample += 1) {
+      const value = (render.left[sample] + render.right[sample]) * 0.5
+      const angle = 2 * Math.PI * bin * sample / size
+      real += value * Math.cos(angle)
+      imaginary -= value * Math.sin(angle)
+    }
+    const magnitude = Math.hypot(real, imaginary)
+    weighted += bin * 48_000 / size * magnitude
+    magnitudeSum += magnitude
+  }
+  return weighted / Math.max(Number.EPSILON, magnitudeSum)
+}
+
+function expectMonotone(values: number[]): void {
+  const deltas = values.slice(1).map((value, index) => value - values[index])
+  const direction = Math.sign(deltas.find((delta) => Math.abs(delta) > 1e-6) ?? 0)
+  expect(direction).not.toBe(0)
+  expect(deltas.every((delta) => delta * direction >= -1e-6), JSON.stringify(values)).toBe(true)
 }
 
 function oscillatorThreeOnlyPatch(): PatchState {

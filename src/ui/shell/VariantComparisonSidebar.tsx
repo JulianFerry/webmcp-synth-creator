@@ -1,39 +1,38 @@
-import { useEffect, useMemo, useRef, useState, type ComponentProps, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type PointerEvent as ReactPointerEvent } from 'react'
 
+import { FIXED_C3_MIDI, FIXED_C3_PREVIEW_REQUEST } from '../../audio/previewRender'
 import type { PatchState } from '../../patch/types'
+import type { VariantId } from '../../session/SessionService'
 import { VariantButton, type VariantSwitcherProps } from '../VariantSwitcher'
 import { SIDEBAR_PATCH_COLORS } from '../colorThemes'
 import {
   buildSpectralFingerprintSurface,
   drawSpectralFingerprint,
   SPECTRAL_FINGERPRINT_BANDS,
+  SPECTRAL_FINGERPRINT_DURATION_SECONDS,
   SPECTRAL_FINGERPRINT_FRAMES,
+  SPECTRAL_FINGERPRINT_NOTE_PRESS_SECONDS,
   SPECTRAL_FINGERPRINT_ROTATION_DEGREES,
   SPECTRAL_FINGERPRINT_TILT_DEGREES,
 } from '../visualizations/spectralFingerprint'
 import { VitalTransferControls } from './VitalTransferControls'
 
 interface VariantComparisonSidebarProps {
+  audition: {
+    onNoteOff: (midi: number) => void
+    onNoteOn: (midi: number, velocity?: number, requestedAtMs?: number) => Promise<void>
+    onReleaseAll: () => void
+  }
+  canCopyBetweenVariants: boolean
   patches: { A: PatchState; B: PatchState | null }
   transfer: ComponentProps<typeof VitalTransferControls>
-  variant: VariantSwitcherProps
+  variant: VariantSwitcherProps & {
+    onCopyVariant: (sourceVariant: VariantId, targetVariant: VariantId) => void
+  }
 }
 
-const ATTRIBUTES = ['Brightness', 'Warmth', 'Movement', 'Complexity'] as const
-
-function seedFor(text: string): number {
-  let seed = 2166136261
-  for (const character of text) seed = Math.imul(seed ^ character.charCodeAt(0), 16777619)
-  return seed >>> 0
-}
-
-function attributeValues(patch: PatchState | null, variant: 'A' | 'B'): number[] {
-  let seed = seedFor(`${variant}:${patch?.metadata.name ?? 'empty'}`)
-  return ATTRIBUTES.map(() => {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
-    return 24 + (seed % 70)
-  })
-}
+const VARIANT_PREVIEW_HOLD_MS =
+  (FIXED_C3_PREVIEW_REQUEST.attackHoldSeconds + FIXED_C3_PREVIEW_REQUEST.sustainWindowSeconds) * 1_000
 
 interface SpectrogramView {
   rotation: number
@@ -82,12 +81,14 @@ function VariantSpectrogram({ patch, setView, variant, view }: { patch: PatchSta
     reverb: patch.effects.reverb.mix,
   }) : 'unavailable'
   return <canvas
-    aria-label={`Variant ${variant} 3D time-frequency spectrogram at ${Math.round(view.rotation)} degrees rotation and ${Math.round(view.tilt)} degrees tilt with ${SPECTRAL_FINGERPRINT_FRAMES} time frames. Drag to rotate and tilt; double-click to reset.${patch ? '' : ' Unavailable.'}`}
+    aria-label={`Variant ${variant} 3D time-frequency spectrogram over ${SPECTRAL_FINGERPRINT_DURATION_SECONDS} seconds at ${Math.round(view.rotation)} degrees rotation and ${Math.round(view.tilt)} degrees tilt with ${SPECTRAL_FINGERPRINT_FRAMES} time frames. Drag to rotate and tilt; double-click to reset.${patch ? '' : ' Unavailable.'}`}
     data-bins={SPECTRAL_FINGERPRINT_BANDS}
     data-color={color.hex}
     data-depth-lines={SPECTRAL_FINGERPRINT_FRAMES}
+    data-duration-seconds={SPECTRAL_FINGERPRINT_DURATION_SECONDS}
     data-frequency-direction="left-to-right"
     data-line-style="solid ridgeline"
+    data-note-press-seconds={SPECTRAL_FINGERPRINT_NOTE_PRESS_SECONDS}
     data-rotation-degrees={Math.round(view.rotation)}
     data-spectral-signature={signature}
     data-testid={`variant-${variant.toLowerCase()}-spectrogram`}
@@ -125,22 +126,62 @@ function VariantSpectrogram({ patch, setView, variant, view }: { patch: PatchSta
   />
 }
 
-function AttributeBars({ patch, variant }: { patch: PatchState | null; variant: 'A' | 'B' }) {
-  const values = useMemo(() => attributeValues(patch, variant), [patch, variant])
-  return <div className="attribute-bars" data-available={Boolean(patch)}>
-    {ATTRIBUTES.map((attribute, index) => <div className="attribute-row" key={attribute}>
-      <span>{attribute}</span>
-      <i><b style={{ width: `${values[index]}%` }} /></i>
-    </div>)}
-  </div>
-}
-
-export function VariantComparisonSidebar({ patches, transfer, variant }: VariantComparisonSidebarProps) {
+export function VariantComparisonSidebar({ audition, canCopyBetweenVariants, patches, transfer, variant }: VariantComparisonSidebarProps) {
+  const { onNoteOff, onNoteOn, onReleaseAll } = audition
   const [spectrogramView, setSpectrogramView] = useState<SpectrogramView>({ rotation: SPECTRAL_FINGERPRINT_ROTATION_DEGREES, tilt: SPECTRAL_FINGERPRINT_TILT_DEGREES })
+  const previewGeneration = useRef(0)
+  const previewTimer = useRef<number | null>(null)
+  const previewedVariant = useRef<VariantId | null>(null)
   const activateVariant = (variantId: 'A' | 'B') => {
     if (variantId === 'B' && !variant.hasVariantB) variant.onCreateVariant()
     else variant.onSelectVariant(variantId)
   }
+
+  const stopVariantPreview = useCallback(() => {
+    previewGeneration.current += 1
+    if (previewTimer.current !== null) window.clearTimeout(previewTimer.current)
+    previewTimer.current = null
+    if (previewedVariant.current !== null) onNoteOff(FIXED_C3_MIDI)
+    previewedVariant.current = null
+  }, [onNoteOff])
+
+  const previewVariant = (variantId: VariantId) => {
+    if (!patches[variantId]) return
+    stopVariantPreview()
+    onReleaseAll()
+    variant.onSelectVariant(variantId)
+    const generation = previewGeneration.current
+    previewedVariant.current = variantId
+    void onNoteOn(
+      FIXED_C3_MIDI,
+      FIXED_C3_PREVIEW_REQUEST.velocity,
+      performance.now(),
+    ).then(() => {
+      if (previewGeneration.current !== generation) {
+        if (previewedVariant.current === null) onNoteOff(FIXED_C3_MIDI)
+        return
+      }
+      previewTimer.current = window.setTimeout(() => {
+        if (previewGeneration.current !== generation) return
+        onNoteOff(FIXED_C3_MIDI)
+        previewTimer.current = null
+        previewedVariant.current = null
+      }, VARIANT_PREVIEW_HOLD_MS)
+    }).catch(() => {
+      if (previewGeneration.current !== generation) return
+      onNoteOff(FIXED_C3_MIDI)
+      previewTimer.current = null
+      previewedVariant.current = null
+    })
+  }
+
+  useEffect(() => {
+    if (previewedVariant.current !== null && previewedVariant.current !== variant.currentVariant) {
+      stopVariantPreview()
+    }
+  }, [stopVariantPreview, variant.currentVariant])
+
+  useEffect(() => stopVariantPreview, [stopVariantPreview])
 
   return <aside aria-label="Variant comparison" className="workbench-sidebar">
     <h1 className="sidebar-title"><span>SYNTH</span> <strong>CREATOR</strong></h1>
@@ -165,8 +206,26 @@ export function VariantComparisonSidebar({ patches, transfer, variant }: Variant
           tabIndex={0}
         >
           <VariantSpectrogram patch={patches[variantId]} setView={setSpectrogramView} variant={variantId} view={spectrogramView} />
-          <AttributeBars patch={patches[variantId]} variant={variantId} />
           </article>
+          <div className="variant-card-actions">
+            <button
+              aria-label={`Preview variant ${variantId} with a one-second C3`}
+              className="button variant-card-action"
+              data-testid={`preview-variant-${variantId.toLowerCase()}`}
+              disabled={!patches[variantId]}
+              onClick={() => previewVariant(variantId)}
+              type="button"
+            >Preview</button>
+            <button
+              aria-label={`Copy variant ${variantId} to variant ${variantId === 'A' ? 'B' : 'A'}`}
+              className="button variant-card-action"
+              data-testid={`copy-variant-${variantId.toLowerCase()}-to-${variantId === 'A' ? 'b' : 'a'}`}
+              disabled={!patches[variantId] || (Boolean(patches.B) && !canCopyBetweenVariants)}
+              onClick={() => variant.onCopyVariant(variantId, variantId === 'A' ? 'B' : 'A')}
+              title={!patches[variantId] ? `Variant ${variantId} does not exist yet` : undefined}
+              type="button"
+            >Copy to {variantId === 'A' ? 'B' : 'A'}</button>
+          </div>
         </div>)}
       </div>
     </section>

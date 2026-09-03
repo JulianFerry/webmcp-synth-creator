@@ -20,7 +20,15 @@ source ./emsdk_env.sh
 
 ## Rebuild
 
-From the repository root:
+For a fresh clone, install dependencies, fetch Vital, build the WASM artifacts,
+and verify the production bundle with one command:
+
+```sh
+npm run setup:first-run
+```
+
+The script installs the pinned emsdk under the user cache by default. The
+equivalent manual rebuild from the repository root is:
 
 ```sh
 bash wasm/vital/fetch-source.sh

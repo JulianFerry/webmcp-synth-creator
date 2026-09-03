@@ -219,6 +219,9 @@ describe('VitalPresetAdapter import', () => {
       'oscillator1.level',
       'oscillator2.level',
       'oscillator3.level',
+      'oscillator1.wavetablePosition',
+      'oscillator2.wavetablePosition',
+      'oscillator3.wavetablePosition',
     ])
     expect(imported.warnings).toEqual(
       expect.arrayContaining([
@@ -281,6 +284,9 @@ describe('VitalPresetAdapter import', () => {
       'oscillator1.level',
       'oscillator2.level',
       'oscillator3.level',
+      'oscillator1.wavetablePosition',
+      'oscillator2.wavetablePosition',
+      'oscillator3.wavetablePosition',
     ])
     expect(imported.warnings).toContain(
       'Legacy Filter 1 was moved into the workbench effects-chain filter.',

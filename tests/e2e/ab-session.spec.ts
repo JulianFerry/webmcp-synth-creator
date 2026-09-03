@@ -53,10 +53,11 @@ test('A/B session creates and auditions wider B, undoes only B, then exports sel
   await page.goto('/')
   await expect(page.getByTestId('webmcp-status')).toContainText('available')
   await expect(page.getByTestId('vital-status')).toContainText('ready')
-  const variantA = page.locator('.variant-spectrum-a')
-  const variantB = page.locator('.variant-spectrum-b')
+  const variantBCard = page.locator('.variant-spectrum-b')
+  const variantA = page.getByTestId('variant-a-spectrogram')
+  const variantB = page.getByTestId('variant-b-spectrogram')
   const initialAOpacity = await variantA.evaluate((element) => getComputedStyle(element).opacity)
-  await expect(variantB).toHaveAttribute('data-available', 'false')
+  await expect(variantBCard).toHaveAttribute('data-available', 'false')
   await expect(page.getByTestId('variant-b')).toHaveCSS('border-style', 'solid')
   await page.getByTestId('preview-note').click()
 
@@ -66,7 +67,8 @@ test('A/B session creates and auditions wider B, undoes only B, then exports sel
     if (!tool) throw new Error('create_variant was not registered')
     return JSON.parse(
       await document.modelContext!.executeTool(tool, {
-        reason: 'Create a wider B while preserving the current tone',
+        description: 'Create a wider B while preserving the current tone',
+        comparisonAxis: 'stereo width',
         changes: [
           { path: 'metadata.name', value: 'Ethereal Gate Wide B' },
           { path: 'oscillators.0.unisonVoices', value: 7 },
@@ -91,7 +93,7 @@ test('A/B session creates and auditions wider B, undoes only B, then exports sel
   await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-spread', '1')
   await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-unison', '7')
   await expect(page.getByTestId('active-voice-count')).toHaveText('1')
-  await expect(variantB).toHaveAttribute('data-available', 'true')
+  await expect(variantBCard).toHaveAttribute('data-available', 'true')
   expect(Number(await variantA.evaluate((element) => getComputedStyle(element).opacity))).toBeLessThan(Number(initialAOpacity))
   await expect(variantB).toHaveCSS('opacity', '1')
   await expect(page.getByTestId('history-size')).toHaveText('1')
@@ -121,18 +123,20 @@ test('A/B session creates and auditions wider B, undoes only B, then exports sel
   await expect(page.getByTestId('future-size')).toHaveText('0')
   await expect(page.getByTestId('export-filename')).toHaveText('ethereal-gate.vital')
 
-  const sessionState = await page.evaluate(async () => {
+  const patchState = await page.evaluate(async () => {
     const tools = await document.modelContext!.getTools()
-    const tool = tools.find((candidate) => candidate.name === 'get_session_state')
-    if (!tool) throw new Error('get_session_state was not registered')
+    const tool = tools.find((candidate) => candidate.name === 'get_patch')
+    if (!tool) throw new Error('get_patch was not registered')
     return JSON.parse(await document.modelContext!.executeTool(tool, {})) as {
-      currentVariant: string
-      hasVariantB: boolean
-      canUndo: boolean
-      canRedo: boolean
+      session: {
+        currentVariant: string
+        hasVariantB: boolean
+        canUndo: boolean
+        canRedo: boolean
+      }
     }
   })
-  expect(sessionState).toMatchObject({
+  expect(patchState.session).toMatchObject({
     currentVariant: 'A',
     hasVariantB: true,
     canUndo: false,
@@ -154,4 +158,59 @@ test('A/B session creates and auditions wider B, undoes only B, then exports sel
     osc_1_unison_voices: 5,
     osc_1_stereo_spread: 0.88,
   })
+})
+
+test('WebMCP creates two warm-bass proposals that are auditionable from the A/B UI', async ({
+  page,
+}) => {
+  await installWebMcpDouble(page)
+  await page.goto('/')
+  await expect(page.getByTestId('webmcp-status')).toContainText('available')
+  await expect(page.getByTestId('vital-status')).toContainText('ready')
+
+  const creation = await page.evaluate(async () => {
+    const tools = await document.modelContext!.getTools()
+    const tool = tools.find((candidate) => candidate.name === 'create_patch')
+    if (!tool) throw new Error('create_patch was not registered')
+    return JSON.parse(
+      await document.modelContext!.executeTool(tool, {
+        description: 'Warm bass: sub-heavy sine foundation',
+        attributes: { category: 'bass', brightness: 0.2 },
+        comparisonAxis: 'harmonic profile',
+        alternative: {
+          description: 'Warm bass: saturated analog saw harmonics',
+          attributes: { category: 'lead', brightness: 0.55, drive: 0.7 },
+        },
+      }),
+    ) as {
+      session: { currentVariant: string; hasVariantB: boolean }
+      variants: Record<'A' | 'B', { name: string; description: string }>
+    }
+  })
+
+  expect(creation.session).toMatchObject({ currentVariant: 'A', hasVariantB: true })
+  expect(creation.variants.A.description).not.toBe(creation.variants.B.description)
+  await expect(page.getByTestId('variant-a')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('variant-b')).toHaveAttribute('data-available', 'true')
+  await expect(page.locator('.patch-actions')).toHaveAttribute(
+    'data-patch-name',
+    'Warm bass: sub-heavy sine foundation',
+  )
+
+  await page.getByTestId('preview-note').click()
+  await page.getByTestId('variant-b').click()
+  await expect(page.getByTestId('variant-b')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('.patch-actions')).toHaveAttribute(
+    'data-patch-name',
+    'Warm bass: saturated analog saw harmonics',
+  )
+  await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-variant', 'B')
+  await expect(page.getByTestId('active-voice-count')).toHaveText('1')
+
+  await page.getByTestId('variant-a').click()
+  await expect(page.locator('.patch-actions')).toHaveAttribute(
+    'data-patch-name',
+    'Warm bass: sub-heavy sine foundation',
+  )
+  await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-variant', 'A')
 })

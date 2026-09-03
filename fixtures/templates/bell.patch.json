@@ -1,0 +1,193 @@
+{
+  "version": 4,
+  "metadata": {
+    "name": "Bell Template",
+    "category": "pluck",
+    "description": "Purpose-built bell starting point with layered synthesis and a category-specific effect chain.",
+    "tags": [
+      "bell",
+      "template",
+      "layered"
+    ]
+  },
+  "oscillators": [
+    {
+      "enabled": true,
+      "wavetableId": "glass",
+      "wavetablePosition": 0.38,
+      "level": 0.64,
+      "transposeSemitones": 12,
+      "fineTuneCents": 1,
+      "unisonVoices": 3,
+      "unisonDetune": 0.12,
+      "stereoSpread": 0.72,
+      "randomPhase": 0.6,
+      "pan": 0.5
+    },
+    {
+      "enabled": true,
+      "wavetableId": "metallic",
+      "wavetablePosition": 0.18,
+      "level": 0.27,
+      "transposeSemitones": 24,
+      "fineTuneCents": 3,
+      "unisonVoices": 3,
+      "unisonDetune": 0,
+      "stereoSpread": 0.54,
+      "randomPhase": 0.31,
+      "pan": 0.5
+    },
+    {
+      "enabled": false,
+      "wavetableId": "glass",
+      "wavetablePosition": 0,
+      "level": 0,
+      "transposeSemitones": 0,
+      "fineTuneCents": 0,
+      "unisonVoices": 1,
+      "unisonDetune": 0,
+      "stereoSpread": 0,
+      "randomPhase": 0,
+      "pan": 0.5
+    }
+  ],
+  "ampEnvelope": {
+    "delaySeconds": 0,
+    "attackSeconds": 0.002,
+    "holdSeconds": 0,
+    "decaySeconds": 1.8,
+    "sustainLevel": 0.02,
+    "releaseSeconds": 2.2,
+    "attackCurve": 0,
+    "decayCurve": 0,
+    "releaseCurve": 0
+  },
+  "modEnvelope": {
+    "delaySeconds": 0,
+    "attackSeconds": 0,
+    "holdSeconds": 0,
+    "decaySeconds": 0.2,
+    "sustainLevel": 0,
+    "releaseSeconds": 0.1,
+    "attackCurve": 0,
+    "decayCurve": 0,
+    "releaseCurve": 0
+  },
+  "filter": {
+    "enabled": true,
+    "type": "lowpass",
+    "cutoffHz": 9000,
+    "resonance": 0.28,
+    "slope": 24,
+    "drive": 0.0,
+    "keytrack": 0.65,
+    "velocityToCutoff": 0.0
+  },
+  "lfo1": {
+    "enabled": false,
+    "points": [
+      {
+        "x": 0,
+        "y": 0,
+        "power": 0
+      },
+      {
+        "x": 1,
+        "y": 1,
+        "power": 0
+      }
+    ],
+    "rate": {
+      "mode": "sync",
+      "division": "1/4"
+    },
+    "phase": 0,
+    "smooth": true,
+    "smoothing": 0.15,
+    "target": "level",
+    "scope": "all",
+    "depth": 0.68
+  },
+  "modulations": [],
+  "voice": {
+    "polyphony": 8,
+    "legato": false,
+    "glideSeconds": 0,
+    "velocitySensitivity": 0.45,
+    "transposeSemitones": 0
+  },
+  "effects": {
+    "order": [
+      "distortion",
+      "filter",
+      "compressor",
+      "chorus",
+      "delay",
+      "reverb"
+    ],
+    "distortion": {
+      "enabled": false,
+      "type": "soft_clip",
+      "drive": 0.57,
+      "mix": 0.3
+    },
+    "chorus": {
+      "enabled": false,
+      "voices": 4,
+      "rate": 0.41,
+      "depth": 0.25,
+      "feedback": 0.05,
+      "mix": 0.18
+    },
+    "delay": {
+      "enabled": true,
+      "mode": "sync",
+      "division": "1/8",
+      "feedback": 0.2,
+      "mix": 0.16
+    },
+    "reverb": {
+      "enabled": true,
+      "mix": 0.44,
+      "decaySeconds": 3.35,
+      "size": 0.72,
+      "predelay": 0.02,
+      "lowCut": 0.15,
+      "highCut": 0.88
+    },
+    "compressor": {
+      "enabled": true,
+      "bands": "high",
+      "amount": 0.64,
+      "attack": 0.2,
+      "release": 0.65,
+      "mix": 0.55
+    }
+  },
+  "wavetableData": {},
+  "lfo2": {
+    "enabled": false,
+    "points": [
+      {
+        "x": 0,
+        "y": 0,
+        "power": 0
+      },
+      {
+        "x": 1,
+        "y": 1,
+        "power": 0
+      }
+    ],
+    "rate": {
+      "mode": "sync",
+      "division": "1/2"
+    },
+    "phase": 0,
+    "smooth": true,
+    "smoothing": 0.15,
+    "target": "position",
+    "scope": 1,
+    "depth": 0.25
+  }
+}

@@ -1,0 +1,193 @@
+{
+  "version": 4,
+  "metadata": {
+    "name": "Vocal Template",
+    "category": "other",
+    "description": "Purpose-built vocal starting point with layered synthesis and a category-specific effect chain.",
+    "tags": [
+      "vocal",
+      "template",
+      "layered"
+    ]
+  },
+  "oscillators": [
+    {
+      "enabled": true,
+      "wavetableId": "vocal",
+      "wavetablePosition": 0.25,
+      "level": 0.64,
+      "transposeSemitones": 0,
+      "fineTuneCents": 0,
+      "unisonVoices": 5,
+      "unisonDetune": 0.16,
+      "stereoSpread": 0.8,
+      "randomPhase": 0.46,
+      "pan": 0.5
+    },
+    {
+      "enabled": true,
+      "wavetableId": "airy",
+      "wavetablePosition": 0.69,
+      "level": 0.2,
+      "transposeSemitones": 12,
+      "fineTuneCents": 0,
+      "unisonVoices": 3,
+      "unisonDetune": 0,
+      "stereoSpread": 0.6,
+      "randomPhase": 0.31,
+      "pan": 0.5
+    },
+    {
+      "enabled": false,
+      "wavetableId": "vocal",
+      "wavetablePosition": 0,
+      "level": 0,
+      "transposeSemitones": 0,
+      "fineTuneCents": 0,
+      "unisonVoices": 1,
+      "unisonDetune": 0,
+      "stereoSpread": 0,
+      "randomPhase": 0,
+      "pan": 0.5
+    }
+  ],
+  "ampEnvelope": {
+    "delaySeconds": 0,
+    "attackSeconds": 0.18,
+    "holdSeconds": 0,
+    "decaySeconds": 0.65,
+    "sustainLevel": 0.72,
+    "releaseSeconds": 0.9,
+    "attackCurve": 0,
+    "decayCurve": 0,
+    "releaseCurve": 0
+  },
+  "modEnvelope": {
+    "delaySeconds": 0,
+    "attackSeconds": 0,
+    "holdSeconds": 0,
+    "decaySeconds": 0.2,
+    "sustainLevel": 0,
+    "releaseSeconds": 0.1,
+    "attackCurve": 0,
+    "decayCurve": 0,
+    "releaseCurve": 0
+  },
+  "filter": {
+    "enabled": true,
+    "type": "lowpass",
+    "cutoffHz": 4700,
+    "resonance": 0.22,
+    "slope": 24,
+    "drive": 0.24,
+    "keytrack": 0.45,
+    "velocityToCutoff": 0.36
+  },
+  "lfo1": {
+    "enabled": false,
+    "points": [
+      {
+        "x": 0,
+        "y": 0,
+        "power": 0
+      },
+      {
+        "x": 1,
+        "y": 1,
+        "power": 0
+      }
+    ],
+    "rate": {
+      "mode": "sync",
+      "division": "1/4"
+    },
+    "phase": 0,
+    "smooth": true,
+    "smoothing": 0.15,
+    "target": "level",
+    "scope": "all",
+    "depth": 0.68
+  },
+  "modulations": [],
+  "voice": {
+    "polyphony": 8,
+    "legato": false,
+    "glideSeconds": 0,
+    "velocitySensitivity": 0.75,
+    "transposeSemitones": 0
+  },
+  "effects": {
+    "order": [
+      "distortion",
+      "filter",
+      "compressor",
+      "chorus",
+      "delay",
+      "reverb"
+    ],
+    "distortion": {
+      "enabled": false,
+      "type": "bit_crush",
+      "drive": 0.46,
+      "mix": 0.66
+    },
+    "chorus": {
+      "enabled": true,
+      "voices": 3,
+      "rate": 0.32,
+      "depth": 0.61,
+      "feedback": 0.29,
+      "mix": 0.42
+    },
+    "delay": {
+      "enabled": true,
+      "mode": "sync",
+      "division": "1/16",
+      "feedback": 0.47,
+      "mix": 0.4
+    },
+    "reverb": {
+      "enabled": true,
+      "mix": 0.36,
+      "decaySeconds": 2.7,
+      "size": 0.62,
+      "predelay": 0.08,
+      "lowCut": 0.1,
+      "highCut": 0.8
+    },
+    "compressor": {
+      "enabled": false,
+      "bands": "low",
+      "amount": 0.52,
+      "attack": 0.56,
+      "release": 0.5,
+      "mix": 0.85
+    }
+  },
+  "wavetableData": {},
+  "lfo2": {
+    "enabled": true,
+    "points": [
+      {
+        "x": 0,
+        "y": 0,
+        "power": 0
+      },
+      {
+        "x": 1,
+        "y": 1,
+        "power": 0
+      }
+    ],
+    "rate": {
+      "mode": "sync",
+      "division": "1/2"
+    },
+    "phase": 0,
+    "smooth": true,
+    "smoothing": 0.15,
+    "target": "position",
+    "scope": 1,
+    "depth": 0.25
+  }
+}

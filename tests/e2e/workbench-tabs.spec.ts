@@ -34,6 +34,22 @@ async function installWebMcpDouble(page: Page): Promise<void> {
   })
 }
 
+async function setRange(page: Page, testId: string, value: number): Promise<void> {
+  const control = page.getByTestId(testId)
+  await control.focus()
+  await control.evaluate((element, nextValue) => {
+    const input = element as HTMLInputElement
+    input.value = String(nextValue)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  }, value)
+  await control.blur()
+  await expect(control).toHaveAttribute('data-parameter-value', String(value))
+}
+
+async function expectParameter(page: Page, testId: string, value: number): Promise<void> {
+  await expect.poll(async () => Number(await page.getByTestId(testId).getAttribute('data-parameter-value'))).toBeCloseTo(value)
+}
+
 test('workbench tabs expose keyboard navigation and mount only the active panel', async ({ page }) => {
   await page.goto('/')
   const tablist = page.getByRole('tablist', { name: 'Synth Creator sections' })
@@ -47,10 +63,11 @@ test('workbench tabs expose keyboard navigation and mount only the active panel'
   await expect(page.getByTestId('keyboard-surface')).toBeVisible()
   await expect(page.getByRole('complementary', { name: 'Variant comparison' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Amplitude envelope' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'LFO' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'LFO 1', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'LFO 2', exact: true })).toBeVisible()
 
   const envelopeTypeBounds = await page.locator('.envelope-type-chip').boundingBox()
-  const lfoToggleBounds = await page.getByRole('switch', { name: 'LFO' }).boundingBox()
+  const lfoToggleBounds = await page.getByRole('switch', { name: 'LFO 1' }).boundingBox()
   expect(envelopeTypeBounds).not.toBeNull()
   expect(lfoToggleBounds).not.toBeNull()
   expect(envelopeTypeBounds!.width).toBe(lfoToggleBounds!.width)
@@ -93,6 +110,46 @@ test('WebMCP changes stay independent of the compact toolbar and tab navigation'
   await expect(page.getByTestId('history-size')).toHaveText(String(Number(beforeHistory) + 1))
 })
 
+test('WebMCP hydrates a bright timbre table for a dry bass listening patch', async ({ page }) => {
+  await installWebMcpDouble(page)
+  await page.goto('/')
+
+  const rawResult = await page.evaluate(async () => {
+    const tools = await document.modelContext!.getTools()
+    const createPatch = tools.find((tool) => tool.name === 'create_patch')
+    const applyPatch = tools.find((tool) => tool.name === 'apply_patch')
+    if (!createPatch || !applyPatch) throw new Error('Required WebMCP tools were not registered')
+    await document.modelContext!.executeTool(createPatch, {
+      description: 'Start from the bass template',
+      attributes: { category: 'bass' },
+    })
+    return document.modelContext!.executeTool(applyPatch, {
+      reason: 'Prepare a dry source for listening tests',
+      changes: [
+        { op: 'timbre', character: 'bright', position: 0.7, target: 1 },
+        { op: 'balance', osc1: 0.8, osc2: 0, osc3: 0 },
+        { path: 'filter.enabled', value: false },
+        { path: 'effects.distortion.enabled', value: false },
+        { path: 'effects.chorus.enabled', value: false },
+        { path: 'effects.delay.enabled', value: false },
+        { path: 'effects.reverb.enabled', value: false },
+      ],
+    })
+  })
+  const result = JSON.parse(rawResult) as {
+    ok?: boolean
+    changed?: Record<string, { before: unknown; after: unknown }>
+    current?: { osc1?: { wavetableId: string; wavetablePosition: number; level: number } }
+  }
+
+  expect(result.ok).not.toBe(false)
+  expect(result.current?.osc1).toMatchObject({
+    wavetableId: 'airy',
+    wavetablePosition: 0.7,
+    level: 0.8,
+  })
+})
+
 test('permanent footer previews sustain until Stop and switches modes cleanly', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('preview-note').click()
@@ -108,7 +165,7 @@ test('permanent footer previews sustain until Stop and switches modes cleanly', 
   await expect(page.getByTestId('active-voice-count')).toHaveText('0')
 })
 
-test('effects render in a reorderable 3 row by 2 column grid without modulation panels', async ({ page }) => {
+test('effects render in a reorderable 2 row by 3 column grid without modulation panels', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('tab', { name: 'Effects' }).click()
 
@@ -116,7 +173,7 @@ test('effects render in a reorderable 3 row by 2 column grid without modulation 
   const effectCards = grid.locator('[data-effect-id]')
   const effectOrder = () => effectCards.evaluateAll((cards) => cards.map((card) => card.getAttribute('data-effect-id')))
   await expect(effectCards).toHaveCount(6)
-  expect(await grid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(2)
+  expect(await grid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(3)
   const filterBounds = await page.getByTestId('effect-card-filter').boundingBox()
   const filterPanelBounds = await page.getByTestId('effect-card-filter').locator('.filter-panel').boundingBox()
   const filterPlotBounds = await page.getByTestId('filter-plot').boundingBox()
@@ -170,6 +227,95 @@ test('bypassed effects are greyed while their enable switches remain available',
   }
 })
 
+test('envelope keeps curve editing in the graph without duplicate curve or hold sliders', async ({ page }) => {
+  await page.goto('/')
+
+  await expect(page.getByTestId('amp-hold')).toHaveCount(0)
+  await expect(page.getByTestId('amp-attack-curve')).toHaveCount(0)
+  await expect(page.getByTestId('amp-decay-curve')).toHaveCount(0)
+  await expect(page.getByTestId('amp-release-curve')).toHaveCount(0)
+  await expect(page.getByTestId('amp-attack-curve-handle')).toBeVisible()
+  await expect(page.getByTestId('amp-decay-curve-handle')).toBeVisible()
+  await expect(page.getByTestId('amp-release-curve-handle')).toBeVisible()
+  await expect(page.getByTestId('lfo-1-curve-0')).toHaveClass(/graph-curve-handle/)
+})
+
+test('operation-written effects and envelope curves have real editors', async ({ page }) => {
+  await page.goto('/')
+
+  const initialGraph = await page.getByTestId('amp-envelope-path').getAttribute('d')
+  await expect(page.getByTestId('amp-delay')).toHaveCount(0)
+  await expect(page.getByTestId('amp-hold')).toHaveCount(0)
+  for (const phase of ['attack', 'decay', 'release']) {
+    const handle = page.getByTestId(`amp-${phase}-curve-handle`)
+    await expect(handle).toHaveAccessibleName(`${phase[0].toUpperCase()}${phase.slice(1)} curve handle`)
+    await handle.focus()
+    await handle.press('ArrowRight')
+    await handle.press('ArrowRight')
+  }
+  await expect(page.getByTestId('amp-envelope-path')).not.toHaveAttribute('d', initialGraph!)
+
+  const attackCurveHandle = page.getByTestId('amp-attack-curve-handle')
+  const handleBounds = await attackCurveHandle.boundingBox()
+  expect(handleBounds).not.toBeNull()
+  const beforeDragPath = await page.getByTestId('amp-envelope-path').getAttribute('d')
+  const beforeDragCurve = Number(await attackCurveHandle.getAttribute('aria-valuenow'))
+  await page.mouse.move(handleBounds!.x + handleBounds!.width / 2, handleBounds!.y + handleBounds!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(handleBounds!.x + handleBounds!.width / 2, handleBounds!.y + handleBounds!.height / 2 + 9, { steps: 6 })
+  await page.mouse.up()
+  await expect.poll(async () => Number(await attackCurveHandle.getAttribute('aria-valuenow'))).not.toBeCloseTo(beforeDragCurve)
+  await expect(page.getByTestId('amp-envelope-path')).not.toHaveAttribute('d', beforeDragPath!)
+  const draggedAttackCurve = Number(await attackCurveHandle.getAttribute('aria-valuenow'))
+
+  await page.getByRole('tab', { name: 'Effects' }).click()
+  await expect(page.getByTestId('effect-card-distortion').getByRole('heading', { name: 'Distortion' })).toBeVisible()
+  await expect(page.getByTestId('effect-card-chorus').getByRole('heading', { name: 'Chorus' })).toBeVisible()
+  await expect(page.getByTestId('distortion-type')).toBeVisible()
+  await expect(page.getByTestId('distortion-drive')).toBeVisible()
+  await expect(page.getByTestId('chorus-voices')).toBeVisible()
+  await expect(page.getByTestId('chorus-mix')).toBeVisible()
+  await expect(page.getByTestId('chorus-voices')).toHaveAttribute('aria-valuemax', '4')
+  await expect(page.getByTestId('chorus-rate')).toHaveAttribute('aria-valuemin', '0')
+  await expect(page.getByTestId('chorus-rate')).toHaveAttribute('aria-valuemax', '1')
+  await expect(page.getByTestId('chorus-feedback')).toHaveAttribute('aria-valuemax', '1')
+  await expect(page.getByTestId('filter-slope')).toBeVisible()
+  await expect(page.getByTestId('filter-drive')).toBeVisible()
+  await expect(page.getByTestId('filter-keytrack')).toBeVisible()
+
+  if (await page.getByTestId('distortion-enabled').getAttribute('aria-checked') === 'false') await page.getByTestId('distortion-enabled').click()
+  await page.getByTestId('distortion-type').selectOption('sine_fold')
+  await setRange(page, 'distortion-drive', .63)
+  await setRange(page, 'distortion-mix', .71)
+  if (await page.getByTestId('chorus-enabled').getAttribute('aria-checked') === 'false') await page.getByTestId('chorus-enabled').click()
+  await setRange(page, 'chorus-voices', 4)
+  await setRange(page, 'chorus-rate', .73)
+  await setRange(page, 'chorus-depth', .58)
+  await setRange(page, 'chorus-feedback', .31)
+  await setRange(page, 'chorus-mix', .46)
+  await page.getByTestId('filter-slope').selectOption('24')
+  await setRange(page, 'filter-drive', .37)
+  await setRange(page, 'filter-keytrack', .68)
+  await expect(page.getByTestId('distortion-enabled')).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByTestId('distortion-type')).toHaveValue('sine_fold')
+  await expect(page.getByTestId('filter-slope')).toHaveValue('24')
+
+  await page.getByRole('tab', { name: 'Oscillators' }).click()
+  await expect.poll(async () => Number(await page.getByTestId('amp-attack-curve-handle').getAttribute('aria-valuenow'))).toBeCloseTo(draggedAttackCurve)
+  await expect.poll(async () => Number(await page.getByTestId('amp-decay-curve-handle').getAttribute('aria-valuenow'))).toBeCloseTo(0)
+  await expect.poll(async () => Number(await page.getByTestId('amp-release-curve-handle').getAttribute('aria-valuenow'))).toBeCloseTo(0)
+  await page.getByRole('tab', { name: 'Effects' }).click()
+  await expect(page.getByTestId('distortion-enabled')).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByTestId('distortion-type')).toHaveValue('sine_fold')
+  await expect(page.getByTestId('chorus-enabled')).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByTestId('filter-slope')).toHaveValue('24')
+  for (const [id, value] of [['distortion-drive', '.63'], ['distortion-mix', '.71'], ['chorus-voices', '4'], ['chorus-rate', '.73'], ['chorus-depth', '.58'], ['chorus-feedback', '.31'], ['chorus-mix', '.46'], ['filter-drive', '.37'], ['filter-keytrack', '.68']] as const) {
+    await expectParameter(page, id, Number(value))
+  }
+  await page.getByRole('button', { name: 'Undo transaction' }).click()
+  await expect(page.getByTestId('filter-keytrack')).not.toHaveAttribute('data-parameter-value', '0.68')
+})
+
 test('mobile drag bar can move an effect down', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
@@ -187,7 +333,9 @@ test('mobile drag bar can move an effect down', async ({ page }) => {
   await page.mouse.up()
   await expect.poll(effectOrder).toEqual(DISTORTION_LAST_ORDER)
 
-  const movedDistortionHandle = await page.getByRole('button', { name: 'Drag Distortion to reorder' }).boundingBox()
+  const movedDistortion = page.getByRole('button', { name: 'Drag Distortion to reorder' })
+  await movedDistortion.evaluate((element) => element.scrollIntoView({ block: 'center' }))
+  const movedDistortionHandle = await movedDistortion.boundingBox()
   const filterCard = await page.getByTestId('effect-card-filter').boundingBox()
   expect(movedDistortionHandle).not.toBeNull()
   expect(filterCard).not.toBeNull()

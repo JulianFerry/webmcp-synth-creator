@@ -18,6 +18,7 @@ function createWideVariant(commands: CommandService, replaceExisting = false) {
   return commands.createVariant({
     type: 'create_variant',
     reason: 'Create a wider B alternative',
+    comparisonAxis: 'stereo width',
     changes: [
       { path: 'metadata.name', value: 'Ethereal Gate Wide B' },
       { path: 'oscillators.0.unisonVoices', value: 7 },
@@ -28,6 +29,16 @@ function createWideVariant(commands: CommandService, replaceExisting = false) {
 }
 
 describe('variant-local session state', () => {
+  it('creates B as an exact inactive copy when copying before B exists', () => {
+    const { commands, session } = createHarness()
+    const originalA = session.getPatch('A')
+
+    commands.copyVariant('A', 'B')
+
+    expect(session.getState().currentVariant).toBe('A')
+    expect(session.getPatch('B')).toEqual(originalA)
+  })
+
   it('clones A to B and applies the creation edit as one isolated transaction', () => {
     const { commands, session } = createHarness()
     const originalA = session.getPatch()
@@ -45,6 +56,7 @@ describe('variant-local session state', () => {
       hasVariantB: true,
       canUndo: true,
       canRedo: false,
+      comparisonAxis: 'stereo width',
     })
     expect(state.variants.A.present).toEqual(originalA)
     expect(state.variants.B?.past).toHaveLength(1)
@@ -88,6 +100,67 @@ describe('variant-local session state', () => {
     expect(redoB.patch.oscillators[0].level).toBe(0.4)
     expect(redoB.patch.filter.cutoffHz).toBe(6000)
     expect(session.getPatch('A').filter.cutoffHz).toBe(7200)
+  })
+
+  it('copies complete patches between variants as one target-local transaction', () => {
+    const { commands, session } = createHarness()
+    commands.applyPatch({
+      type: 'apply_patch',
+      reason: 'Give A a distinct cutoff',
+      changes: [{ path: 'filter.cutoffHz', value: 5_800 }],
+    })
+    createWideVariant(commands)
+    commands.applyPatch({
+      type: 'apply_patch',
+      reason: 'Give B a distinct level',
+      changes: [{ path: 'oscillators.0.level', value: 0.4 }],
+    })
+
+    const originalA = session.getPatch('A')
+    const originalB = session.getPatch('B')
+    commands.selectVariant('A')
+    const beforeCopyToB = session.getState()
+    const events: Array<{ affectedVariant: string; currentVariant: string; kind: string }> = []
+    session.subscribe(({ affectedVariant, currentVariant, kind }) => {
+      events.push({ affectedVariant, currentVariant, kind })
+    })
+
+    commands.copyVariant('A', 'B')
+
+    const afterCopyToB = session.getState()
+    expect(afterCopyToB.currentVariant).toBe('A')
+    expect(afterCopyToB.variants.A.present).toEqual(originalA)
+    expect(afterCopyToB.variants.A.past).toEqual(beforeCopyToB.variants.A.past)
+    expect(afterCopyToB.variants.B?.present).toEqual(originalA)
+    expect(afterCopyToB.variants.B?.past).toHaveLength(beforeCopyToB.variants.B!.past.length + 1)
+    expect(events.at(-1)).toEqual({
+      affectedVariant: 'B',
+      currentVariant: 'A',
+      kind: 'variant_copy',
+    })
+
+    commands.selectVariant('B')
+    expect(commands.undo().patch).toEqual(originalB)
+    expect(commands.redo().patch).toEqual(originalA)
+    commands.undo()
+
+    const beforeCopyToA = session.getState()
+    commands.copyVariant('B', 'A')
+
+    const afterCopyToA = session.getState()
+    expect(afterCopyToA.currentVariant).toBe('B')
+    expect(afterCopyToA.variants.B?.present).toEqual(originalB)
+    expect(afterCopyToA.variants.B?.past).toEqual(beforeCopyToA.variants.B?.past)
+    expect(afterCopyToA.variants.A.present).toEqual(originalB)
+    expect(afterCopyToA.variants.A.past).toHaveLength(beforeCopyToA.variants.A.past.length + 1)
+    expect(events.at(-1)).toEqual({
+      affectedVariant: 'A',
+      currentVariant: 'B',
+      kind: 'variant_copy',
+    })
+
+    commands.selectVariant('A')
+    expect(commands.undo().patch).toEqual(originalA)
   })
 
   it('clears only the selected variant future after a new write', () => {
@@ -159,6 +232,7 @@ describe('variant-local session state', () => {
       commands.createVariant({
         type: 'create_variant',
         reason: 'Invalid atomic B edit',
+        comparisonAxis: 'timbre',
         changes: [
           { path: 'filter.cutoffHz', value: 3000 },
           { path: 'oscillators.0.wavetableId', value: 'missing-table' },
@@ -180,7 +254,7 @@ describe('variant-local session state', () => {
     commands.selectVariant('A')
 
     const replacement = createWideVariant(commands, true)
-    expect(replacement.session).toMatchObject({ currentVariant: 'B', hasVariantB: true })
+    expect(replacement.session).toMatchObject({ currentVariant: 'B', hasVariantB: true, comparisonAxis: 'stereo width' })
     expect(session.getState().variants.B?.past).toHaveLength(1)
 
     const discarded = commands.discardVariantB()
@@ -192,6 +266,22 @@ describe('variant-local session state', () => {
     })
     expect(discarded.patch).toEqual(originalA)
     expect(session.getState().variants.B).toBeUndefined()
+    expect(discarded.session).not.toHaveProperty('comparisonAxis')
+  })
+
+  it('preserves the comparison axis across selection and edits', () => {
+    const { commands, session } = createHarness()
+    createWideVariant(commands)
+    commands.selectVariant('A')
+    commands.applyPatch({
+      type: 'apply_patch',
+      reason: 'Precisely lower A cutoff',
+      changes: [{ path: 'filter.cutoffHz', value: 5000 }],
+    })
+    commands.selectVariant('B')
+
+    expect(session.getState().comparisonAxis).toBe('stereo width')
+    expect(session.getSummary().comparisonAxis).toBe('stereo width')
   })
 
   it('keeps imported Vital backing variant-local and restores it across replacement history', () => {

@@ -16,6 +16,35 @@ export const WAVETABLE_REGISTRY: Readonly<Record<string, WavetableState>> = Obje
 
 export const GENERATED_WAVETABLE_IDS = Object.freeze([...generatedIds])
 
+const WAVETABLE_CHARACTER_DESCRIPTIONS: Readonly<Record<string, string>> = Object.freeze({
+  sine: 'Pure fundamental with no upper harmonics.',
+  triangle: 'Soft, rounded tone with gently fading odd harmonics.',
+  saw: 'Full-spectrum saw that moves from bright to progressively softer.',
+  'soft-square': 'Hollow odd-harmonic pulse with a softened upper register.',
+  'warm-saw': 'Warm saw with restrained highs and subtly shaped even harmonics.',
+  hollow: 'Open, woody spectrum with sparse resonant harmonic families.',
+  harsh: 'Aggressive sync-like spectrum with dense, slowly decaying highs.',
+  airy: 'Bright saw-like body with a light, shimmering high-frequency halo.',
+  glass: 'Sparse inharmonic partials for a clear, struck-glass character.',
+  metallic: 'Moving clustered partials with a resonant metallic ring.',
+  digital: 'Stepped harmonic bands with a crisp, synthetic edge.',
+  vocal: 'Moving formant peaks that sweep through vowel-like colors.',
+})
+
+for (const id of GENERATED_WAVETABLE_IDS) {
+  if (!WAVETABLE_CHARACTER_DESCRIPTIONS[id]) {
+    throw new Error(`Generated wavetable has no character description: ${id}`)
+  }
+}
+
+export const WAVETABLE_CAPABILITIES = Object.freeze(
+  GENERATED_WAVETABLE_IDS.map((id) => ({
+    id,
+    name: WAVETABLE_REGISTRY[id].name,
+    character: WAVETABLE_CHARACTER_DESCRIPTIONS[id],
+  })),
+)
+
 export function createWavetableData(ids: readonly string[]): Record<string, WavetableState> {
   return Object.fromEntries(
     ids.map((id) => {
@@ -24,6 +53,15 @@ export function createWavetableData(ids: readonly string[]): Record<string, Wave
       return [id, structuredClone(wavetable)]
     }),
   )
+}
+
+export function includeGeneratedWavetables(
+  data: Record<string, WavetableState>,
+  ids: readonly string[],
+): Record<string, WavetableState> {
+  const missingIds = [...new Set(ids)].filter((id) => !(id in data) && id in WAVETABLE_REGISTRY)
+  if (missingIds.length === 0) return data
+  return { ...data, ...createWavetableData(missingIds) }
 }
 
 export function resolveWavetable(

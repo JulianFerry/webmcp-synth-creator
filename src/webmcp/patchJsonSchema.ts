@@ -143,26 +143,13 @@ export const PATCH_STATE_INPUT_SCHEMA: Record<string, unknown> = {
         enabled: { type: 'boolean' },
         points: { type: 'array', minItems: 2, maxItems: 32, items: lfoPointSchema },
         rate: {
-          oneOf: [
-            {
-              type: 'object',
-              properties: {
-                mode: { const: 'sync' },
-                division: { type: 'string', enum: [...TEMPO_SYNC_DIVISIONS] },
-              },
-              required: ['mode', 'division'],
-              additionalProperties: false,
-            },
-            {
-              type: 'object',
-              properties: {
-                mode: { const: 'free' },
-                hz: { type: 'number', minimum: 0.01, maximum: 40 },
-              },
-              required: ['mode', 'hz'],
-              additionalProperties: false,
-            },
-          ],
+          type: 'object',
+          properties: {
+            mode: { const: 'sync' },
+            division: { type: 'string', enum: [...TEMPO_SYNC_DIVISIONS] },
+          },
+          required: ['mode', 'division'],
+          additionalProperties: false,
         },
         phase: unitInterval,
         smooth: { type: 'boolean' },
@@ -221,6 +208,19 @@ export const PATCH_STATE_INPUT_SCHEMA: Record<string, unknown> = {
           uniqueItems: true,
           items: { type: 'string', enum: [...EFFECT_IDS] },
         },
+        compressor: {
+          type: 'object',
+          properties: {
+            enabled: { type: 'boolean' },
+            bands: { type: 'string', enum: ['multiband', 'low', 'high'] },
+            amount: unitInterval,
+            attack: unitInterval,
+            release: unitInterval,
+            mix: unitInterval,
+          },
+          required: ['enabled', 'bands', 'amount', 'attack', 'release', 'mix'],
+          additionalProperties: false,
+        },
         delay: {
           type: 'object',
           properties: {
@@ -254,7 +254,7 @@ export const PATCH_STATE_INPUT_SCHEMA: Record<string, unknown> = {
           additionalProperties: false,
         },
       },
-      required: ['delay', 'reverb'],
+      required: ['compressor', 'delay', 'reverb'],
       additionalProperties: false,
     },
     wavetableData: {

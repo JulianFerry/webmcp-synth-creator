@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { getPresetPatch, listPresets } from '../../src/presets/registry'
+import { listTemplatePatches } from '../../src/presets/templates'
 import { VitalPresetAdapter } from '../../src/vital/VitalPresetAdapter'
 import { VITAL_MODULATION_DESTINATIONS, VITAL_MODULATION_SOURCES } from '../../src/vital/modulations'
 import { VITAL_FRAME_SAMPLE_COUNT } from '../../src/wavetables/render'
@@ -15,11 +16,22 @@ function realAdapter(): VitalPresetAdapter {
 }
 
 describe('curated preset Vital structure', () => {
+  it.each(listTemplatePatches().map(({ category, patch }) => [category, patch] as const))(
+    'strictly round-trips the validated %s template',
+    (_category, patch) => {
+      const adapter = realAdapter()
+      const exported = adapter.exportPatch(patch)
+      const imported = adapter.importPatchStrict(exported.document)
+      expect(adapter.exportPatch(imported.patch).document.settings).toEqual(exported.document.settings)
+    },
+  )
+
   it.each(listPresets().map(({ id }) => [id] as const))(
     'exports %s with matching tables, envelopes, LFO, routes, and effects',
     (presetId) => {
       const patch = getPresetPatch(presetId)
       const settings = realAdapter().exportPatch(patch).document.settings
+      expect(settings.filter_fx_keytrack).toBe(0)
       const wavetables = settings.wavetables as Array<{
         groups: Array<{ components: Array<{ keyframes: Array<{ wave_data: string }> }> }>
       }>
@@ -67,6 +79,16 @@ describe('curated preset Vital structure', () => {
       expect(routes.slice(patch.modulations.length).every((route) => route.source === '')).toBe(
         true,
       )
+    },
+  )
+
+  it.each(listPresets().map(({ id }) => [id] as const))(
+    'strictly round-trips curated preset %s',
+    (presetId) => {
+      const adapter = realAdapter()
+      const exported = adapter.exportPatch(getPresetPatch(presetId))
+      const imported = adapter.importPatchStrict(exported.document)
+      expect(imported.patch.version).toBe(4)
     },
   )
 })

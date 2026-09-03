@@ -52,8 +52,8 @@ export function WorkbenchTabs({ active, assistance, children, history, onChange 
           </button>
         ))}
         <div className="workbench-tab-actions">
-          <HistoryControls {...history} />
           {assistance}
+          <HistoryControls {...history} />
         </div>
       </div>
       <div

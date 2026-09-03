@@ -1,10 +1,47 @@
 import { readFile } from 'node:fs/promises'
 
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+
+import { VitalPresetAdapter } from '../../src/vital/VitalPresetAdapter'
+
+async function installWebMcpDouble(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    type Tool = {
+      name: string
+      description: string
+      inputSchema: Record<string, unknown>
+      annotations: { readOnlyHint: boolean; untrustedContentHint: boolean }
+      execute: (input: Record<string, unknown>, context: { signal: AbortSignal }) => Promise<unknown>
+    }
+    const tools = new Map<string, Tool>()
+    const context = {
+      async registerTool(tool: Tool, options: { signal?: AbortSignal } = {}) {
+        tools.set(tool.name, tool)
+        options.signal?.addEventListener('abort', () => tools.delete(tool.name), { once: true })
+      },
+      async getTools() {
+        return [...tools.values()].map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          annotations: tool.annotations,
+        }))
+      },
+      async executeTool(tool: { name: string }, input: Record<string, unknown> = {}) {
+        const definition = tools.get(tool.name)
+        if (!definition) throw new Error(`Unknown tool: ${tool.name}`)
+        return JSON.stringify(await definition.execute(input, { signal: new AbortController().signal }))
+      },
+      ontoolchange: null,
+    }
+    Object.defineProperty(Document.prototype, 'modelContext', { configurable: true, get: () => context })
+  })
+}
 
 test('top patch controls stay synchronized and Vital import is one undoable B-local transaction', async ({
   page,
 }) => {
+  await installWebMcpDouble(page)
   await page.goto('/')
   await expect(page.getByTestId('vital-status')).toContainText('ready')
   await expect(page.locator('.diagnostic-drawer')).toHaveCount(0)
@@ -31,6 +68,40 @@ test('top patch controls stay synchronized and Vital import is one undoable B-lo
   const downloadPath = await download.path()
   expect(downloadPath).not.toBeNull()
   const exportedBuffer = await readFile(downloadPath as string)
+
+  const toolDownloadPromise = page.waitForEvent('download')
+  const toolExport = await page.evaluate(async () => {
+    const tool = (await document.modelContext!.getTools()).find(({ name }) => name === 'export_patch')
+    if (!tool) throw new Error('export_patch was not registered')
+    return JSON.parse(await document.modelContext!.executeTool(tool, { filename: 'tool-wide-lead' })) as {
+      filename: string
+      validation: { valid: boolean; mode: string; warnings: string[] }
+    }
+  })
+  const toolDownload = await toolDownloadPromise
+  expect(toolDownload.suggestedFilename()).toBe('tool-wide-lead.vital')
+  expect(toolExport).toEqual({
+    filename: 'tool-wide-lead.vital',
+    validation: {
+      valid: true,
+      mode: 'strict',
+      warnings: [
+        'Vital has no PatchState tags or modulation route IDs; import uses a vital-import tag and generated route IDs. Custom wavetable IDs are regenerated unless the table exactly matches the built-in registry.',
+      ],
+    },
+  })
+  const toolDownloadPath = await toolDownload.path()
+  expect(toolDownloadPath).not.toBeNull()
+  const independentlyDownloadedDocument = JSON.parse(
+    await readFile(toolDownloadPath as string, 'utf8'),
+  )
+  const fixture = JSON.parse(
+    await readFile('fixtures/vital/init.vital', 'utf8'),
+  )
+  expect(new VitalPresetAdapter(fixture).importPatchStrict(independentlyDownloadedDocument)).toMatchObject({
+    patch: { metadata: { name: 'Wide Lead' } },
+    sourceVersion: '1.0.7',
+  })
 
   await presetSelector.selectOption('glass-pluck')
   await expect(page.getByTestId('history-size')).toHaveText('4')
@@ -150,6 +221,7 @@ test('responsive top patch controls expose keyboard and screen-reader semantics'
 test('native-feature imports stay intact, warn above the workbench, and preserve opaque state', async ({
   page,
 }) => {
+  await installWebMcpDouble(page)
   await page.goto('/')
   await expect(page.getByTestId('vital-status')).toContainText('ready')
 
@@ -168,11 +240,11 @@ test('native-feature imports stay intact, warn above the workbench, and preserve
   nativeDocument.settings.sample_on = 1
   nativeDocument.settings.distortion_on = 1
   ;(nativeDocument.settings.sample as Record<string, unknown>).name = 'Preserved sample layer'
-  ;(nativeDocument.settings.modulations as Array<Record<string, unknown>>)[3] = {
+  ;(nativeDocument.settings.modulations as Array<Record<string, unknown>>)[10] = {
     source: 'macro_control_1',
     destination: 'osc_1_level',
   }
-  nativeDocument.settings.modulation_4_amount = 0.4
+  nativeDocument.settings.modulation_11_amount = 0.4
   nativeDocument.settings.macro_control_1 = 0.75
   const originalJson = `\n${JSON.stringify(nativeDocument, null, 2)}\n`
 
@@ -201,9 +273,37 @@ test('native-feature imports stay intact, warn above the workbench, and preserve
   await expect(page.getByTestId('active-voice-count')).toHaveText('0')
 
   const untouchedDownloadPromise = page.waitForEvent('download')
-  await page.getByTestId('export-vital').click()
+  const toolExport = await page.evaluate(async () => {
+    const tool = (await document.modelContext!.getTools()).find(({ name }) => name === 'export_patch')
+    if (!tool) throw new Error('export_patch was not registered')
+    return JSON.parse(await document.modelContext!.executeTool(tool)) as {
+      filename: string
+      validation: {
+        valid: boolean
+        mode: string
+        preservedFeatures: {
+          affectedControls: Array<{ control: string; sources: string[] }>
+          hiddenEffects: string[]
+          preservesUnsupportedFeatures: boolean
+          warnings: string[]
+        }
+      }
+    }
+  })
   const untouchedDownload = await untouchedDownloadPromise
   expect(await readFile((await untouchedDownload.path()) as string, 'utf8')).toBe(originalJson)
+  expect(toolExport).toMatchObject({
+    filename: 'preserved-native-features.vital',
+    validation: {
+      valid: true,
+      mode: 'retained',
+      preservedFeatures: {
+        affectedControls: [{ control: 'OSC 1 level', sources: ['Macro 1'] }],
+        hiddenEffects: ['Distortion'],
+        preservesUnsupportedFeatures: true,
+      },
+    },
+  })
 
   await page.locator('.darken-control').evaluate((button: HTMLButtonElement) => button.click())
   await expect(notice).toBeVisible()

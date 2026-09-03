@@ -9,12 +9,21 @@ async function dragBy(page: Page, locator: Locator, dx: number, dy: number): Pro
   await locator.dispatchEvent('pointerup', { ...origin, clientX: origin.clientX + dx, clientY: origin.clientY + dy })
 }
 
+async function pressWithoutMoving(locator: Locator, pointerId = 9): Promise<void> {
+  const box = await locator.boundingBox()
+  if (!box) throw new Error('Editor handle is not visible')
+  const origin = { clientX: box.x + box.width / 2, clientY: box.y + box.height / 2, pointerId, pointerType: 'mouse', bubbles: true }
+  await locator.dispatchEvent('pointerdown', origin)
+  await locator.dispatchEvent('pointermove', origin)
+  await locator.dispatchEvent('pointerup', origin)
+}
+
 test('direct envelope and LFO gestures are atomic, undoable, and cancellable', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByTestId('lfo-rate-mode')).toHaveCount(0)
-  await expect(page.locator('label[for="lfo-phase"]')).toHaveClass(/parameter-control-slider/)
+  await expect(page.getByTestId('lfo-1-rate-mode')).toHaveCount(0)
+  await expect(page.locator('label[for="lfo-1-phase"]')).toHaveClass(/parameter-control-slider/)
   const history = page.getByTestId('history-size')
-  const sustain = page.getByTestId('amp-decay-sustain-handle')
+  const sustain = page.getByTestId('amp-sustain-handle')
   const sustainSlider = page.getByTestId('amp-sustain')
   const sustainBefore = await sustainSlider.inputValue()
 
@@ -32,13 +41,25 @@ test('direct envelope and LFO gestures are atomic, undoable, and cancellable', a
   await expect(history).toHaveText('0')
   await expect(sustainSlider).toHaveValue(sustainBefore)
 
-  const point = page.getByTestId('lfo-point-1')
+  const point = page.getByTestId('lfo-1-point-1')
   const pointBefore = await point.getAttribute('aria-valuetext')
   await dragBy(page, point, 12, 10)
   await expect(history).toHaveText('1')
   await expect(point).not.toHaveAttribute('aria-valuetext', pointBefore ?? '')
   await page.getByRole('button', { name: 'Undo transaction' }).click()
   await expect(point).toHaveAttribute('aria-valuetext', pointBefore ?? '')
+
+  const curve = page.getByTestId('lfo-1-curve-0')
+  const curveBefore = await curve.getAttribute('aria-valuenow')
+  const lfoPath = page.getByTestId('lfo-1-shape-path')
+  const pathBefore = await lfoPath.getAttribute('d')
+  await dragBy(page, curve, 0, 8)
+  await expect(history).toHaveText('1')
+  await expect(curve).not.toHaveAttribute('aria-valuenow', curveBefore ?? '')
+  await expect(lfoPath).not.toHaveAttribute('d', pathBefore ?? '')
+  await page.getByRole('button', { name: 'Undo transaction' }).click()
+  await expect(curve).toHaveAttribute('aria-valuenow', curveBefore ?? '')
+  await expect(lfoPath).toHaveAttribute('d', pathBefore ?? '')
 
   const box = await sustain.boundingBox()
   if (!box) throw new Error('Sustain handle is not visible')
@@ -53,26 +74,49 @@ test('direct envelope and LFO gestures are atomic, undoable, and cancellable', a
 
 test('focused handles commit one transaction on key-up', async ({ page }) => {
   await page.goto('/')
-  const sustain = page.getByTestId('amp-decay-sustain-handle')
+  const sustain = page.getByTestId('amp-sustain-handle')
   await sustain.focus()
   await page.keyboard.down('ArrowUp')
   await expect(page.getByTestId('history-size')).toHaveText('0')
   await page.keyboard.up('ArrowUp')
   await expect(page.getByTestId('history-size')).toHaveText('1')
 
-  const point = page.getByTestId('lfo-point-1')
+  const point = page.getByTestId('lfo-1-point-1')
   await point.focus()
   await page.keyboard.down('ArrowRight')
   await expect(page.getByTestId('history-size')).toHaveText('1')
   await page.keyboard.up('ArrowRight')
   await expect(page.getByTestId('history-size')).toHaveText('2')
+
+  const curve = page.getByTestId('lfo-1-curve-0')
+  await curve.focus()
+  await page.keyboard.down('ArrowRight')
+  await expect(page.getByTestId('history-size')).toHaveText('2')
+  await page.keyboard.up('ArrowRight')
+  await expect(page.getByTestId('history-size')).toHaveText('3')
 })
+
+for (const [name, testId] of [
+  ['amplitude envelope', 'amp-attack-handle'],
+  ['LFO position', 'lfo-1-point-1'],
+  ['LFO curve', 'lfo-1-curve-0'],
+] as const) {
+  test(`clicking an ${name} handle without moving is a no-op`, async ({ page }) => {
+    await page.goto('/')
+
+    await pressWithoutMoving(page.getByTestId(testId))
+
+    await expect(page.getByTestId('history-size')).toHaveText('0')
+    await page.waitForTimeout(100)
+    await expect(page.getByRole('alert', { name: 'The command did not change any patch values', exact: true })).toHaveCount(0)
+  })
+}
 
 test('dragging time and LFO handles left decreases values without snapping right', async ({ page }) => {
   await page.goto('/')
   const history = page.getByTestId('history-size')
 
-  for (const testId of ['amp-attack-handle', 'amp-decay-sustain-handle']) {
+  for (const testId of ['amp-attack-handle', 'amp-decay-handle']) {
     const handle = page.getByTestId(testId)
     const before = Number(await handle.getAttribute('aria-valuenow'))
     await dragBy(page, handle, -10, 0)
@@ -83,7 +127,7 @@ test('dragging time and LFO handles left decreases values without snapping right
     await expect(history).toHaveText('0')
   }
 
-  const point = page.getByTestId('lfo-point-1')
+  const point = page.getByTestId('lfo-1-point-1')
   const beforePhase = Number((await point.getAttribute('aria-valuetext'))?.match(/^\d+/)?.[0])
   await dragBy(page, point, -12, 0)
   const afterPhase = Number((await point.getAttribute('aria-valuetext'))?.match(/^\d+/)?.[0])
@@ -91,29 +135,36 @@ test('dragging time and LFO handles left decreases values without snapping right
   await expect(history).toHaveText('1')
 })
 
-test('AHDSR exposes hold and combines decay with sustain while LFO handles alternate', async ({ page }) => {
+test('amp envelope uses ADSR controls and shares its curve point style with the LFO', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByTestId('amp-hold')).toBeVisible()
-  await expect(page.getByTestId('amp-hold-handle')).toBeVisible()
-  await expect(page.getByTestId('amp-decay-handle')).toHaveCount(0)
-  await expect(page.getByTestId('amp-sustain-handle')).toHaveCount(0)
+  await expect(page.getByTestId('amp-delay')).toHaveCount(0)
+  await expect(page.getByTestId('amp-delay-handle')).toHaveCount(0)
+  await expect(page.getByTestId('amp-hold')).toHaveCount(0)
+  await expect(page.getByTestId('amp-hold-handle')).toHaveCount(0)
+  await expect(page.getByTestId('amp-decay-handle')).toHaveCount(1)
+  await expect(page.getByTestId('amp-sustain-handle')).toHaveCount(1)
+  const [decayHandle, sustainHandle] = await Promise.all([
+    page.getByTestId('amp-decay-handle').boundingBox(),
+    page.getByTestId('amp-sustain-handle').boundingBox(),
+  ])
+  expect(sustainHandle!.x).toBeGreaterThan(decayHandle!.x)
+  expect(sustainHandle!.y).toBeCloseTo(decayHandle!.y, 0)
 
-  const kinds = await page.locator('.lfo-plot [data-handle-kind]').evaluateAll((handles) =>
+  const kinds = await page.locator('.lfo-plot').first().locator('[data-handle-kind]').evaluateAll((handles) =>
     handles.map((handle) => handle.getAttribute('data-handle-kind')),
   )
   expect(kinds).toEqual(kinds.map((_, index) => index % 2 === 0 ? 'position' : 'curve'))
   const adsrHandle = await page.getByTestId('amp-attack-handle').boundingBox()
-  const lfoHandle = await page.getByTestId('lfo-point-0').boundingBox()
+  const lfoHandle = await page.getByTestId('lfo-1-point-0').boundingBox()
   expect(Math.abs(adsrHandle!.width - lfoHandle!.width)).toBeLessThan(1)
-  const envelopeGraph = page.locator('.oscillator-modulator-row .envelope-plot')
-  const lfoGraph = page.locator('.oscillator-modulator-row .lfo-plot')
+  const envelopeGraph = page.locator('.oscillators-workspace > .envelope-panel .envelope-plot')
+  const lfoGraph = page.locator('.oscillators-workspace > .lfo-panel .lfo-plot').first()
   const [envelopeBox, lfoBox, envelopePanel, lfoPanel] = await Promise.all([
     envelopeGraph.boundingBox(), lfoGraph.boundingBox(),
-    page.locator('.oscillator-modulator-row .envelope-panel').boundingBox(),
-    page.locator('.oscillator-modulator-row .lfo-panel').boundingBox(),
+    page.locator('.oscillators-workspace > .envelope-panel').boundingBox(),
+    page.locator('.oscillators-workspace > .lfo-panel').first().boundingBox(),
   ])
-  expect(Math.abs(envelopeBox!.width - lfoBox!.width)).toBeLessThan(1)
-  expect(Math.abs(envelopeBox!.height - lfoBox!.height)).toBeLessThan(1)
+  expect(Math.abs(envelopeBox!.height - lfoBox!.height)).toBeLessThanOrEqual(3)
   expect(envelopeBox!.height).toBeGreaterThanOrEqual(96)
   expect(envelopeBox!.height).toBeLessThanOrEqual(100)
   expect(envelopeBox!.width / envelopePanel!.width).toBeGreaterThan(.94)
@@ -130,18 +181,23 @@ test('AHDSR exposes hold and combines decay with sustain while LFO handles alter
   }
   const handleDiameters = await Promise.all([
     page.getByTestId('amp-attack-handle').getAttribute('data-handle-diameter'),
-    page.getByTestId('lfo-point-0').getAttribute('data-handle-diameter'),
-    page.getByTestId('lfo-curve-0').getAttribute('data-handle-diameter'),
+    page.getByTestId('lfo-1-point-0').getAttribute('data-handle-diameter'),
+    page.getByTestId('lfo-1-curve-0').getAttribute('data-handle-diameter'),
   ])
   expect(handleDiameters).toEqual(['12', '12', '12'])
   const handleStyles = await Promise.all([
     page.getByTestId('amp-attack-handle').evaluate((element) => ({ fill: getComputedStyle(element).fill, stroke: getComputedStyle(element).stroke, strokeWidth: getComputedStyle(element).strokeWidth })),
-    page.getByTestId('lfo-point-0').evaluate((element) => ({ fill: getComputedStyle(element).fill, stroke: getComputedStyle(element).stroke, strokeWidth: getComputedStyle(element).strokeWidth })),
+    page.getByTestId('lfo-1-point-0').evaluate((element) => ({ fill: getComputedStyle(element).fill, stroke: getComputedStyle(element).stroke, strokeWidth: getComputedStyle(element).strokeWidth })),
   ])
   expect(handleStyles[0]).toEqual(handleStyles[1])
+  const curveHandleStyles = await Promise.all([
+    page.getByTestId('amp-attack-curve-handle').evaluate((element) => ({ fill: getComputedStyle(element).fill, stroke: getComputedStyle(element).stroke, strokeWidth: getComputedStyle(element).strokeWidth })),
+    page.getByTestId('lfo-1-curve-0').evaluate((element) => ({ fill: getComputedStyle(element).fill, stroke: getComputedStyle(element).stroke, strokeWidth: getComputedStyle(element).strokeWidth })),
+  ])
+  expect(curveHandleStyles[0]).toEqual(curveHandleStyles[1])
   const restrainedStyles = await Promise.all([
     page.getByTestId('amp-attack-handle').evaluate((element) => getComputedStyle(element).filter),
-    page.getByTestId('lfo-point-0').evaluate((element) => getComputedStyle(element).filter),
+    page.getByTestId('lfo-1-point-0').evaluate((element) => getComputedStyle(element).filter),
     envelopeGraph.locator('.plot-line').evaluate((element) => ({
       filter: getComputedStyle(element).filter,
       stroke: getComputedStyle(element).stroke,

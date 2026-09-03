@@ -1,10 +1,13 @@
 import { LatencyTrace, type RequestSource } from '../dev/latencyTrace'
 import { parseApplyPatchCommand } from '../patch/schemas'
+import { affectedSections } from '../patch/sections'
 import { summarizePatch } from '../patch/summary'
+import type { Change } from '../ops/types'
 import type {
   ApplyPatchCommand,
   PatchSummary,
   PatchState,
+  SetLfoPointCommand,
   SetLfoShapeCommand,
 } from '../patch/types'
 import {
@@ -24,9 +27,11 @@ import { createPatchTransaction, type CreatePatchCommand } from './createPatch'
 import { diffCompletePatch, diffSupportedPaths, type PatchDiff } from './diff'
 import { PatchHistory } from './history'
 import { createLoadPresetTransaction, type LoadPresetCommand } from './loadPreset'
+import { createSetLfoPointTransaction } from './setLfoPoint'
 import { createSetLfoShapeTransaction } from './setLfoShape'
 
 export class CommandError extends Error {}
+export class NoPatchChangesError extends CommandError {}
 
 export interface CommandContext {
   correlationId?: string
@@ -37,6 +42,8 @@ export interface CommandResult {
   patch: PatchState
   changed: PatchDiff
   summary: PatchSummary
+  current: Record<string, unknown>
+  undoStep: number
   canUndo: boolean
   canRedo: boolean
   session: SessionSummary
@@ -52,10 +59,13 @@ export class CommandService {
     if (history) this.session.attachInitialHistory(history)
   }
 
-  applyPatch(commandInput: ApplyPatchCommand, context: CommandContext = {}): CommandResult {
+  applyPatch(
+    commandInput: ApplyPatchCommand | { type: 'apply_patch'; reason: string; changes: Change[] },
+    context: CommandContext = {},
+  ): CommandResult {
     const { correlationId, source } = this.beginRequest(context, 'ui')
-    const command = parseApplyPatchCommand(commandInput)
     const before = this.session.getPatch()
+    const command = parseApplyPatchCommand(commandInput, before)
     const nextPatch = applyPatchChanges(before, command)
     const commandPaths = command.changes.map((change) => change.path)
     const changed = diffSupportedPaths(before, nextPatch, commandPaths)
@@ -77,16 +87,86 @@ export class CommandService {
     )
   }
 
+  setLfoPoint(commandInput: SetLfoPointCommand, context: CommandContext = {}): CommandResult {
+    return this.applyPatch(
+      createSetLfoPointTransaction(commandInput, this.session.getPatch()),
+      context,
+    )
+  }
+
   createPatch(
     commandInput: CreatePatchCommand,
     context: CommandContext = {},
     vitalBacking?: ImportedVitalBacking | null,
   ): CommandResult {
     const { correlationId, source } = this.beginRequest(context, 'ui')
+    if (this.session.hasVariant('B')) {
+      const activePatch = this.session.getPatch()
+      const variantA = this.session.getPatch('A')
+      this.session.discardVariantB(
+        this.commitInput(
+          variantA,
+          diffCompletePatch(activePatch, variantA),
+          correlationId,
+          'Replace variants with patch',
+          source,
+          'variant_discard',
+        ),
+      )
+    }
     const before = this.session.getPatch()
     const transaction = createPatchTransaction(before, commandInput)
     this.commitReplacement(transaction, correlationId, source, 'patch_create', vitalBacking)
     return this.commandResult(transaction.patch, transaction.changed, correlationId)
+  }
+
+  createPatchPair(
+    primaryInput: CreatePatchCommand,
+    alternativeInput: CreatePatchCommand,
+    comparisonAxis: string,
+    context: CommandContext = {},
+  ): CommandResult {
+    const { correlationId, source } = this.beginRequest(context, 'ui')
+
+    if (this.session.hasVariant('B')) {
+      const activePatch = this.session.getPatch()
+      const variantA = this.session.getPatch('A')
+      this.session.discardVariantB(
+        this.commitInput(
+          variantA,
+          diffCompletePatch(activePatch, variantA),
+          correlationId,
+          'Replace variants with patch pair',
+          source,
+          'variant_discard',
+        ),
+      )
+    }
+
+    const before = this.session.getPatch('A')
+    const primary = createPatchTransaction(before, primaryInput)
+    this.commitReplacement(primary, correlationId, source, 'patch_create', null)
+
+    const alternative = createPatchTransaction(primary.patch, alternativeInput)
+    this.session.createVariantB(
+      primary.patch,
+      this.commitInput(
+        alternative.patch,
+        alternative.changed,
+        correlationId,
+        alternative.reason,
+        source,
+        'variant_create',
+      ),
+      alternative.historyEntry,
+      true,
+      () => this.trace.record(correlationId, 'patch_committed', source),
+      false,
+      null,
+      comparisonAxis,
+    )
+
+    return this.commandResult(primary.patch, primary.changed, correlationId)
   }
 
   loadPreset(commandInput: LoadPresetCommand, context: CommandContext = {}): CommandResult {
@@ -122,6 +202,9 @@ export class CommandService {
       transaction.historyEntry,
       transaction.replaceExisting,
       () => this.trace.record(correlationId, 'patch_committed', source),
+      true,
+      undefined,
+      transaction.comparisonAxis,
     )
 
     return this.commandResult(transaction.patch, transaction.changed, correlationId)
@@ -146,6 +229,68 @@ export class CommandService {
     )
 
     return this.commandResult(selectedPatch, changed, correlationId)
+  }
+
+  copyVariant(
+    sourceVariant: VariantId,
+    targetVariant: VariantId,
+    context: CommandContext = {},
+  ): CommandResult {
+    if (sourceVariant === targetVariant) {
+      throw new CommandError('Source and target variants must be different')
+    }
+
+    const { correlationId, source } = this.beginRequest(context, 'ui')
+    const sourcePatch = this.session.getPatch(sourceVariant)
+    if (targetVariant === 'B' && !this.session.hasVariant('B')) {
+      const reason = `Copy variant ${sourceVariant} to ${targetVariant}`
+      const historyEntry = {
+        before: sourcePatch,
+        after: sourcePatch,
+        changed: {},
+        reason,
+      }
+      this.session.createVariantB(
+        sourcePatch,
+        this.commitInput(
+          sourcePatch,
+          {},
+          correlationId,
+          reason,
+          source,
+          'variant_copy',
+        ),
+        historyEntry,
+        false,
+        () => this.trace.record(correlationId, 'patch_committed', source),
+        false,
+        undefined,
+        `copy of ${sourceVariant}`,
+      )
+      return this.commandResult(sourcePatch, {}, correlationId)
+    }
+    const targetPatch = this.session.getPatch(targetVariant)
+    const transaction = createPatchTransaction(targetPatch, {
+      type: 'create_patch',
+      reason: `Copy variant ${sourceVariant} to ${targetVariant}`,
+      patch: sourcePatch,
+    })
+    this.assertChanged(transaction.changed)
+    this.session.commitTransactionForVariant(
+      targetVariant,
+      this.commitInput(
+        transaction.patch,
+        transaction.changed,
+        correlationId,
+        transaction.reason,
+        source,
+        'variant_copy',
+      ),
+      transaction.historyEntry,
+      () => this.trace.record(correlationId, 'patch_committed', source),
+    )
+
+    return this.commandResult(transaction.patch, transaction.changed, correlationId)
   }
 
   discardVariantB(context: CommandContext = {}): CommandResult {
@@ -273,6 +418,8 @@ export class CommandService {
       patch: committedPatch,
       changed,
       summary: summarizePatch(patch),
+      current: affectedSections(patch, Object.keys(changed)),
+      undoStep: this.historySize,
       canUndo: this.canUndo,
       canRedo: this.canRedo,
       session: this.session.getSummary(),
@@ -305,7 +452,7 @@ export class CommandService {
 
   private assertChanged(changed: PatchDiff): void {
     if (Object.keys(changed).length === 0) {
-      throw new CommandError('The command did not change any patch values')
+      throw new NoPatchChangesError('The command did not change any patch values')
     }
   }
 }

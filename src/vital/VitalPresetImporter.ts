@@ -1,3 +1,4 @@
+import { nearestStraightLfoDivision } from '../audio/lfo'
 import { parsePatchState } from '../patch/schemas'
 import { DEFAULT_EFFECT_ORDER, type EffectId } from '../patch/effects'
 import {
@@ -41,11 +42,15 @@ import {
   decodeVitalDelaySeconds,
   decodeVitalEnvelopeSeconds,
   decodeVitalGlideSeconds,
-  decodeVitalOscillatorLevel,
   decodeVitalReverbDecaySeconds,
-  decodeVitalUnisonDetune,
 } from './units'
 import { buildVitalWavetable } from './wavetable'
+import {
+  decodeVitalScalarValues,
+  projectVitalScalarValues,
+  VITAL_BOUND_SETTING_KEYS,
+  type VitalScalarPath,
+} from './bindings'
 
 export class VitalImportError extends Error {
   constructor(message: string) {
@@ -79,79 +84,23 @@ const TOP_LEVEL_MUTABLE_KEYS = new Set([
 ])
 
 const SUPPORTED_SETTING_KEYS = new Set([
-  'polyphony',
-  'legato',
-  'velocity_track',
-  'portamento_time',
-  'osc_1_on',
-  'osc_1_destination',
-  'osc_1_level',
-  'osc_1_wave_frame',
-  'osc_1_transpose',
-  'osc_1_tune',
-  'osc_1_unison_voices',
-  'osc_1_unison_detune',
-  'osc_1_stereo_spread',
-  'osc_1_random_phase',
-  'osc_2_on',
-  'osc_2_destination',
-  'osc_2_level',
-  'osc_2_wave_frame',
-  'osc_2_transpose',
-  'osc_2_tune',
-  'osc_2_unison_voices',
-  'osc_2_unison_detune',
-  'osc_2_stereo_spread',
-  'osc_2_random_phase',
-  'osc_3_on',
-  'osc_3_destination',
-  'osc_3_level',
-  'osc_3_wave_frame',
-  'osc_3_transpose',
-  'osc_3_tune',
-  'osc_3_unison_voices',
-  'osc_3_unison_detune',
-  'osc_3_stereo_spread',
-  'osc_3_random_phase',
-  'env_1_attack',
-  'env_1_hold',
-  'env_1_decay',
-  'env_1_sustain',
-  'env_1_release',
-  'env_2_attack',
-  'env_2_hold',
-  'env_2_decay',
-  'env_2_sustain',
-  'env_2_release',
-  'filter_1_on',
-  'filter_2_on',
-  'filter_fx_on',
-  'filter_fx_cutoff',
-  'filter_fx_resonance',
+  ...VITAL_BOUND_SETTING_KEYS,
   'filter_fx_model',
   'filter_fx_style',
   'filter_fx_blend',
-  'filter_fx_mix',
   'effect_chain_order',
   'lfo_1_sync',
-  'lfo_1_sync_type',
   'lfo_1_tempo',
   'lfo_1_frequency',
-  'lfo_1_phase',
-  'lfo_1_smooth_time',
-  'delay_on',
-  'delay_dry_wet',
-  'delay_feedback',
+  'lfo_2_sync',
+  'lfo_2_tempo',
+  'lfo_2_frequency',
   'delay_sync',
   'delay_aux_sync',
   'delay_tempo',
   'delay_aux_tempo',
   'delay_frequency',
   'delay_aux_frequency',
-  'reverb_on',
-  'reverb_dry_wet',
-  'reverb_decay_time',
-  'reverb_size',
   'wavetables',
   'lfos',
   'modulations',
@@ -168,7 +117,7 @@ const VITAL_STYLE_CATEGORIES: Record<string, PatchCategory> = {
   Other: 'other',
 }
 
-const VITAL_TEMPO_DIVISIONS: Record<number, Exclude<LfoRate, { mode: 'free' }>['division']> = {
+const VITAL_TEMPO_DIVISIONS: Record<number, LfoRate['division']> = {
   6: '1/1',
   7: '1/2',
   8: '1/4',
@@ -179,7 +128,7 @@ const VITAL_TEMPO_DIVISIONS: Record<number, Exclude<LfoRate, { mode: 'free' }>['
 }
 
 const VITAL_TRIPLET_DIVISIONS: Partial<
-  Record<number, Exclude<LfoRate, { mode: 'free' }>['division']>
+  Record<number, LfoRate['division']>
 > = {
   9: '1/8T',
   10: '1/16T',
@@ -531,54 +480,68 @@ function parseWavetable(value: unknown, slot: number, version: string): Wavetabl
   return { id: safeWavetableId(name, slot), name, frames }
 }
 
-function parseEnvelope(settings: Record<string, unknown>, prefix: 'env_1' | 'env_2'): EnvelopeState {
+type DecodedVitalScalars = Record<VitalScalarPath, unknown>
+
+function scalar<T>(values: DecodedVitalScalars, path: VitalScalarPath): T {
+  return values[path] as T
+}
+
+function parseEnvelope(values: DecodedVitalScalars, prefix: 'ampEnvelope' | 'modEnvelope'): EnvelopeState {
   return {
-    attackSeconds: decodeVitalEnvelopeSeconds(setting(settings, `${prefix}_attack`)),
-    holdSeconds: decodeVitalEnvelopeSeconds(setting(settings, `${prefix}_hold`)),
-    decaySeconds: decodeVitalEnvelopeSeconds(setting(settings, `${prefix}_decay`)),
-    sustainLevel: setting(settings, `${prefix}_sustain`),
-    releaseSeconds: decodeVitalEnvelopeSeconds(setting(settings, `${prefix}_release`)),
+    delaySeconds: scalar(values, `${prefix}.delaySeconds`),
+    attackSeconds: scalar(values, `${prefix}.attackSeconds`),
+    holdSeconds: scalar(values, `${prefix}.holdSeconds`),
+    decaySeconds: scalar(values, `${prefix}.decaySeconds`),
+    sustainLevel: scalar(values, `${prefix}.sustainLevel`),
+    releaseSeconds: scalar(values, `${prefix}.releaseSeconds`),
+    attackCurve: scalar(values, `${prefix}.attackCurve`),
+    decayCurve: scalar(values, `${prefix}.decayCurve`),
+    releaseCurve: scalar(values, `${prefix}.releaseCurve`),
   }
 }
 
 function parseOscillator(
   settings: Record<string, unknown>,
+  values: DecodedVitalScalars,
   index: 1 | 2 | 3,
   wavetableId: string,
 ): OscillatorState {
   const prefix = `osc_${index}`
+  const logicalIndex = (index - 1) as 0 | 1 | 2
+  const oscillatorScalar = <T>(field: Exclude<keyof OscillatorState, 'wavetableId'>): T =>
+    scalar(values, `oscillators.${logicalIndex}.${field}` as VitalScalarPath)
   if (setting(settings, `${prefix}_destination`) !== 3) {
     throw new VitalImportError(`Oscillator ${index} must route to Vital's effects input`)
   }
   return {
-    enabled: numericBoolean(setting(settings, `${prefix}_on`), `${prefix}_on`),
+    enabled: oscillatorScalar('enabled'),
     wavetableId,
-    wavetablePosition: setting(settings, `${prefix}_wave_frame`) / 256,
-    level: decodeVitalOscillatorLevel(setting(settings, `${prefix}_level`)),
-    transposeSemitones: integer(setting(settings, `${prefix}_transpose`), `${prefix}_transpose`),
-    fineTuneCents: setting(settings, `${prefix}_tune`) * 100,
-    unisonVoices: integer(
-      setting(settings, `${prefix}_unison_voices`),
-      `${prefix}_unison_voices`,
-    ),
-    unisonDetune: decodeVitalUnisonDetune(
-      setting(settings, `${prefix}_unison_detune`),
-    ),
-    stereoSpread: setting(settings, `${prefix}_stereo_spread`),
-    randomPhase: setting(settings, `${prefix}_random_phase`),
+    wavetablePosition: oscillatorScalar('wavetablePosition'),
+    level: oscillatorScalar('level'),
+    transposeSemitones: oscillatorScalar('transposeSemitones'),
+    fineTuneCents: oscillatorScalar('fineTuneCents'),
+    unisonVoices: oscillatorScalar('unisonVoices'),
+    unisonDetune: oscillatorScalar('unisonDetune'),
+    stereoSpread: oscillatorScalar('stereoSpread'),
+    randomPhase: oscillatorScalar('randomPhase'),
+    pan: oscillatorScalar('pan'),
   }
 }
 
-function parseRate(settings: Record<string, unknown>): LfoRate {
-  if (setting(settings, 'lfo_1_sync_type') !== 0) {
-    throw new VitalImportError('LFO 1 uses an unsupported sync type')
+function parseRate(settings: Record<string, unknown>, slot: 1 | 2): LfoRate {
+  const prefix = `lfo_${slot}`
+  if (setting(settings, `${prefix}_sync_type`) !== 0) {
+    throw new VitalImportError(`LFO ${slot} uses an unsupported sync type`)
   }
-  const sync = integer(setting(settings, 'lfo_1_sync'), 'lfo_1_sync')
-  if (sync === 0) return { mode: 'free', hz: 2 ** setting(settings, 'lfo_1_frequency') }
-  const tempo = integer(setting(settings, 'lfo_1_tempo'), 'lfo_1_tempo')
+  const sync = integer(setting(settings, `${prefix}_sync`), `${prefix}_sync`)
+  if (sync === 0) return {
+    mode: 'sync',
+    division: nearestStraightLfoDivision(2 ** setting(settings, `${prefix}_frequency`)),
+  }
+  const tempo = integer(setting(settings, `${prefix}_tempo`), `${prefix}_tempo`)
   const division = sync === 1 ? VITAL_TEMPO_DIVISIONS[tempo] : VITAL_TRIPLET_DIVISIONS[tempo]
   if ((sync !== 1 && sync !== 3) || !division) {
-    throw new VitalImportError('LFO 1 uses an unsupported synchronized rate')
+    throw new VitalImportError(`LFO ${slot} uses an unsupported synchronized rate`)
   }
   return { mode: 'sync', division }
 }
@@ -587,37 +550,38 @@ function parseLfo(
   value: unknown,
   settings: Record<string, unknown>,
   enabled: boolean,
+  scalars: DecodedVitalScalars,
+  slot: 1 | 2,
+  routing: Pick<LfoState, 'target' | 'scope' | 'depth'>,
 ): LfoState {
-  const lfo = record(value, 'Vital LFO 1')
-  assertExactKeys(lfo, ['name', 'num_points', 'points', 'powers', 'smooth'], 'Vital LFO 1')
-  stringValue(lfo.name, 'Vital LFO 1 name')
-  const pointCount = integer(lfo.num_points, 'Vital LFO 1 num_points')
+  const label = `Vital LFO ${slot}`
+  const lfo = record(value, label)
+  assertExactKeys(lfo, ['name', 'num_points', 'points', 'powers', 'smooth'], label)
+  stringValue(lfo.name, `${label} name`)
+  const pointCount = integer(lfo.num_points, `${label} num_points`)
   if (pointCount < 2 || pointCount > 32) {
-    throw new VitalImportError('Vital LFO 1 must contain 2 to 32 points')
+    throw new VitalImportError(`${label} must contain 2 to 32 points`)
   }
-  const pointValues = array(lfo.points, 'Vital LFO 1 points')
-  const powers = array(lfo.powers, 'Vital LFO 1 powers')
+  const pointValues = array(lfo.points, `${label} points`)
+  const powers = array(lfo.powers, `${label} powers`)
   if (pointValues.length !== pointCount * 2 || powers.length !== pointCount) {
-    throw new VitalImportError('Vital LFO 1 point arrays do not match num_points')
+    throw new VitalImportError(`${label} point arrays do not match num_points`)
   }
-  if (typeof lfo.smooth !== 'boolean') throw new VitalImportError('Vital LFO 1 smooth must be boolean')
-  const expectedSmoothTime = lfo.smooth ? -5 : -8.5
-  if (Math.abs(setting(settings, 'lfo_1_smooth_time') - expectedSmoothTime) > 1e-6) {
-    throw new VitalImportError('Vital LFO 1 smoothing is outside the supported canonical mapping')
-  }
-
+  if (typeof lfo.smooth !== 'boolean') throw new VitalImportError(`${label} smooth must be boolean`)
   return {
     enabled,
     points: Array.from({ length: pointCount }, (_, index) => ({
-      x: finiteNumber(pointValues[index * 2], `Vital LFO 1 point ${index + 1} x`),
+      x: finiteNumber(pointValues[index * 2], `${label} point ${index + 1} x`),
       y: decodeVitalLfoPointValue(
-        finiteNumber(pointValues[index * 2 + 1], `Vital LFO 1 point ${index + 1} y`),
+        finiteNumber(pointValues[index * 2 + 1], `${label} point ${index + 1} y`),
       ),
-      power: finiteNumber(powers[index], `Vital LFO 1 point ${index + 1} power`),
+      power: finiteNumber(powers[index], `${label} point ${index + 1} power`),
     })),
-    rate: parseRate(settings),
-    phase: setting(settings, 'lfo_1_phase'),
+    rate: parseRate(settings, slot),
+    phase: scalar(scalars, `lfo${slot}.phase`),
     smooth: lfo.smooth,
+    smoothing: scalar(scalars, `lfo${slot}.smoothing`),
+    ...routing,
   }
 }
 
@@ -631,9 +595,9 @@ function reverseLookup<T extends string>(
 function parseModulations(
   settings: Record<string, unknown>,
   values: unknown[],
-): { routes: ModulationRoute[]; lfoEnabled: boolean } {
+): { routes: ModulationRoute[]; lfoEnabled: Record<'lfo1' | 'lfo2', boolean> } {
   const routes: ModulationRoute[] = []
-  const lfoBypasses: boolean[] = []
+  const lfoBypasses: Record<'lfo1' | 'lfo2', boolean[]> = { lfo1: [], lfo2: [] }
 
   values.forEach((value, index) => {
     const slot = index + 1
@@ -683,7 +647,7 @@ function parseModulations(
     if (source === 'modEnvelope' && bypass) {
       throw new VitalImportError(`ENV 2 route ${slot} is bypassed and cannot be represented`)
     }
-    if (source === 'lfo1') lfoBypasses.push(bypass)
+    if (source === 'lfo1' || source === 'lfo2') lfoBypasses[source].push(bypass)
     routes.push({
       id: `vital-route-${slot}`,
       source,
@@ -693,20 +657,68 @@ function parseModulations(
     })
   })
 
-  if (new Set(lfoBypasses).size > 1) {
-    throw new VitalImportError('LFO 1 routes mix enabled and bypassed state')
+  for (const source of ['lfo1', 'lfo2'] as const) {
+    if (new Set(lfoBypasses[source]).size > 1) {
+      throw new VitalImportError(`${source.toUpperCase()} routes mix enabled and bypassed state`)
+    }
   }
   return {
     routes,
-    lfoEnabled: lfoBypasses.length > 0 ? !lfoBypasses[0] : false,
+    lfoEnabled: {
+      lfo1: lfoBypasses.lfo1.length > 0 ? !lfoBypasses.lfo1[0] : false,
+      lfo2: lfoBypasses.lfo2.length > 0 ? !lfoBypasses.lfo2[0] : false,
+    },
   }
+}
+
+function decodeLfoRouting(
+  routes: readonly ModulationRoute[],
+  source: 'lfo1' | 'lfo2',
+): Pick<LfoState, 'target' | 'scope' | 'depth'> {
+  const owned = routes.filter((route) => route.source === source)
+  if (owned.length === 0) {
+    return { target: source === 'lfo1' ? 'level' : 'position', scope: 'all', depth: 0 }
+  }
+  const first = owned[0]
+  if (first.destination === 'filter.cutoff') {
+    if (owned.length !== 1 || !first.bipolar || first.amount < 0) {
+      throw new VitalImportError(`${source.toUpperCase()} cutoff routing is not representable`)
+    }
+    return { target: 'cutoff', scope: 'all', depth: first.amount }
+  }
+  const match = /^oscillator([1-3])\.(level|wavetablePosition|pitch)$/.exec(first.destination)
+  if (!match) throw new VitalImportError(`${source.toUpperCase()} routing is not representable`)
+  const target = match[2] === 'wavetablePosition' ? 'position' : match[2] as 'level' | 'pitch'
+  const expectedAmount = target === 'level' ? -Math.abs(first.amount) : Math.abs(first.amount)
+  const oscillatorNumbers = owned.map((route) => {
+    const routeMatch = /^oscillator([1-3])\.(level|wavetablePosition|pitch)$/.exec(route.destination)
+    if (!routeMatch || (routeMatch[2] === 'wavetablePosition' ? 'position' : routeMatch[2]) !== target || route.amount !== expectedAmount || route.bipolar !== (target !== 'level')) {
+      throw new VitalImportError(`${source.toUpperCase()} routes do not share one declared target and depth`)
+    }
+    return Number(routeMatch[1]) as 1 | 2 | 3
+  })
+  const scope = oscillatorNumbers.length === 3 && oscillatorNumbers.join(',') === '1,2,3'
+    ? 'all'
+    : oscillatorNumbers.length === 1 ? oscillatorNumbers[0] : null
+  if (scope === null) throw new VitalImportError(`${source.toUpperCase()} oscillator scope is not representable`)
+  return { target, scope, depth: Math.abs(first.amount) }
+}
+
+function decodeVelocityToCutoff(routes: readonly ModulationRoute[]): number {
+  const owned = routes.filter((route) => route.source === 'velocity')
+  if (owned.length === 0) return 0
+  const route = owned[0]
+  if (owned.length !== 1 || route.destination !== 'filter.cutoff' || route.bipolar || route.amount < 0) {
+    throw new VitalImportError('Velocity routing is not representable')
+  }
+  return route.amount
 }
 
 function decodeFilterCutoff(value: number): number {
   return Math.round(440 * 2 ** ((value - 69) / 12))
 }
 
-function parseFxFilterType(settings: Record<string, unknown>): FilterType {
+function parseFxFilterType(settings: Record<string, unknown>) {
   try {
     return decodeVitalFxFilterType({
       model: integer(setting(settings, 'filter_fx_model'), 'filter_fx_model'),
@@ -742,6 +754,7 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
   const settings = record(document.settings, 'Vital settings')
   const templateSettings = record(template.settings, 'Template Vital settings')
   assertUnsupportedSettingsUnchanged(settings, templateSettings)
+  const scalars = decodeVitalScalarValues(settings)
 
   if (setting(settings, 'filter_1_on') !== 0 || setting(settings, 'filter_2_on') !== 0) {
     throw new VitalImportError('Filter 1 and Filter 2 must be off for PatchState compatibility')
@@ -776,10 +789,10 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
 
   const importedLfos = array(settings.lfos, 'Vital LFO slots')
   const templateLfos = array(templateSettings.lfos, 'Template Vital LFO slots')
-  if (importedLfos.length !== templateLfos.length || importedLfos.length < 1) {
+  if (importedLfos.length !== templateLfos.length || importedLfos.length < 2) {
     throw new VitalImportError('Vital preset must retain the pinned LFO slot count')
   }
-  for (let index = 1; index < importedLfos.length; index += 1) {
+  for (let index = 2; index < importedLfos.length; index += 1) {
     if (!valuesEqual(importedLfos[index], templateLfos[index])) {
       throw new VitalImportError(`Unsupported Vital LFO slot ${index + 1} contains material`)
     }
@@ -806,7 +819,7 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
 
   const delayMode = delaySync === 0 ? 'free' : 'sync'
   const patchCandidate = {
-    version: 2,
+    version: 4,
     metadata: {
       name,
       category,
@@ -814,30 +827,49 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
       tags: ['vital-import'],
     },
     oscillators: [
-      parseOscillator(settings, 1, firstWavetable.id),
-      parseOscillator(settings, 2, secondWavetable.id),
-      parseOscillator(settings, 3, thirdWavetable.id),
+      parseOscillator(settings, scalars, 1, firstWavetable.id),
+      parseOscillator(settings, scalars, 2, secondWavetable.id),
+      parseOscillator(settings, scalars, 3, thirdWavetable.id),
     ],
-    ampEnvelope: parseEnvelope(settings, 'env_1'),
-    modEnvelope: parseEnvelope(settings, 'env_2'),
+    ampEnvelope: parseEnvelope(scalars, 'ampEnvelope'),
+    modEnvelope: parseEnvelope(scalars, 'modEnvelope'),
     filter: {
-      enabled: numericBoolean(setting(settings, 'filter_fx_on'), 'filter_fx_on'),
-      type: parseFxFilterType(settings),
-      cutoffHz: decodeFilterCutoff(setting(settings, 'filter_fx_cutoff')),
-      resonance: setting(settings, 'filter_fx_resonance'),
+      enabled: scalar(scalars, 'filter.enabled'),
+      ...parseFxFilterType(settings),
+      cutoffHz: scalar(scalars, 'filter.cutoffHz'),
+      resonance: scalar(scalars, 'filter.resonance'),
+      drive: scalar(scalars, 'filter.drive'),
+      keytrack: scalar(scalars, 'filter.keytrack'),
+      velocityToCutoff: decodeVelocityToCutoff(modulation.routes),
     },
-    lfo1: parseLfo(importedLfos[0], settings, modulation.lfoEnabled),
+    lfo1: parseLfo(importedLfos[0], settings, modulation.lfoEnabled.lfo1, scalars, 1, decodeLfoRouting(modulation.routes, 'lfo1')),
+    lfo2: parseLfo(importedLfos[1], settings, modulation.lfoEnabled.lfo2, scalars, 2, decodeLfoRouting(modulation.routes, 'lfo2')),
     modulations: modulation.routes,
     voice: {
-      polyphony: integer(setting(settings, 'polyphony'), 'polyphony'),
-      legato: numericBoolean(setting(settings, 'legato'), 'legato'),
-      glideSeconds: decodeVitalGlideSeconds(setting(settings, 'portamento_time')),
-      velocitySensitivity: setting(settings, 'velocity_track'),
+      polyphony: scalar(scalars, 'voice.polyphony'),
+      legato: scalar(scalars, 'voice.legato'),
+      glideSeconds: scalar(scalars, 'voice.glideSeconds'),
+      velocitySensitivity: scalar(scalars, 'voice.velocitySensitivity'),
+      transposeSemitones: scalar(scalars, 'voice.transposeSemitones'),
     },
     effects: {
       order: parseEffectOrder(settings),
+      distortion: {
+        enabled: scalar(scalars, 'effects.distortion.enabled'),
+        type: scalar(scalars, 'effects.distortion.type'),
+        drive: scalar(scalars, 'effects.distortion.drive'),
+        mix: scalar(scalars, 'effects.distortion.mix'),
+      },
+      chorus: {
+        enabled: scalar(scalars, 'effects.chorus.enabled'),
+        voices: scalar(scalars, 'effects.chorus.voices'),
+        rate: scalar(scalars, 'effects.chorus.rate'),
+        depth: scalar(scalars, 'effects.chorus.depth'),
+        feedback: scalar(scalars, 'effects.chorus.feedback'),
+        mix: scalar(scalars, 'effects.chorus.mix'),
+      },
       delay: {
-        enabled: numericBoolean(setting(settings, 'delay_on'), 'delay_on'),
+        enabled: scalar(scalars, 'effects.delay.enabled'),
         mode: delayMode,
         ...(delayMode === 'sync'
           ? { division: parseDelayDivision(delaySync, delayTempo) }
@@ -845,21 +877,25 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
         ...(delayMode === 'sync'
           ? { timeSeconds: decodeVitalDelaySeconds(delayFrequency) }
           : {}),
-        feedback: setting(settings, 'delay_feedback'),
-        mix: setting(settings, 'delay_dry_wet'),
+        feedback: scalar(scalars, 'effects.delay.feedback'),
+        mix: scalar(scalars, 'effects.delay.mix'),
       },
       reverb: {
-        enabled: numericBoolean(setting(settings, 'reverb_on'), 'reverb_on'),
-        mix: setting(settings, 'reverb_dry_wet'),
-        decaySeconds: decodeVitalReverbDecaySeconds(setting(settings, 'reverb_decay_time')),
-        size: setting(settings, 'reverb_size'),
+        enabled: scalar(scalars, 'effects.reverb.enabled'),
+        mix: scalar(scalars, 'effects.reverb.mix'),
+        decaySeconds: scalar(scalars, 'effects.reverb.decaySeconds'),
+        size: scalar(scalars, 'effects.reverb.size'),
+        predelay: scalar(scalars, 'effects.reverb.predelay'),
+        lowCut: scalar(scalars, 'effects.reverb.lowCut'),
+        highCut: scalar(scalars, 'effects.reverb.highCut'),
       },
     },
     wavetableData,
   }
 
   try {
-    return parsePatchState(patchCandidate)
+    const structuralPatch = parsePatchState(patchCandidate)
+    return parsePatchState(projectVitalScalarValues(structuralPatch, scalars))
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'unknown schema error'
     throw new VitalImportError(`Vital preset is outside PatchState bounds: ${detail}`)
@@ -933,7 +969,7 @@ function parseLossyFxFilterType(
     blend: lossySetting(settings, templateSettings, `${prefix}_blend`, warnings),
   }
   try {
-    return decodeVitalFxFilterType(values)
+    return decodeVitalFxFilterType(values).type
   } catch {
     warnOnce(warnings, 'The original filter model was mapped to the workbench low-pass filter.')
     return 'lowpass'
@@ -1161,6 +1197,7 @@ function parseLossyEnvelope(
     return clamp(seconds, 0, maximum)
   }
   return {
+    delaySeconds: 0,
     attackSeconds: decode('attack', 10),
     holdSeconds: decode('hold', ENVELOPE_HOLD_MAX_SECONDS),
     decaySeconds: decode('decay', 10),
@@ -1170,6 +1207,9 @@ function parseLossyEnvelope(
       1,
     ),
     releaseSeconds: decode('release', 20),
+    attackCurve: 0,
+    decayCurve: -0.1,
+    releaseCurve: -0.1,
   }
 }
 
@@ -1252,6 +1292,7 @@ function parseLossyOscillator(
       0,
       1,
     ),
+    pan: 0.5,
   }
 }
 
@@ -1360,13 +1401,14 @@ function parseLossyLfo(
   let rate: LfoRate
   if (sync === 0) {
     rate = {
-      mode: 'free',
-      hz: clamp(
+      mode: 'sync',
+      division: nearestStraightLfoDivision(clamp(
         2 ** lossySetting(settings, templateSettings, 'lfo_1_frequency', warnings),
         0.01,
         40,
-      ),
+      )),
     }
+    warnOnce(warnings, 'A free-running LFO rate was mapped to the nearest division at 120 BPM.')
   } else {
     const tempo = Math.round(lossySetting(settings, templateSettings, 'lfo_1_tempo', warnings))
     const division = sync === 3 ? VITAL_TRIPLET_DIVISIONS[tempo] : VITAL_TEMPO_DIVISIONS[tempo]
@@ -1381,6 +1423,10 @@ function parseLossyLfo(
     rate,
     phase: clamp(lossySetting(settings, templateSettings, 'lfo_1_phase', warnings), 0, 1),
     smooth: lfo.smooth === true,
+    smoothing: lfo.smooth === true ? 5 / 14 : 1.5 / 14,
+    target: 'level',
+    scope: 'all',
+    depth: 0.68,
   }
 }
 
@@ -1641,17 +1687,24 @@ export function importVitalPatch(
   options: VitalImportOptions = {},
 ): VitalImportResult {
   try {
-    assertDocumentEnvelope(value, template)
-    const patch = parsePatch(value, template)
-    const warnings = [
-      'Vital has no PatchState tags or modulation route IDs; import uses a vital-import tag and generated route IDs. Custom wavetable IDs are regenerated unless the table exactly matches the built-in registry.',
-    ]
-    if (value.author !== APP_AUTHOR) {
-      warnings.push('Vital author metadata is informational and is not retained in PatchState.')
-    }
-    return { patch, warnings, sourceVersion: value.synth_version }
+    return importVitalPatchStrict(value, template)
   } catch (error) {
     if (!(error instanceof VitalImportError) || !isLossyCandidate(value)) throw error
     return parseLossyPatch(value, template, options, error)
   }
+}
+
+export function importVitalPatchStrict(
+  value: unknown,
+  template: VitalPresetDocument,
+): VitalImportResult {
+  assertDocumentEnvelope(value, template)
+  const patch = parsePatch(value, template)
+  const warnings = [
+    'Vital has no PatchState tags or modulation route IDs; import uses a vital-import tag and generated route IDs. Custom wavetable IDs are regenerated unless the table exactly matches the built-in registry.',
+  ]
+  if (value.author !== APP_AUTHOR) {
+    warnings.push('Vital author metadata is informational and is not retained in PatchState.')
+  }
+  return { patch, warnings, sourceVersion: value.synth_version }
 }

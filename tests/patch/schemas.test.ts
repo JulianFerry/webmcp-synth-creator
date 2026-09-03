@@ -6,9 +6,9 @@ import { parseApplyPatchCommand, parsePatchState } from '../../src/patch/schemas
 
 describe('PatchState schema', () => {
   it('accepts the generated default and checked-in vertical slice fixture', () => {
-    expect(parsePatchState(createDefaultPatch()).version).toBe(2)
+    expect(parsePatchState(createDefaultPatch()).version).toBe(4)
     expect(parsePatchState(verticalSliceFixture)).toMatchObject({
-      version: 2,
+      version: 4,
       metadata: { name: 'Ethereal Gate' },
     })
   })
@@ -21,6 +21,8 @@ describe('PatchState schema', () => {
     ['filter', (patch: any) => (patch.filter.cutoffHz = 20_001)],
     ['fractional filter cutoff', (patch: any) => (patch.filter.cutoffHz = 632.5)],
     ['LFO ordering', (patch: any) => (patch.lfo1.points[2].x = 0.01)],
+    ['LFO first endpoint', (patch: any) => (patch.lfo1.points[0].x = 0.01)],
+    ['LFO last endpoint', (patch: any) => (patch.lfo1.points.at(-1).x = 0.99)],
     ['modulation vocabulary', (patch: any) => (patch.modulations[0].destination = 'brightness')],
     ['voice', (patch: any) => (patch.voice.polyphony = 17)],
     ['delay', (patch: any) => (patch.effects.delay.feedback = 2)],
@@ -47,6 +49,38 @@ describe('PatchState schema', () => {
     }
   })
 
+  it.each([
+    [0.5, '1/1'],
+    [1, '1/2'],
+    [2, '1/4'],
+    [4, '1/8'],
+    [32, '1/64'],
+    [3, '1/8'],
+  ] as const)('migrates legacy free LFO rate %s Hz at 120 BPM to %s', (hz, division) => {
+    const legacy = structuredClone(createDefaultPatch()) as any
+    legacy.lfo1.rate = { mode: 'free', hz }
+    legacy.lfo2.rate = { mode: 'free', hz }
+
+    const parsed = parsePatchState(legacy)
+    expect(parsed.lfo1.rate).toEqual({ mode: 'sync', division })
+    expect(parsed.lfo2.rate).toEqual({ mode: 'sync', division })
+  })
+
+  it('rejects free LFO rates after migration at canonical edit boundaries', () => {
+    expect(() => parseApplyPatchCommand({
+      type: 'apply_patch',
+      reason: 'Try hidden free mode',
+      changes: [{ path: 'lfo1.rate', value: { mode: 'free', hz: 2 } }],
+    })).toThrow()
+  })
+
+  it('rejects a 24 dB notch slope that Vital cannot represent', () => {
+    const patch = createDefaultPatch()
+    patch.filter.type = 'notch'
+    patch.filter.slope = 24
+    expect(() => parsePatchState(patch)).toThrow(/Vital does not support a 24 dB notch/)
+  })
+
   it.each(['1/1', '1/2', '1/4', '1/8', '1/8T', '1/16', '1/16T', '1/32', '1/64'])(
     'accepts synchronized delay division %s',
     (division) => {
@@ -71,7 +105,7 @@ describe('apply_patch command schema', () => {
     expect(parsed.changes).toHaveLength(2)
   })
 
-  it('rejects unknown paths, duplicate paths, and out-of-bounds values', () => {
+  it('rejects unknown paths and out-of-bounds values while merging duplicate paths', () => {
     expect(() =>
       parseApplyPatchCommand({
         type: 'apply_patch',
@@ -80,7 +114,7 @@ describe('apply_patch command schema', () => {
       }),
     ).toThrow(/Unsupported patch path/)
 
-    expect(() =>
+    expect(
       parseApplyPatchCommand({
         type: 'apply_patch',
         reason: 'Duplicate an edit',
@@ -88,8 +122,8 @@ describe('apply_patch command schema', () => {
           { path: 'filter.cutoffHz', value: 4000 },
           { path: 'filter.cutoffHz', value: 3500 },
         ],
-      }),
-    ).toThrow(/Duplicate patch path/)
+      }).changes,
+    ).toEqual([{ path: 'filter.cutoffHz', value: 3500 }])
 
     expect(() =>
       parseApplyPatchCommand({

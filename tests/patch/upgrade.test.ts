@@ -3,12 +3,13 @@ import { describe, expect, it } from 'vitest'
 import verticalSliceFixture from '../../fixtures/patches/vertical-slice.patch.json'
 import { parsePatchState } from '../../src/patch/schemas'
 import { upgradePatchDocument } from '../../src/patch/upgrade'
+import { WORKBENCH_LFO_ROUTES } from '../../src/patch/modulation'
 
 describe('patch document upgrade', () => {
   it('upgrades a version 1 document with a silent third oscillator', () => {
     const upgraded = parsePatchState(verticalSliceFixture)
 
-    expect(upgraded.version).toBe(2)
+    expect(upgraded.version).toBe(4)
     expect(upgraded.oscillators).toHaveLength(3)
     expect(upgraded.oscillators[2]).toEqual({
       enabled: false,
@@ -21,7 +22,59 @@ describe('patch document upgrade', () => {
       unisonDetune: 0,
       stereoSpread: 0,
       randomPhase: 0,
+      pan: 0.5,
     })
+    expect(upgraded.ampEnvelope).toMatchObject({
+      delaySeconds: 0,
+      attackCurve: 0,
+      decayCurve: -0.1,
+      releaseCurve: -0.1,
+    })
+    expect(upgraded.filter).toMatchObject({ slope: 12, drive: 0, keytrack: 0 })
+    expect(upgraded.effects.distortion.enabled).toBe(false)
+    expect(upgraded.effects.chorus.enabled).toBe(false)
+    expect(upgraded.effects.compressor).toEqual({
+      enabled: false,
+      bands: 'multiband',
+      amount: 0,
+      attack: 0.5,
+      release: 0.5,
+      mix: 1,
+    })
+  })
+
+  it('upgrades version 2 fields with sound-preserving defaults', () => {
+    const v2 = upgradePatchDocument(verticalSliceFixture) as Record<string, unknown>
+    const downgraded = structuredClone(v2) as any
+    downgraded.version = 2
+    downgraded.oscillators.forEach((oscillator: any) => delete oscillator.pan)
+    for (const envelope of [downgraded.ampEnvelope, downgraded.modEnvelope]) {
+      delete envelope.delaySeconds
+      delete envelope.attackCurve
+      delete envelope.decayCurve
+      delete envelope.releaseCurve
+    }
+    delete downgraded.filter.slope
+    delete downgraded.filter.drive
+    delete downgraded.filter.keytrack
+    delete downgraded.lfo1.smoothing
+    delete downgraded.voice.transposeSemitones
+    delete downgraded.effects.distortion
+    delete downgraded.effects.chorus
+    delete downgraded.effects.reverb.predelay
+    delete downgraded.effects.reverb.lowCut
+    delete downgraded.effects.reverb.highCut
+
+    const upgraded = parsePatchState(downgraded)
+    expect(upgraded.version).toBe(4)
+    expect(upgraded.oscillators.map(({ pan }) => pan)).toEqual([0.5, 0.5, 0.5])
+    expect(upgraded.lfo1.smoothing).toBe(upgraded.lfo1.smooth ? 5 / 14 : 1.5 / 14)
+    expect(upgraded.lfo1).toMatchObject({ target: 'level', scope: 'all', depth: 0.68 })
+    expect(upgraded.lfo2).toMatchObject({ enabled: false, target: 'position', scope: 'all', depth: 0 })
+    expect(upgraded.modulations.slice(0, 3)).toEqual(WORKBENCH_LFO_ROUTES)
+    expect(upgraded.modulations.slice(3).every(({ amount }) => amount === 0)).toBe(true)
+    expect(upgraded.effects.reverb).toMatchObject({ predelay: 0, lowCut: 0, highCut: 110 / 128 })
+    expect(upgraded.effects.compressor).toMatchObject({ enabled: false, amount: 0 })
   })
 
   it('is idempotent after the first upgrade', () => {

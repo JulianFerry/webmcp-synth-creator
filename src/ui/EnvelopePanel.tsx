@@ -38,7 +38,7 @@ export function EnvelopePanel({
         <div>
           <h2>Amplitude envelope</h2>
         </div>
-        <span className="version-chip envelope-type-chip">AHDSR</span>
+        <span className="version-chip envelope-type-chip">ADSR</span>
       </div>
 
       <EditableEnvelopeGraph
@@ -48,6 +48,8 @@ export function EnvelopePanel({
         onPreview={(handle, value) => onPreview(path(ENVELOPE_HANDLE_FIELDS[handle]), value)}
         previewEnvelope={previewEnvelope}
         resetKey={resetKey}
+        showDelayControl={false}
+        showHoldControl={false}
       />
 
       <div className="control-grid envelope-controls">
@@ -64,20 +66,6 @@ export function EnvelopePanel({
           step={0.01}
           testId="amp-attack"
           value={previewEnvelope.attackSeconds}
-        />
-        <ParameterSlider
-          formatValue={seconds}
-          id="amp-hold"
-          label="Hold"
-          max={4}
-          min={0}
-          onCancel={() => onCancelPreview(path('holdSeconds'))}
-          onCommit={(value) => commit('holdSeconds', value, 'hold')}
-          onPreview={(value) => onPreview(path('holdSeconds'), value)}
-          resetKey={resetKey}
-          step={0.01}
-          testId="amp-hold"
-          value={previewEnvelope.holdSeconds}
         />
         <ParameterSlider
           formatValue={seconds}

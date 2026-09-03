@@ -3,14 +3,18 @@ import { SessionService } from '../session/SessionService'
 import { createApplyPatchTool } from './applyPatchTool'
 import { createCreatePatchTool } from './createPatchTool'
 import { createCreateVariantTool } from './createVariantTool'
+import { createDescribePatchTool } from './describePatchTool'
+import { createExportPatchTool, type ExportPatchAccess } from './exportPatchTool'
+import { createGetCapabilitiesTool } from './getCapabilitiesTool'
 import { createGetPatchTool } from './getPatchTool'
-import { createGetSessionStateTool } from './getSessionStateTool'
+import { createGetSectionTool } from './getSectionTool'
 import type { ModelContextGateway, WebMcpToolDefinition } from './ModelContextGateway'
 import { createListPresetsTool } from './listPresetsTool'
 import { createLoadPresetTool } from './loadPresetTool'
 import { createRedoTool } from './redoTool'
 import { createSelectVariantTool } from './selectVariantTool'
 import { createSetLfoShapeTool } from './setLfoShapeTool'
+import { createSetLfoPointTool } from './setLfoPointTool'
 import { createUndoTool } from './undoTool'
 
 export interface ToolRegistration {
@@ -25,6 +29,9 @@ export async function registerTools(
   gateway: ModelContextGateway,
   session: SessionService,
   commandService: CommandService,
+  exportAccess: ExportPatchAccess = {
+    snapshot: () => ({ adapter: null, status: 'missing' }),
+  },
 ): Promise<ToolRegistration> {
   if (!gateway.available) {
     return {
@@ -39,16 +46,20 @@ export async function registerTools(
   const registrationController = new AbortController()
   const tools = [
     createGetPatchTool(session),
+    createGetSectionTool(session),
+    createGetCapabilitiesTool(),
     createApplyPatchTool(commandService),
     createSetLfoShapeTool(commandService),
-    createGetSessionStateTool(session),
+    createSetLfoPointTool(commandService),
     createCreateVariantTool(commandService),
     createSelectVariantTool(commandService),
     createUndoTool(commandService),
     createRedoTool(commandService),
-    createCreatePatchTool(commandService, session),
+    createCreatePatchTool(commandService),
     createListPresetsTool(),
     createLoadPresetTool(commandService),
+    createDescribePatchTool(session),
+    createExportPatchTool(session, exportAccess),
   ]
 
   try {

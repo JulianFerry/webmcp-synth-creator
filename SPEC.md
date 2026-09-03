@@ -732,25 +732,26 @@ Direct mouse editing is not required for the challenge submission.
 
 # 9. Modulation routes
 
-Synth Creator modulation routing is fixed rather than preset-specific. Every PatchState is
-normalized to three equal, unipolar LFO 1 routes:
+Synth Creator exposes two LFOs whose routing is derived from declared state rather than
+stored as editable route objects. Each LFO declares `enabled`, `target`, `scope`, and `depth`:
 
 ```text
-LFO 1 -> oscillator 1 level  -0.68
-LFO 1 -> oscillator 2 level  -0.68
-LFO 1 -> oscillator 3 level  -0.68
+target: level | position | pitch | cutoff
+scope:  all | oscillator 1 | oscillator 2 | oscillator 3
+depth:  0..1
 ```
 
-Disabled oscillators ignore their route, so the same LFO shape gates the complete audible
-oscillator mix for every patch. The LFO enable switch bypasses or enables all three routes
-together. Shape, rate, phase, and smoothing therefore have identical meaning in every
-curated, calibration, imported-projection, or agent-created patch.
+`level` derives unipolar oscillator-level routes at negative depth. `position` and `pitch`
+derive bipolar oscillator routes at positive depth. `cutoff` derives one bipolar global
+filter route and forces scope to `all`. An `all` oscillator scope derives three routes;
+a numbered scope derives one. Disabled LFOs retain the same routes with bypass enabled.
+LFO 1 is the deterministic gate slot and LFO 2 is the deterministic movement slot.
 
-Routes and depth are internal invariants, not UI or WebMCP controls. `get_patch` does not
-expose them, and `apply_patch`, `create_variant`, and `create_patch` cannot replace them.
+Derived routes remain internal invariants. `get_patch` exposes the declarations but not the
+route objects, and raw route objects cannot be replaced by tools.
 Feature-rich imported Vital documents retain additional native routes in opaque backing
-state; changing a visible Synth Creator LFO control adds the three fixed routes in free native
-slots without removing those preserved routes.
+state; changing a visible Synth Creator LFO control allocates the required derived routes in
+free native slots without removing those preserved routes.
 
 It must not invent:
 
@@ -1168,8 +1169,10 @@ All pure reads must use the appropriate read-only hint.
 
 ### `create_patch`
 
-Creates an editable patch projection from a structured proposal while applying the fixed
-global LFO routing and retaining any imported native backing state.
+Creates one editable patch or contrasting A/B proposals from validated category templates.
+The default paired contract requires `comparisonAxis` and `alternative`. It creates both variants
+and leaves A active. A-only creation requires explicit `singleProposal: true` for an exact,
+settled, or explicitly single request.
 
 ### `load_preset`
 
@@ -1186,6 +1189,9 @@ Specialized LFO operation.
 ### `create_variant`
 
 Creates B from the current patch and applies requested edits.
+
+V2/out of scope: `refine_patch(strategy: direct|compare)` may unify settled direct edits and
+unresolved comparison workflows. It is not part of V1.
 
 ### `select_variant`
 

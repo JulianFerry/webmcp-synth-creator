@@ -14,6 +14,7 @@ import { registerTools, type ToolRegistration } from './webmcp/registerTools'
 
 const session = new SessionService(createDefaultPatch())
 const vitalAdapterPromise = Promise.resolve().then(() => VitalPresetAdapter.fromUrl())
+let vitalAdapter: VitalPresetAdapter | null = null
 const renderer = new VitalWasmRenderer(session, vitalAdapterPromise, latencyTrace)
 const commands = new CommandService(session, undefined, latencyTrace)
 const store = createAppStore({ session, commands, synth: renderer })
@@ -38,7 +39,12 @@ if (import.meta.env.DEV) {
 let registration: ToolRegistration | null = null
 
 async function initializeAdapters(): Promise<void> {
-  const registrationPromise = registerTools(createModelContextGateway(), session, commands)
+  const registrationPromise = registerTools(createModelContextGateway(), session, commands, {
+    snapshot: () => {
+      const { vitalStatus, vitalError } = store.getState()
+      return { adapter: vitalAdapter, status: vitalStatus, error: vitalError }
+    },
+  })
     .then((result) => {
       registration = result
       store.getState().setWebMcpCapability(result.status, result.reason)
@@ -49,7 +55,10 @@ async function initializeAdapters(): Promise<void> {
     })
 
   const vitalPromise = vitalAdapterPromise
-    .then((adapter) => store.getState().setVitalAdapter(adapter))
+    .then((adapter) => {
+      vitalAdapter = adapter
+      store.getState().setVitalAdapter(adapter)
+    })
     .catch((error: unknown) => {
       const message = error instanceof Error ? error.message : 'Vital Init fixture is unavailable'
       store.getState().setVitalAdapter(null, message)

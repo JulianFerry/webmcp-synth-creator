@@ -7,20 +7,26 @@ import { VitalExportError } from './parameterMap'
 
 export const VITAL_MODULATION_SOURCES: Record<ModulationSource, string> = {
   lfo1: 'lfo_1',
+  lfo2: 'lfo_2',
   modEnvelope: 'env_2',
+  velocity: 'note_velocity',
 }
 
 export const VITAL_MODULATION_DESTINATIONS: Record<ModulationDestination, string> = {
   'oscillator1.level': 'osc_1_level',
   'oscillator1.wavetablePosition': 'osc_1_wave_frame',
   'oscillator1.pitch': 'osc_1_tune',
+  'oscillator1.pan': 'osc_1_pan',
   'oscillator2.level': 'osc_2_level',
   'oscillator2.wavetablePosition': 'osc_2_wave_frame',
   'oscillator2.pitch': 'osc_2_tune',
+  'oscillator2.pan': 'osc_2_pan',
   'oscillator3.level': 'osc_3_level',
   'oscillator3.wavetablePosition': 'osc_3_wave_frame',
   'oscillator3.pitch': 'osc_3_tune',
+  'oscillator3.pan': 'osc_3_pan',
   'filter.cutoff': 'filter_fx_cutoff',
+  volume: 'volume',
 }
 
 export interface VitalModulationRoute {

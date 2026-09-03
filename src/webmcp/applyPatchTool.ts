@@ -1,8 +1,12 @@
 import { z } from 'zod'
 
 import { CommandError, CommandService } from '../commands/CommandService'
-import { AGENT_EDITABLE_PATCH_PATHS, isAgentEditablePatchPath } from '../patch/paths'
+import { OPERATION_TABLE } from '../ops/schema'
+import type { Change } from '../ops/types'
+import { isAgentEditablePatchPath } from '../patch/paths'
+import { CHANGE_JSON_SCHEMA } from './changeJsonSchema'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
+import { writeToolResult } from './writeResult'
 
 const documentedApplyPatchInput = {
   reason: 'Make the held patch darker',
@@ -32,8 +36,7 @@ export function createApplyPatchTool(commandService: CommandService): WebMcpTool
   return {
     name: 'apply_patch',
     title: 'Apply one patch transaction',
-    description:
-      'After get_patch, apply one coherent perceptual change. Include coordinated edits in one call, preserve unrelated settings, and use set_lfo_shape for focused pulse edits.',
+    description: `${OPERATION_TABLE}\n\nPrefer operations over raw paths. Use a path only for a precise correction or for a parameter no operation covers. Use this direct-edit path for settled, unambiguous intent, including a high-impact replacement. When a subjective, exploratory, or character-choice direction leaves judgment unresolved, preserve A and use create_variant to compare B instead. Comparison is simultaneous judgment; undo reverses an already committed transaction.`,
     inputSchema: {
       type: 'object',
       examples: [documentedApplyPatchInput],
@@ -48,26 +51,7 @@ export function createApplyPatchTool(commandService: CommandService): WebMcpTool
           type: 'array',
           minItems: 1,
           maxItems: 32,
-          items: {
-            type: 'object',
-            examples: documentedApplyPatchInput.changes,
-            properties: {
-              path: { type: 'string', enum: [...AGENT_EDITABLE_PATCH_PATHS] },
-              value: {
-                description:
-                  'JSON value for the selected path. The path-specific type and bounds are validated before commit.',
-                oneOf: [
-                  { type: 'string' },
-                  { type: 'number' },
-                  { type: 'boolean' },
-                  { type: 'array' },
-                  { type: 'object' },
-                ],
-              },
-            },
-            required: ['path', 'value'],
-            additionalProperties: false,
-          },
+          items: { ...CHANGE_JSON_SCHEMA, examples: documentedApplyPatchInput.changes },
         },
       },
       required: ['reason', 'changes'],
@@ -85,7 +69,7 @@ export function createApplyPatchTool(commandService: CommandService): WebMcpTool
           (change) =>
             change === null ||
             typeof change !== 'object' ||
-            !isAgentEditablePatchPath((change as Record<string, unknown>).path),
+            ('path' in change && !isAgentEditablePatchPath((change as Record<string, unknown>).path)),
         )
       ) {
         return {
@@ -102,18 +86,11 @@ export function createApplyPatchTool(commandService: CommandService): WebMcpTool
           {
             type: 'apply_patch',
             reason: input.reason as string,
-            changes: changes as Array<{ path: never; value: unknown }>,
+            changes: changes as Change[],
           },
           { source: 'webmcp' },
         )
-        return {
-          changed: result.changed,
-          summary: result.summary,
-          canUndo: result.canUndo,
-          canRedo: result.canRedo,
-          session: result.session,
-          correlationId: result.correlationId,
-        }
+        return writeToolResult(result)
       } catch (error) {
         if (error instanceof z.ZodError) return invalidInputResult(error)
         if (error instanceof CommandError) {

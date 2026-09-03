@@ -1,6 +1,7 @@
 import { CommandService } from '../commands/CommandService'
 import { SessionError, type VariantId } from '../session/SessionService'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
+import { writeToolResult } from './writeResult'
 
 export function createSelectVariantTool(commandService: CommandService): WebMcpToolDefinition {
   return {
@@ -40,14 +41,7 @@ export function createSelectVariantTool(commandService: CommandService): WebMcpT
         const result = commandService.selectVariant(input.variant as VariantId, {
           source: 'webmcp',
         })
-        return {
-          changed: result.changed,
-          summary: result.summary,
-          canUndo: result.canUndo,
-          canRedo: result.canRedo,
-          session: result.session,
-          correlationId: result.correlationId,
-        }
+        return writeToolResult(result)
       } catch (error) {
         if (error instanceof SessionError) {
           return {

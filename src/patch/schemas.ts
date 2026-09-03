@@ -1,20 +1,27 @@
 import { z } from 'zod'
 
+import { resolveOps } from '../ops/resolve'
+import { operationSchema } from '../ops/schema'
+import type { Change } from '../ops/types'
+import type { RawChange } from '../ops/types'
 import {
   DELAY_TIME_MAX_SECONDS,
   DELAY_TIME_MIN_SECONDS,
+  ENVELOPE_DELAY_MAX_SECONDS,
   ENVELOPE_HOLD_MAX_SECONDS,
   FILTER_CUTOFF_MAX_HZ,
   FILTER_CUTOFF_MIN_HZ,
   REVERB_DECAY_MAX_SECONDS,
   REVERB_DECAY_MIN_SECONDS,
+  REVERB_PREDELAY_MAX_SECONDS,
   TEMPO_SYNC_DIVISIONS,
 } from './limits'
 import { isAllowedModulationRoute } from './modulation'
 import { withWorkbenchLfoRouting } from './modulation'
 import { EFFECT_IDS } from './effects'
+import { DEFAULT_COMPRESSOR_STATE } from './compressor'
 import { isSupportedPatchPath, parsePatchPathValue } from './paths'
-import type { ApplyPatchCommand, PatchState, SetLfoShapeCommand } from './types'
+import type { ApplyPatchCommand, PatchState, SetLfoPointCommand, SetLfoShapeCommand } from './types'
 import { upgradePatchDocument } from './upgrade'
 
 const unitInterval = z.number().finite().min(0).max(1)
@@ -45,16 +52,21 @@ export const oscillatorStateSchema = z
     unisonDetune: unitInterval,
     stereoSpread: unitInterval,
     randomPhase: unitInterval,
+    pan: unitInterval,
   })
   .strict()
 
 export const envelopeStateSchema = z
   .object({
+    delaySeconds: seconds(ENVELOPE_DELAY_MAX_SECONDS),
     attackSeconds: seconds(10),
     holdSeconds: seconds(ENVELOPE_HOLD_MAX_SECONDS),
     decaySeconds: seconds(10),
     sustainLevel: unitInterval,
     releaseSeconds: seconds(20),
+    attackCurve: z.number().finite().min(-1).max(1),
+    decayCurve: z.number().finite().min(-1).max(1),
+    releaseCurve: z.number().finite().min(-1).max(1),
   })
   .strict()
 
@@ -69,8 +81,21 @@ export const filterStateSchema = z
       .min(FILTER_CUTOFF_MIN_HZ)
       .max(FILTER_CUTOFF_MAX_HZ),
     resonance: unitInterval,
+    slope: z.union([z.literal(12), z.literal(24)]),
+    drive: unitInterval,
+    keytrack: unitInterval,
+    velocityToCutoff: unitInterval.default(0),
   })
   .strict()
+  .superRefine((filter, context) => {
+    if (filter.type === 'notch' && filter.slope === 24) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Vital does not support a 24 dB notch filter slope',
+        path: ['slope'],
+      })
+    }
+  })
 
 export const lfoPointSchema = z
   .object({
@@ -85,6 +110,20 @@ export const lfoPointsSchema = z
   .min(2)
   .max(32)
   .superRefine((points, context) => {
+    if (points[0]?.x !== 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'The first LFO point must be pinned to x=0',
+        path: [0, 'x'],
+      })
+    }
+    if (points[points.length - 1]?.x !== 1) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'The last LFO point must be pinned to x=1',
+        path: [points.length - 1, 'x'],
+      })
+    }
     for (let index = 1; index < points.length; index += 1) {
       if (points[index].x < points[index - 1].x) {
         context.addIssue({
@@ -96,15 +135,10 @@ export const lfoPointsSchema = z
     }
   })
 
-export const lfoRateSchema = z.discriminatedUnion('mode', [
-  z
-    .object({
-      mode: z.literal('sync'),
-      division: z.enum(TEMPO_SYNC_DIVISIONS),
-    })
-    .strict(),
-  z.object({ mode: z.literal('free'), hz: z.number().finite().min(0.01).max(40) }).strict(),
-])
+export const lfoRateSchema = z.object({
+  mode: z.literal('sync'),
+  division: z.enum(TEMPO_SYNC_DIVISIONS),
+}).strict()
 
 export const lfoStateSchema = z
   .object({
@@ -113,24 +147,41 @@ export const lfoStateSchema = z
     rate: lfoRateSchema,
     phase: unitInterval,
     smooth: z.boolean(),
+    smoothing: unitInterval,
+    target: z.enum(['level', 'position', 'pitch', 'cutoff']),
+    scope: z.union([z.literal('all'), z.literal(1), z.literal(2), z.literal(3)]),
+    depth: unitInterval,
   })
   .strict()
+  .superRefine((lfo, context) => {
+    if (lfo.target === 'cutoff' && lfo.scope !== 'all') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'LFO cutoff target requires scope all',
+        path: ['scope'],
+      })
+    }
+  })
 
 export const modulationRouteSchema = z
   .object({
     id: z.string().trim().min(1).max(64),
-    source: z.enum(['lfo1', 'modEnvelope']),
+    source: z.enum(['lfo1', 'lfo2', 'modEnvelope', 'velocity']),
     destination: z.enum([
       'oscillator1.level',
       'oscillator1.wavetablePosition',
       'oscillator1.pitch',
+      'oscillator1.pan',
       'oscillator2.level',
       'oscillator2.wavetablePosition',
       'oscillator2.pitch',
+      'oscillator2.pan',
       'oscillator3.level',
       'oscillator3.wavetablePosition',
       'oscillator3.pitch',
+      'oscillator3.pan',
       'filter.cutoff',
+      'volume',
     ]),
     amount: z.number().finite().min(-1).max(1),
     bipolar: z.boolean(),
@@ -152,6 +203,7 @@ export const voiceStateSchema = z
     legato: z.boolean(),
     glideSeconds: seconds(5),
     velocitySensitivity: unitInterval,
+    transposeSemitones: z.number().int().min(-36).max(36),
   })
   .strict()
 
@@ -188,6 +240,40 @@ export const reverbStateSchema = z
     mix: unitInterval,
     decaySeconds: secondsRange(REVERB_DECAY_MIN_SECONDS, REVERB_DECAY_MAX_SECONDS),
     size: unitInterval,
+    predelay: seconds(REVERB_PREDELAY_MAX_SECONDS),
+    lowCut: unitInterval,
+    highCut: unitInterval,
+  })
+  .strict()
+
+export const distortionStateSchema = z
+  .object({
+    enabled: z.boolean(),
+    type: z.enum(['soft_clip', 'hard_clip', 'sine_fold', 'bit_crush']),
+    drive: unitInterval,
+    mix: unitInterval,
+  })
+  .strict()
+
+export const chorusStateSchema = z
+  .object({
+    enabled: z.boolean(),
+    voices: z.number().int().min(1).max(4),
+    rate: unitInterval,
+    depth: unitInterval,
+    feedback: unitInterval,
+    mix: unitInterval,
+  })
+  .strict()
+
+export const compressorStateSchema = z
+  .object({
+    enabled: z.boolean(),
+    bands: z.enum(['multiband', 'low', 'high']),
+    amount: unitInterval,
+    attack: unitInterval,
+    release: unitInterval,
+    mix: unitInterval,
   })
   .strict()
 
@@ -207,16 +293,17 @@ export const wavetableStateSchema = z
 
 export const patchStateSchema = z
   .object({
-    version: z.literal(2),
+    version: z.literal(4),
     metadata: patchMetadataSchema,
     oscillators: z.tuple([oscillatorStateSchema, oscillatorStateSchema, oscillatorStateSchema]),
     ampEnvelope: envelopeStateSchema,
     modEnvelope: envelopeStateSchema,
     filter: filterStateSchema,
     lfo1: lfoStateSchema,
+    lfo2: lfoStateSchema,
     modulations: z.array(modulationRouteSchema).max(16),
     voice: voiceStateSchema,
-    effects: z.object({ order: z.array(z.enum(EFFECT_IDS)).length(EFFECT_IDS.length), delay: delayStateSchema, reverb: reverbStateSchema }).strict().superRefine((effects, context) => {
+    effects: z.object({ order: z.array(z.enum(EFFECT_IDS)).length(EFFECT_IDS.length), distortion: distortionStateSchema, compressor: compressorStateSchema.default(DEFAULT_COMPRESSOR_STATE), chorus: chorusStateSchema, delay: delayStateSchema, reverb: reverbStateSchema }).strict().superRefine((effects, context) => {
       if (new Set(effects.order).size !== EFFECT_IDS.length) {
         context.addIssue({ code: z.ZodIssueCode.custom, message: 'Effect order must contain each effect exactly once', path: ['order'] })
       }
@@ -269,19 +356,17 @@ export const patchStateSchema = z
     })
   })
 
+const rawChangeSchema = z.union([
+  operationSchema,
+  z.object({ path: z.string().min(1), value: z.unknown() }).strict(),
+])
+
 const rawApplyPatchCommandSchema = z
   .object({
     type: z.literal('apply_patch'),
     reason: z.string().trim().min(1).max(500),
     changes: z
-      .array(
-        z
-          .object({
-            path: z.string().min(1),
-            value: z.unknown(),
-          })
-          .strict(),
-      )
+      .array(rawChangeSchema)
       .min(1)
       .max(32),
   })
@@ -291,35 +376,60 @@ const setLfoShapeCommandSchema = z
   .object({
     type: z.literal('set_lfo_shape'),
     reason: z.string().trim().min(1).max(500),
+    lfo: z.union([z.literal(1), z.literal(2)]).optional(),
     points: lfoPointsSchema,
     smooth: z.boolean().optional(),
   })
   .strict()
+
+const setLfoPointCommandSchema = z
+  .object({
+    type: z.literal('set_lfo_point'),
+    reason: z.string().trim().min(1).max(500),
+    lfo: z.union([z.literal(1), z.literal(2)]).optional(),
+    index: z.number().int().min(0).max(31),
+    x: unitInterval.optional(),
+    y: unitInterval.optional(),
+    power: z.number().finite().min(-1).max(1).optional(),
+  })
+  .strict()
+  .refine((command) => command.x !== undefined || command.y !== undefined || command.power !== undefined, {
+    message: 'At least one of x, y, or power must be supplied',
+  })
 
 export function parsePatchState(value: unknown): PatchState {
   const parsed = patchStateSchema.parse(upgradePatchDocument(value)) as PatchState
   return patchStateSchema.parse(withWorkbenchLfoRouting(parsed)) as PatchState
 }
 
-export function parseApplyPatchCommand(value: unknown): ApplyPatchCommand {
+export function parseApplyPatchCommand(value: unknown, patch?: PatchState): ApplyPatchCommand {
   const command = rawApplyPatchCommandSchema.parse(value)
-  const seenPaths = new Set<string>()
+  const isRawChange = (
+    change: (typeof command.changes)[number],
+  ): change is Extract<(typeof command.changes)[number], { path: string }> => 'path' in change
+  let unresolvedChanges: Array<{ path: string; value: unknown }>
 
-  for (const [index, change] of command.changes.entries()) {
+  if (command.changes.every(isRawChange)) {
+    unresolvedChanges = [
+      ...new Map(
+        command.changes.map((change) => [
+          change.path,
+          { path: change.path, value: change.value },
+        ]),
+      ).values(),
+    ]
+  } else {
+    if (patch === undefined) throw new TypeError('Patch state is required to resolve operations')
+    unresolvedChanges = resolveOps(patch, command.changes as Change[])
+  }
+
+  const changes: RawChange[] = []
+  for (const [index, change] of unresolvedChanges.entries()) {
     if (!isSupportedPatchPath(change.path)) {
       throw new z.ZodError([
         {
           code: z.ZodIssueCode.custom,
           message: `Unsupported patch path: ${change.path}`,
-          path: ['changes', index, 'path'],
-        },
-      ])
-    }
-    if (seenPaths.has(change.path)) {
-      throw new z.ZodError([
-        {
-          code: z.ZodIssueCode.custom,
-          message: `Duplicate patch path: ${change.path}`,
           path: ['changes', index, 'path'],
         },
       ])
@@ -337,12 +447,16 @@ export function parseApplyPatchCommand(value: unknown): ApplyPatchCommand {
       }
       throw error
     }
-    seenPaths.add(change.path)
+    changes.push({ path: change.path, value: change.value })
   }
 
-  return command as ApplyPatchCommand
+  return { ...command, changes } as ApplyPatchCommand
 }
 
 export function parseSetLfoShapeCommand(value: unknown): SetLfoShapeCommand {
   return setLfoShapeCommandSchema.parse(value) as SetLfoShapeCommand
+}
+
+export function parseSetLfoPointCommand(value: unknown): SetLfoPointCommand {
+  return setLfoPointCommandSchema.parse(value) as SetLfoPointCommand
 }

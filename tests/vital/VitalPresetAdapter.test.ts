@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { createDefaultPatch } from '../../src/patch/defaults'
@@ -36,7 +39,7 @@ export function createSyntheticVitalInit() {
       ...modulationValues,
       untouched_fixture_value: 99,
       wavetables: [{ original: 1 }, { original: 2 }, { original: 3 }],
-      lfos: [{ original: 'lfo-1' }],
+      lfos: [{ original: 'lfo-1' }, { original: 'lfo-2' }],
       modulations: Array.from({ length: 16 }, () => ({ source: '', destination: '' })),
     },
   }
@@ -86,6 +89,22 @@ describe('VitalPresetAdapter', () => {
   it('keeps export filenames safe and deterministic', () => {
     expect(vitalFilename('  Æther / Pad 01  ')).toBe('ther-pad-01.vital')
     expect(vitalFilename('***')).toBe('webmcp-synth-creator-patch.vital')
+  })
+
+  it('exposes strict import without falling back to lossy compatibility', () => {
+    const adapter = new VitalPresetAdapter(
+      JSON.parse(readFileSync(resolve(process.cwd(), 'fixtures/vital/init.vital'), 'utf8')),
+    )
+    const exported = adapter.exportPatch(createDefaultPatch())
+    expect(adapter.importPatchStrict(JSON.parse(exported.json))).toMatchObject({
+      patch: { version: 4 },
+      sourceVersion: '1.0.7',
+    })
+
+    const unsupported = structuredClone(exported.document)
+    unsupported.settings.sample_on = 1
+    expect(() => adapter.importPatchStrict(unsupported)).toThrow(/Unsupported Vital setting changed/)
+    expect(adapter.importPatch(unsupported).warnings[0]).toContain('editable projection is approximate')
   })
 
   it('requires versioned fixture metadata and three oscillator slots', () => {
