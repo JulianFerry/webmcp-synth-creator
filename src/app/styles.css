@@ -912,7 +912,7 @@ h2 {
 .parameter-control input[type='range']::-webkit-slider-runnable-track {
   height: var(--slider-track-thickness);
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--slider-track-start), var(--slider-track-end));
+  background: linear-gradient(90deg, var(--slider-track-end), var(--slider-track-start));
 }
 
 .parameter-control input[type='range']::-webkit-slider-thumb {
@@ -929,7 +929,7 @@ h2 {
 .parameter-control input[type='range']::-moz-range-track {
   height: var(--slider-track-thickness);
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--slider-track-start), var(--slider-track-end));
+  background: linear-gradient(90deg, var(--slider-track-end), var(--slider-track-start));
 }
 
 .parameter-control input[type='range']::-moz-range-thumb {
