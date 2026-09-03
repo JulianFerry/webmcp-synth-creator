@@ -41,7 +41,7 @@ describe('structured Vital modulation export', () => {
     const lfo = (exported.document.settings.lfos as Array<Record<string, unknown>>)[0]
 
     expect(lfo).toEqual({
-      name: 'Wavetable Workbench LFO 1',
+      name: 'WebMCP Synth Creator LFO 1',
       num_points: 4,
       points: [0, 1, 0.15, 0, 0.31, 1, 1, 0.8],
       powers: [-0.3, 0.4, 0, 0],

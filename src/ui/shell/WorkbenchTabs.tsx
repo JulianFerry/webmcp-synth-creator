@@ -30,7 +30,7 @@ export function WorkbenchTabs({ active, assistance, children, history, onChange 
   const metadata = WORKBENCH_TABS.find((tab) => tab.id === active) ?? WORKBENCH_TABS[0]
   return (
     <section className="workbench-stage">
-      <div aria-label="Workbench sections" className="workbench-tablist" role="tablist">
+      <div aria-label="Synth Creator sections" className="workbench-tablist" role="tablist">
         {WORKBENCH_TABS.map((tab, index) => (
           <button
             aria-controls={tab.panelId}

@@ -53,7 +53,7 @@ test('desktop keeps oscillators, permanent sidebar, and footer in one workstatio
   expect(attributeRows[2].y).toBe(attributeRows[3].y)
   await expect(page.getByTestId('variant-a-spectrogram')).toHaveAttribute('data-color', '#27b3c2')
   await expect(page.getByTestId('variant-b-spectrogram')).toHaveAttribute('data-color', '#7e5ac7')
-  await expect(page.locator('.sidebar-title')).toHaveText('WAVETABLE WORKBENCH')
+  await expect(page.locator('.sidebar-title')).toHaveText('SYNTH CREATOR')
   await expect(page.locator('.sidebar-section-heading').first()).toContainText('Patch')
   const transferRows = page.locator('.sidebar-transfer-row')
   await expect(transferRows).toHaveCount(2)

@@ -1,8 +1,8 @@
-# Wavetable Workbench
+# WebMCP Synth Creator
 
 ## Product Specification & Hackathon Roadmap
 
-**Project:** Wavetable Workbench  
+**Project:** WebMCP Synth Creator  
 **Target:** WebMCP Challenge  
 **Submission deadline:** 3 September 2026, 13:00 PT  
 **Primary export target:** Vital `.vital` presets
@@ -11,7 +11,7 @@
 
 # 1. Product thesis
 
-Wavetable Workbench is a browser-based synthesizer that lets a musician design a real synth preset by talking to an AI.
+WebMCP Synth Creator is a browser-based synthesizer that lets a musician design a real synth preset by talking to an AI.
 
 A user begins with either a natural-language description or a curated starting preset:
 
@@ -65,7 +65,7 @@ Initial text-to-preset generation is only the entrance. The differentiating capa
 
 Text-to-preset generation already exists elsewhere.
 
-Wavetable Workbench should therefore not be positioned primarily as:
+WebMCP Synth Creator should therefore not be positioned primarily as:
 
 > “AI generates a synth preset.”
 
@@ -88,7 +88,7 @@ done
 versus:
 
 ```text
-Wavetable Workbench
+WebMCP Synth Creator
 
 prompt
   ↓
@@ -218,7 +218,7 @@ This is important for:
 
 ## 3.4 Browser playback uses Vital DSP
 
-Wavetable Workbench runs the pinned Vital synthesis engine in a browser
+WebMCP Synth Creator runs the pinned Vital synthesis engine in a browser
 `AudioWorklet`. Browser playback and `.vital` export consume the same serialized
 document produced by `VitalPresetAdapter`; there is no independent browser
 synthesis mapping.
@@ -252,7 +252,7 @@ Imported Vital JSON
 ```
 
 Unsupported samples, extra oscillators or modulators, macros, effects, filter models,
-and modulation routes remain loaded and audible. Workbench controls expose only the
+and modulation routes remain loaded and audible. Synth Creator controls expose only the
 PatchState projection. Supported edits patch the corresponding native controls or owned
 resource slot without rebuilding from Init or deleting unsupported state. An untouched
 import exports byte-for-byte unchanged. A compact notice above the workbench lists active effects
@@ -732,7 +732,7 @@ Direct mouse editing is not required for the challenge submission.
 
 # 9. Modulation routes
 
-Workbench modulation routing is fixed rather than preset-specific. Every PatchState is
+Synth Creator modulation routing is fixed rather than preset-specific. Every PatchState is
 normalized to three equal, unipolar LFO 1 routes:
 
 ```text
@@ -749,7 +749,7 @@ curated, calibration, imported-projection, or agent-created patch.
 Routes and depth are internal invariants, not UI or WebMCP controls. `get_patch` does not
 expose them, and `apply_patch`, `create_variant`, and `create_patch` cannot replace them.
 Feature-rich imported Vital documents retain additional native routes in opaque backing
-state; changing a visible Workbench LFO control adds the three fixed routes in free native
+state; changing a visible Synth Creator LFO control adds the three fixed routes in free native
 slots without removing those preserved routes.
 
 It must not invent:
@@ -1495,7 +1495,7 @@ Prominent:
 # 32. Recommended repo structure
 
 ```text
-wavetable-workbench/
+webmcp-synth-creator/
 │
 ├── src/
 │   ├── patch/
@@ -1846,7 +1846,7 @@ conversational refinement
 export
 ```
 
-The previous Wavetable Workbench design explored pitch detection, cycle extraction and harmonic wavetable construction; that work remains useful future context but is explicitly outside this submission. fileciteturn1file2L183-L193
+The previous WebMCP Synth Creator design explored pitch detection, cycle extraction and harmonic wavetable construction; that work remains useful future context but is explicitly outside this submission. fileciteturn1file2L183-L193
 
 ---
 
@@ -2416,7 +2416,7 @@ Document the confirmed setup on Day 1.
 
 # 48. Definition of success
 
-Wavetable Workbench succeeds if a musician can:
+WebMCP Synth Creator succeeds if a musician can:
 
 1. describe a sound without knowing synth programming,
 2. immediately receive a usable starting patch,

@@ -43,5 +43,5 @@ interface Document {
 }
 
 interface Window {
-  __WAVETABLE_WORKBENCH_TRACE__?: import('../dev/latencyTrace').LatencyTrace
+  __WEBMCP_SYNTH_CREATOR_TRACE__?: import('../dev/latencyTrace').LatencyTrace
 }

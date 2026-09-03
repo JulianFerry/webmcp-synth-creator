@@ -8,7 +8,7 @@ modify.
 
 Vital `1.0.7` is the pinned compatibility target. The serialized version fields
 and owner-supplied macOS app-bundle metadata identify `1.0.7`; on 2026-08-27,
-the user also confirmed that a Wavetable Workbench export loaded in that
+the user also confirmed that a WebMCP Synth Creator export loaded in that
 installed version.
 
 The fixture's original creator, creation date, save environment, and
@@ -35,12 +35,12 @@ human comparison against the pinned desktop Vital version remains required.
 - Vital `1.0.7` stores envelope delay/attack/hold/decay/release controls as fourth roots; exports encode logical seconds with `seconds ** 0.25` and tests decode with `raw ** 4`.
 - Free delay stores log2 frequency with an inverted seconds display, so exports use `log2(1 / seconds)`; synchronized delay uses tempo indexes `6..12` for `1/1..1/64`, with sync mode `3` for retained triplets.
 - Vital LFO point Y coordinates are UI coordinates: logical `0..1` values export as `1 - y`, so low remains low and high remains high when Vital decodes the shape.
-- Vital `1.0.7` has no fixture-backed LFO enable key. Every Workbench patch owns three fixed LFO 1 routes, one to each oscillator level at the same depth. Disabled logical LFOs keep those routes and amounts but set their `modulation_N_bypass` values to `1`.
+- Vital `1.0.7` has no fixture-backed LFO enable key. Every Synth Creator patch owns three fixed LFO 1 routes, one to each oscillator level at the same depth. Disabled logical LFOs keep those routes and amounts but set their `modulation_N_bypass` values to `1`.
 - The one logical amp envelope maps to ENV 1, the modulation envelope maps to ENV 2, and all three oscillators use destination `3` (Effects). Filter 1 and Filter 2 are forced off; the logical filter maps to Vital's reorderable FX filter.
 - Logical low-pass, high-pass, band-pass, and notch use the pinned Analog model (`0`) with source-derived style/blend values. Cutoff modulation targets `filter_fx_cutoff`.
 - The six workbench processors map to Vital indexes chorus `0`, compressor `1`, delay `2`, distortion `3`, FX filter `5`, and reverb `8`. Disabled EQ `4`, flanger `6`, and phaser `7` are appended in stable order before applying Vital's permutation codec.
 - Logical glide maps to `portamento_time` as `log2(seconds)`; zero uses Vital's `-10` minimum and imports back as zero.
-- Unison detune is a quadratic Vital control. The workbench's linear `0–100%`
+- Unison detune is a quadratic Vital control. The Synth Creator's linear `0–100%`
   range represents `0–24` outer-voice cents and maps to Vital's effective
   `0–12%` range, stored as `sqrt(workbenchDetune × 12)`.
 
@@ -68,7 +68,7 @@ The supported subset is:
 - one canonical `Wave Source` component per oscillator with 1-64 uniformly positioned keyframes, exactly 2,048 finite little-endian float32 samples per frame, interpolation/style `1`, DC removal, and normalization enabled;
 - ENV 1 as the amp envelope, ENV 2 as the modulation envelope, the four source-derived FX-filter types, integer-Hz cutoff, resonance, fully wet FX-filter mix, and Filter 1/Filter 2 off;
 - LFO 1's 2-32 sorted points, powers, shape polarity, canonical smoothing, phase, supported sync/triplet divisions or free rate, plus enabled state inferred from consistently bypassed/enabled LFO routes;
-- three fixed Workbench `lfo_1` routes to oscillator 1, 2, and 3 level. Native imported routes remain in opaque backing state but are not represented or agent-editable through PatchState;
+- three fixed Synth Creator `lfo_1` routes to oscillator 1, 2, and 3 level. Native imported routes remain in opaque backing state but are not represented or agent-editable through PatchState;
 - the relative order of the six modeled effects through `effect_chain_order`, plus polyphony, legato, glide, velocity tracking, linked left/right delay timing, feedback/mix, and reverb enablement/mix/decay/size.
 
 The sample slot, extra wavetable groups/components, nonuniform frame positions,
@@ -85,8 +85,8 @@ of the strongest harmonic may be removed, and regenerated samples must remain wi
 floating-point tolerance, and filter cutoff is rounded to the nearest whole Hz.
 Overall per-frame wavetable gain is not preserved because both engines normalize it.
 Native LFO routing is retained in the backing document but projects onto the fixed
-Workbench global amplitude LFO. Changing any visible LFO control adds three bypassable
-Workbench routes in free native modulation slots without replacing native routes.
+Synth Creator global amplitude LFO. Changing any visible LFO control adds three bypassable
+Synth Creator routes in free native modulation slots without replacing native routes.
 Approximate projections may omit oscillator 3 material, the sample layer,
 unsupported modulation routes, extra LFOs, wavetable transforms, Filter 1/Filter 2,
 alternate FX-filter models, and unsupported effect parameters from PatchState only.

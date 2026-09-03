@@ -125,7 +125,7 @@ test('responsive top patch controls expose keyboard and screen-reader semantics'
 
   await selector.selectOption('midnight-pad')
   await expect(selector).toHaveValue('midnight-pad')
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('WAVETABLE WORKBENCH')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('SYNTH CREATOR')
   await expect(page.locator('.patch-actions')).toHaveAttribute('data-patch-name', 'Midnight Pad')
   await importButton.focus()
   await expect(importButton).toBeFocused()

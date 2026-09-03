@@ -36,7 +36,7 @@ async function installWebMcpDouble(page: Page): Promise<void> {
 
 test('workbench tabs expose keyboard navigation and mount only the active panel', async ({ page }) => {
   await page.goto('/')
-  const tablist = page.getByRole('tablist', { name: 'Workbench sections' })
+  const tablist = page.getByRole('tablist', { name: 'Synth Creator sections' })
   const oscillators = tablist.getByRole('tab', { name: /Oscillators/ })
   const modulation = tablist.getByRole('tab', { name: 'Effects' })
 

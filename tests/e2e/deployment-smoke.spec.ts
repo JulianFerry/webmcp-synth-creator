@@ -12,7 +12,7 @@ for (const viewport of viewports) {
     const response = await page.goto('/')
 
     expect(response?.status()).toBe(200)
-    await expect(page).toHaveTitle('Wavetable Workbench')
+    await expect(page).toHaveTitle('Synth Creator')
     await expect(page.getByRole('tabpanel')).toBeVisible()
     await expect(page.getByTestId('keyboard-surface')).toBeVisible()
     expect(

@@ -88,13 +88,13 @@ test('playable voice stays gesture gated and steals the oldest voice at configur
   const timing = await page.evaluate(() => {
     return (
       window as typeof window & {
-        __WAVETABLE_WORKBENCH_NOTE_TIMING__?: {
+        __WEBMCP_SYNTH_CREATOR_NOTE_TIMING__?: {
           midi: number
           inputToVoiceReadyMs: number
           voiceGraphBuildMs: number
         }
       }
-    ).__WAVETABLE_WORKBENCH_NOTE_TIMING__
+    ).__WEBMCP_SYNTH_CREATOR_NOTE_TIMING__
   })
   expect(timing?.midi).toBe(48)
   expect(timing?.inputToVoiceReadyMs).toBeGreaterThanOrEqual(0)
@@ -339,7 +339,7 @@ test('playable voice previews oscillator, filter, and sustain sliders before one
     await expect(page.getByTestId('transaction-count')).toHaveText(String(index))
     await expect(page.getByTestId('history-size')).toHaveText(String(index))
     expect(
-      await page.evaluate(() => window.__WAVETABLE_WORKBENCH_TRACE__?.getEvents().length ?? 0),
+      await page.evaluate(() => window.__WEBMCP_SYNTH_CREATOR_TRACE__?.getEvents().length ?? 0),
     ).toBe(index * 3)
 
     await slider.dispatchEvent('pointerup')
@@ -357,7 +357,7 @@ test('playable voice previews oscillator, filter, and sustain sliders before one
     await expect(page.getByTestId('history-size')).toHaveText(String(index + 1))
     await expect(page.getByTestId('latest-diff')).toContainText(previewCase.path)
     expect(
-      await page.evaluate(() => window.__WAVETABLE_WORKBENCH_TRACE__?.getEvents().length ?? 0),
+      await page.evaluate(() => window.__WEBMCP_SYNTH_CREATOR_TRACE__?.getEvents().length ?? 0),
     ).toBe((index + 1) * 3)
   }
 })
@@ -432,7 +432,7 @@ test('playable voice cancels generalized previews back to canonical active audio
   await expect(page.getByTestId('transaction-count')).toHaveText('0')
   await expect(page.getByTestId('history-size')).toHaveText('0')
   expect(
-    await page.evaluate(() => window.__WAVETABLE_WORKBENCH_TRACE__?.getEvents().length ?? 0),
+    await page.evaluate(() => window.__WEBMCP_SYNTH_CREATOR_TRACE__?.getEvents().length ?? 0),
   ).toBe(0)
 })
 

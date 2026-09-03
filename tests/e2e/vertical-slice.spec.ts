@@ -110,7 +110,7 @@ test('vertical slice commits a WebMCP edit to UI, audio, history, trace, and Vit
 
   const correlatedStages = await page.evaluate((correlationId) => {
     return (
-      window.__WAVETABLE_WORKBENCH_TRACE__?.getEvents()
+      window.__WEBMCP_SYNTH_CREATOR_TRACE__?.getEvents()
         .filter((event) => event.correlationId === correlationId)
         .map((event) => event.stage) ?? []
     )

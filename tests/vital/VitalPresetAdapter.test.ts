@@ -58,7 +58,7 @@ describe('VitalPresetAdapter', () => {
 
     expect(exported.filename).toBe('air-night.vital')
     expect(exported.document).toMatchObject({
-      author: 'Wavetable Workbench',
+      author: 'WebMCP Synth Creator',
       preset_name: 'Air / Night',
       preset_style: 'Pad',
       synth_version: 'phase-1-test-version',
@@ -85,7 +85,7 @@ describe('VitalPresetAdapter', () => {
 
   it('keeps export filenames safe and deterministic', () => {
     expect(vitalFilename('  Æther / Pad 01  ')).toBe('ther-pad-01.vital')
-    expect(vitalFilename('***')).toBe('wavetable-workbench-patch.vital')
+    expect(vitalFilename('***')).toBe('webmcp-synth-creator-patch.vital')
   })
 
   it('requires versioned fixture metadata and three oscillator slots', () => {

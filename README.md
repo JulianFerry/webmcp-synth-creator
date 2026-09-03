@@ -1,14 +1,14 @@
-# Wavetable Workbench
+# WebMCP Synth Creator
 
-[![CI](https://github.com/JulianFerry/wavetable-workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/JulianFerry/wavetable-workbench/actions/workflows/ci.yml)
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FJulianFerry%2Fwavetable-workbench)
+[![CI](https://github.com/JulianFerry/webmcp-synth-creator/actions/workflows/ci.yml/badge.svg)](https://github.com/JulianFerry/webmcp-synth-creator/actions/workflows/ci.yml)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FJulianFerry%2Fwebmcp-synth-creator)
 
-Wavetable Workbench is a React/Vite application for editing one synth patch from
+WebMCP Synth Creator is a React/Vite application for editing one synth patch from
 the UI or Chrome WebMCP, auditioning it through Vital's DSP in a browser
 `AudioWorklet`, and exporting a `.vital` preset. Browser playback and export
 consume the same adapter-generated Vital document.
 
-**Live app:** [wavetable-workbench.vercel.app](https://wavetable-workbench.vercel.app)
+**Live app:** [webmcp-synth-creator.vercel.app](https://webmcp-synth-creator.vercel.app)
 
 ## Prerequisites
 
@@ -33,7 +33,8 @@ Install and activate emsdk `3.1.64` before sourcing `emsdk_env.sh`; exact comman
 and native-reference details are in [`wasm/vital/README.md`](wasm/vital/README.md).
 The fetched checkout and generated artifacts are intentionally ignored, so a
 fresh clone must run the two Vital build commands before starting the app or
-creating a production distribution.
+creating a production distribution. To bootstrap the toolchain automatically
+instead, run `bash scripts/build-vital-wasm.sh`, which is what CI and Vercel use.
 
 Open the URL printed by Vite. The checked-in development configuration currently
 uses `http://127.0.0.1:4173`.
@@ -53,13 +54,26 @@ revert the latest edit, and **Release C2** when finished.
 The app is deployment-ready without environment variables. Import this repository
 into Vercel, keep `main` as the production branch, and leave the framework settings
 at their detected values. [`vercel.json`](vercel.json) pins the locked install,
-production build, `dist/` output, CDN caching, and browser security headers.
+production build, `dist/` output, CDN caching, and browser security headers. The
+Content-Security-Policy allows `'wasm-unsafe-eval'` because the synthesis engine
+compiles the Vital WebAssembly module in the browser.
+
+Because `vital.mjs` and `vital.wasm` are generated rather than checked in, the
+Vercel build command runs [`scripts/build-vital-wasm.sh`](scripts/build-vital-wasm.sh)
+before `npm run build`. That script bootstraps emsdk `3.1.64` plus CMake and Ninja,
+fetches the pinned Vital source, and stores the result in Vercel's `.vercel/cache`
+directory under a key derived from `UPSTREAM.json`, `CMakeLists.txt`, `bridge.cpp`,
+the patch set, and the build scripts. Only the first deployment pays the full
+Emscripten build; later deployments reuse the cached artifact unless one of those
+inputs changes.
 
 The Vercel GitHub app should have access to this repository. Once connected, pushes
 to `main` create production deployments and pull requests receive isolated preview
-deployments. GitHub Actions independently runs linting, unit tests, a production
-build with a compressed bundle budget, and a Chromium deployment smoke test across
-mobile, tablet, and desktop viewports before a change is merged.
+deployments. GitHub Actions independently builds the same WASM artifact once, caches
+it on the same key, then runs linting, type-checking, unit tests, a production build
+with a compressed bundle budget, the production preview suite, and a Chromium
+deployment smoke test across mobile, tablet, and desktop viewports before a change is
+merged.
 
 After the first production deployment, add its domain to the repository homepage
 and verify the deployment from a clean browser profile. No secrets should be added
@@ -68,21 +82,23 @@ to GitHub or Vercel for the current client-only application.
 To run the deployment smoke test against production instead of a local Vite server:
 
 ```bash
-PLAYWRIGHT_BASE_URL=https://wavetable-workbench.vercel.app npm run test:e2e:deployment
+PLAYWRIGHT_BASE_URL=https://webmcp-synth-creator.vercel.app npm run test:e2e:deployment
 ```
 
 ## Delivery and scale
 
 The production output is static: Vercel serves hashed JavaScript and CSS from its
 edge CDN with one-year immutable caching, while each visitor runs synthesis and
-patch editing locally in Web Audio. The pinned Vital fixture is also edge-cached.
+patch editing locally in Web Audio. The pinned Vital fixture and the 1.5 MB
+`vital.wasm` module are also edge-cached and compress well over the wire.
 There is no shared application server, database, or per-user server state that can
 become a concurrency bottleneck, so traffic does not multiply synthesis load on an
 origin process.
 
-`npm run check:bundle` caps compressed JavaScript at 160 KiB and CSS at 20 KiB to
-protect startup performance as the app grows. The responsive Playwright coverage
-exercises desktop, tablet, compact, and 360 px mobile layouts. For a public launch,
+`npm run check:bundle` caps compressed JavaScript at 200 KiB (including the inlined
+Vital module glue) and CSS at 20 KiB to protect startup performance as the app
+grows. The 1.4 MB `vital.wasm` payload is a separately cached edge asset. The
+responsive Playwright coverage exercises desktop, tablet, compact, and 360 px mobile layouts. For a public launch,
 confirm that the selected Vercel plan's bandwidth limits match the expected traffic,
 enable Vercel Observability, and run a gradual load test against the final domain;
 CDN architecture removes the application-server bottleneck but does not replace
@@ -129,7 +145,7 @@ document; only the download filename is export-specific.
 
 Use the header's starting-patch dropdown for a starting point. **Import Vital** retains
 the complete source document, loads it unchanged into Vital WASM, and derives a
-best-effort PatchState projection for the controls the Workbench can edit. A compact notice at
+best-effort PatchState projection for the controls Synth Creator can edit. A compact notice at
 the top names active effects outside those controls and visible controls affected by hidden native
 modulation such as macros.
 Supported edits are overlaid without removing samples, extra modulators, macros,
@@ -145,7 +161,7 @@ the custom Air Spectrum wavetable; C adds ADSR; D adds deterministic unison; E e
 the reorderable Vital FX filter; F enables the global eighth-note LFO gate; G enables OSC2; and H
 enables delay and reverb. Parameters for later stages are already configured while
 bypassed, so each step activates only the subsystem named in its title. Enabled
-calibration oscillators use the workbench's `100%` reference level.
+calibration oscillators use Synth Creator's `100%` reference level.
 
 For each letter, press A or hold C2 (MIDI note 48) in the browser, listen, export the
 preset, then press A at the same keyboard-octave setting in Vital at a matched output
@@ -154,13 +170,13 @@ After each note-on, the audition panel reports input-to-renderer time, note disp
 time, browser latency properties, the render quantum, and estimated first-sample and
 envelope threshold times. Start audio before comparing notes so the one-time context
 startup cost is not mixed into the steady-state result. The same structured sample is
-available in DevTools as `window.__WAVETABLE_WORKBENCH_NOTE_TIMING__`. The output and
+available in DevTools as `window.__WEBMCP_SYNTH_CREATOR_NOTE_TIMING__`. The output and
 envelope figures are clock-based estimates, not an acoustic loopback measurement.
-Oscillator level uses the workbench's `0–100%` logical range. At the Vital boundary,
+Oscillator level uses Synth Creator's `0–100%` logical range. At the Vital boundary,
 `100%` maps to Vital's effective level `0.5`; the shared adapter writes
 `sqrt(workbenchLevel × 0.5)` to Vital's quadratic raw parameter and import reverses it.
 Thus `71%` exports as an effective Vital level of approximately `0.355`.
-Unison detune is also quadratic in Vital: the workbench's `0–100%` span is
+Unison detune is also quadratic in Vital: Synth Creator's `0–100%` span is
 `0–24` cents and maps to Vital's displayed/effective `0–12%` span. Calibration
 D's `25%` therefore loads as `3%` in Vital, with the same approximately six-cent
 outer-voice detune as the browser.
@@ -168,7 +184,7 @@ The first strongly different browser/desktop pair is the useful result: A/B poin
 state or wavetable compatibility, C at envelopes, D at unison, E at the FX filter, F at
 LFO mapping/timing, G at oscillator summing, and H at the effects chain. D deliberately
 keeps random phase at zero, and every stage ignores note velocity, so repeated trials
-are stable. LFO 1 always gates the combined level of every enabled Workbench oscillator;
+are stable. LFO 1 always gates the combined level of every enabled Synth Creator oscillator;
 its destination and depth are fixed rather than preset-specific. After A-H, separately verify an OSC3-only patch, all four
 FX-filter types, and at least two filter/delay/reverb orders; those redesigned-state
 cases are automated against WASM but still require a fresh desktop Vital listening pass.
@@ -211,7 +227,7 @@ module is absent and distributes `vital.mjs`, `vital.wasm`,
 
 ## License and source
 
-Wavetable Workbench is distributed under the GNU General Public License version
+WebMCP Synth Creator is distributed under the GNU General Public License version
 3 or later (`GPL-3.0-or-later`). The browser artifact incorporates modified Vital
 source from `mtytel/vital@636ca0ef517a4db087a6a08a6a8a5e704e21f836`,
 copyright 2013-2019 Matt Tytel. See [`LICENSE`](LICENSE) for the terms and
