@@ -93,7 +93,7 @@ test('component help combines nested elements that resolve to the same explanati
 
   await page.getByTestId('reverb-mix').click()
   const reverbAmountHelp = page.getByRole('dialog', { name: 'Mix control' })
-  await expect(reverbAmountHelp).toContainText('At 0% the patch stays dry and close')
+  await expect(reverbAmountHelp).toContainText('At 0% the effect is inaudible')
 })
 
 test('variant cards, titled dropdowns, and the keyboard each use one combined help target', async ({ page }) => {

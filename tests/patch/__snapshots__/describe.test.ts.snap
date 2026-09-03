@@ -21,6 +21,6 @@ exports[`describePatch > deterministically describes all curated presets and tem
   "template:strings": "Warm forward-positioned saw pad. Soft attack, long release; sustained pad envelope. Wide detuned unison, light reverb. Second layer an octave up at low level.",
   "template:vocal": "Warm vocal other. Soft attack, long release; shaped pad envelope. Continuous wavetable position modulation at half-note rate on oscillator 1. Wide detuned unison, light reverb, strong delay. Second layer an octave up at low level.",
   "warm-mono-bass": "Dark forward-positioned saw bass. Fast attack, short release; shaped sustain envelope. Sub layer an octave down at low level.",
-  "wide-lead": "Warm metallic lead. Fast attack, medium release; shaped pad envelope. Stepped rhythmic level modulation at 5.2 Hz across all oscillators with an uneven pulse. Wide detuned unison, light reverb, light delay. Second oscillator layer at supporting level.",
+  "wide-lead": "Warm metallic lead. Fast attack, medium release; shaped pad envelope. Stepped rhythmic level modulation at eighth-note rate across all oscillators with an uneven pulse. Wide detuned unison, light reverb, light delay. Second oscillator layer at supporting level.",
 }
 `;

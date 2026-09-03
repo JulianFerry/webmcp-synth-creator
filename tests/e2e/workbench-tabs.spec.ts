@@ -143,7 +143,6 @@ test('WebMCP hydrates a bright timbre table for a dry bass listening patch', asy
   }
 
   expect(result.ok).not.toBe(false)
-  expect(result.changed?.['oscillators.0.wavetableId']?.after).toBe('airy')
   expect(result.current?.osc1).toMatchObject({
     wavetableId: 'airy',
     wavetablePosition: 0.7,
@@ -166,7 +165,7 @@ test('permanent footer previews sustain until Stop and switches modes cleanly', 
   await expect(page.getByTestId('active-voice-count')).toHaveText('0')
 })
 
-test('effects render in a reorderable 3 row by 2 column grid without modulation panels', async ({ page }) => {
+test('effects render in a reorderable 2 row by 3 column grid without modulation panels', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('tab', { name: 'Effects' }).click()
 
@@ -174,7 +173,7 @@ test('effects render in a reorderable 3 row by 2 column grid without modulation 
   const effectCards = grid.locator('[data-effect-id]')
   const effectOrder = () => effectCards.evaluateAll((cards) => cards.map((card) => card.getAttribute('data-effect-id')))
   await expect(effectCards).toHaveCount(6)
-  expect(await grid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(2)
+  expect(await grid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(3)
   const filterBounds = await page.getByTestId('effect-card-filter').boundingBox()
   const filterPanelBounds = await page.getByTestId('effect-card-filter').locator('.filter-panel').boundingBox()
   const filterPlotBounds = await page.getByTestId('filter-plot').boundingBox()

@@ -60,9 +60,11 @@ test('desktop keeps oscillators, permanent sidebar, and footer in one workstatio
 
   const panels = await boxes(page.locator('.oscillators-workspace > article'))
   expect(panels).toHaveLength(6)
-  expect(new Set(panels.slice(0, 3).map((box) => Math.round(box.y))).size).toBe(1)
-  expect(new Set(panels.slice(3).map((box) => Math.round(box.y))).size).toBe(1)
-  expect(panels[3].y).toBeGreaterThan(panels[0].y + panels[0].height)
+  expect(panels[0].y).toBeCloseTo(panels[1].y, 0)
+  expect(panels[2].y).toBeCloseTo(panels[3].y, 0)
+  expect(panels[4].y).toBeCloseTo(panels[5].y, 0)
+  expect(panels[2].y).toBeGreaterThan(panels[0].y + panels[0].height - 1)
+  expect(panels[4].y).toBeGreaterThan(panels[2].y + panels[2].height - 1)
   await expect(page.locator('.oscillators-workspace > .lfo-panel h2')).toHaveText(['LFO 1', 'LFO 2'])
   await expect(page.getByTestId('amp-hold-handle')).toHaveCount(0)
   const synthesisControls = await boxes(page.locator([
@@ -88,7 +90,11 @@ test('desktop keeps oscillators, permanent sidebar, and footer in one workstatio
   }
   await expect(page.getByTestId('variant-a-spectrogram')).toHaveAttribute('data-color', '#27b3c2')
   await expect(page.getByTestId('variant-b-spectrogram')).toHaveAttribute('data-color', '#8261c8')
-  expect((await page.getByTestId('variant-a-spectrogram').boundingBox())!.width).toBeCloseTo(spectrograms[0].width - 5, 0)
+  const spectrogramWidths = await page.locator('.variant-spectrum-a').evaluate((window) => ({
+    canvas: window.querySelector('canvas')!.getBoundingClientRect().width,
+    window: (window as HTMLElement).clientWidth,
+  }))
+  expect(spectrogramWidths.canvas).toBeCloseTo(spectrogramWidths.window - 5, 0)
   await expect(page.locator('.sidebar-title')).toHaveText('WAVETABLE WORKBENCH')
   const sidebarHeadings = page.locator('.sidebar-section-heading > span')
   await expect(sidebarHeadings).toHaveText(['Preset', 'A/B compare'])

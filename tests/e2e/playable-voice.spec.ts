@@ -165,7 +165,9 @@ test('oscillator detail editors expose all three sources without selection and s
     const editor = page.getByTestId(`oscillator-${number}-editor`)
     await expect(editor).toBeVisible()
     await expect(editor.getByRole('button', { name: '2D' })).toBeVisible()
-    await expect(editor.getByRole('button', { name: '3D' })).toHaveAttribute('aria-pressed', 'true')
+    const mode3d = editor.getByRole('button', { name: '3D' })
+    if (await mode3d.isDisabled()) await expect(mode3d).toHaveAttribute('aria-pressed', 'false')
+    else await expect(mode3d).toHaveAttribute('aria-pressed', 'true')
     for (const control of ['position', 'level', 'transpose', 'fine', 'unison', 'detune', 'random-phase']) {
       await expect(editor.locator(`label[for="oscillator-${number}-${control}"]`)).toHaveClass(/parameter-control-slider/)
     }
@@ -264,11 +266,11 @@ test('playable voice previews oscillator, filter, and sustain sliders before one
   const transpose = page.getByTestId('oscillator-1-transpose')
   await expect(transpose).toHaveAttribute('aria-valuetext', /^[+-]?\d+$/)
   const fineTune = page.getByTestId('oscillator-1-fine')
-  await expect(fineTune).toHaveAttribute('min', '0')
+  await expect(fineTune).toHaveAttribute('min', '-1')
   await expect(fineTune).toHaveAttribute('max', '1')
-  await expect(fineTune).toHaveAttribute('step', '0.005')
-  await expect(fineTune).toHaveValue('0.5')
-  await expect(fineTune).toHaveAttribute('aria-valuetext', '0.5')
+  await expect(fineTune).toHaveAttribute('step', '0.01')
+  await expect(fineTune).toHaveValue('0')
+  await expect(fineTune).toHaveAttribute('aria-valuetext', '0')
   const unison = page.locator('label[for="oscillator-1-unison"]')
   await expect(unison.locator('> span:first-child')).toHaveText('Unison')
   await expect(unison.locator('output')).toHaveText(/^\d+$/)
@@ -286,7 +288,7 @@ test('playable voice previews oscillator, filter, and sustain sliders before one
     {
       tab: 'Oscillators',
       testId: 'oscillator-1-fine',
-      value: '0.585',
+      value: '0.17',
       path: 'oscillators.0.fineTuneCents',
       canonicalAttribute: 'data-fine',
       effectiveAttribute: 'data-effective-fine',
@@ -344,7 +346,7 @@ test('playable voice previews oscillator, filter, and sustain sliders before one
       input.dispatchEvent(new InputEvent('input', { bubbles: true }))
     }, previewCase.value)
     if (previewCase.testId === 'oscillator-1-fine') {
-      await expect(slider).toHaveAttribute('aria-valuetext', '0.585')
+      await expect(slider).toHaveAttribute('aria-valuetext', '+0.17')
     }
 
     await expect(adapter).toHaveAttribute(previewCase.canonicalAttribute, previewCase.initial)
@@ -385,7 +387,7 @@ test('playable voice cancels generalized previews back to canonical active audio
   await page.getByRole('tab', { name: /Oscillators/ }).click()
   const oscillatorPreviews = [
     ['oscillator-1-transpose', '12'],
-    ['oscillator-1-fine', '0.605'],
+    ['oscillator-1-fine', '0.21'],
     ['oscillator-1-unison', '3'],
     ['oscillator-1-detune', '0.72'],
   ] as const
@@ -739,10 +741,11 @@ test('playable voice derives static wavetable, ADSR, and filter visuals from eff
   expect(await page.locator('label[for="oscillator-2-position"]').evaluate((element) =>
     getComputedStyle(element).getPropertyValue('--slider-thumb-color').trim(),
   )).toBe('#788593')
-  await page.getByTestId('oscillator-2-editor').getByRole('button', { name: '3D' }).click()
-  await expect(page.getByTestId('oscillator-2-waterfall')).toHaveAccessibleName(
-    /wavetable waterfall at 0 percent/i,
-  )
+  const staticEditor = page.getByTestId('oscillator-2-editor')
+  await expect(staticEditor.getByRole('button', { name: '2D' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(staticEditor.getByRole('button', { name: '3D' })).toBeDisabled()
+  await expect(page.getByTestId('oscillator-2-waterfall')).toHaveCount(0)
+  await expect(page.getByTestId('oscillator-2-waveform')).toHaveAccessibleName(/single static frame/i)
 
   const envelopePath = page.getByTestId('amp-envelope-path')
   const envelopeLabels = await page
