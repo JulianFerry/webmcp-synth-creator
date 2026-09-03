@@ -75,7 +75,7 @@ describe('structured Vital modulation export', () => {
     expect(mapVitalLfoRate(rate)).toMatchObject(expected)
   })
 
-  it('assigns modulation routes deterministically and clears all unused slots', () => {
+  it('assigns fixed global LFO routes deterministically and clears all unused slots', () => {
     const patch = createDefaultPatch()
     patch.modulations = [
       {
@@ -96,16 +96,21 @@ describe('structured Vital modulation export', () => {
     const settings = realAdapter().exportPatch(patch).document.settings
     const routes = settings.modulations as Array<Record<string, unknown>>
 
-    expect(routes[0]).toEqual({ source: 'env_2', destination: 'filter_1_cutoff' })
-    expect(routes[1]).toEqual({ source: 'lfo_1', destination: 'osc_2_wave_frame' })
-    expect(routes[2]).toEqual({ source: '', destination: '' })
+    expect(routes.slice(0, 4)).toEqual([
+      { source: 'lfo_1', destination: 'osc_1_level' },
+      { source: 'lfo_1', destination: 'osc_2_level' },
+      { source: 'lfo_1', destination: 'osc_3_level' },
+      { source: '', destination: '' },
+    ])
     expect(settings).toMatchObject({
-      modulation_1_amount: 0.42,
-      modulation_1_bipolar: 1,
-      modulation_2_amount: -0.2,
+      modulation_1_amount: -0.68,
+      modulation_1_bipolar: 0,
+      modulation_2_amount: -0.68,
       modulation_2_bipolar: 0,
-      modulation_3_amount: 0,
+      modulation_3_amount: -0.68,
       modulation_3_bypass: 0,
+      modulation_4_amount: 0,
+      modulation_4_bypass: 0,
     })
   })
 
@@ -115,17 +120,20 @@ describe('structured Vital modulation export', () => {
     const settings = realAdapter().exportPatch(patch).document.settings
     const routes = settings.modulations as Array<Record<string, unknown>>
 
-    expect(routes.slice(0, 2)).toEqual([
+    expect(routes.slice(0, 3)).toEqual([
       { source: 'lfo_1', destination: 'osc_1_level' },
-      { source: 'lfo_1', destination: 'filter_1_cutoff' },
+      { source: 'lfo_1', destination: 'osc_2_level' },
+      { source: 'lfo_1', destination: 'osc_3_level' },
     ])
     expect(settings).toMatchObject({
-      modulation_1_amount: 0.56,
+      modulation_1_amount: -0.68,
       modulation_1_bypass: 1,
-      modulation_2_amount: 0.12,
+      modulation_2_amount: -0.68,
       modulation_2_bypass: 1,
+      modulation_3_amount: -0.68,
+      modulation_3_bypass: 1,
     })
-    expect(patch.modulations.map(({ amount }) => amount)).toEqual([0.56, 0.12])
+    expect(patch.modulations.map(({ amount }) => amount)).toEqual([-0.68, -0.68, -0.68])
   })
 
   it('maps modulation envelope, synchronized delay, and reverb values', () => {
@@ -205,7 +213,7 @@ describe('structured Vital modulation export', () => {
     },
   )
 
-  it('uses ENV 1 as the amp envelope and routes both oscillators through enabled Filter 1', () => {
+  it('uses ENV 1 as the amp envelope and routes all oscillators through the FX chain', () => {
     const fixture = JSON.parse(
       readFileSync(resolve(process.cwd(), 'fixtures/vital/init.vital'), 'utf8'),
     ) as { settings: Record<string, unknown> }
@@ -225,10 +233,12 @@ describe('structured Vital modulation export', () => {
     expect(settings.env_1_sustain).toBe(0.46)
     expect(decodeVitalEnvelopeSeconds(settings.env_1_release as number)).toBeCloseTo(2.4)
     expect(settings).toMatchObject({
-      osc_1_destination: 0,
-      osc_2_destination: 0,
-      filter_1_on: 1,
+      osc_1_destination: 3,
+      osc_2_destination: 3,
+      osc_3_destination: 3,
+      filter_1_on: 0,
       filter_2_on: 0,
+      filter_fx_on: 1,
     })
     expect(settings.env_1_delay).toBe(fixture.settings.env_1_delay)
     for (const key of ['env_3_attack', 'env_3_decay', 'env_3_sustain', 'env_3_release']) {

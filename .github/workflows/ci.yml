@@ -13,11 +13,52 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  VITAL_CACHE_DIR: ${{ github.workspace }}/.vital-cache
+
 jobs:
+  vital-wasm:
+    name: Vital WASM artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      cache-key: ${{ steps.key.outputs.value }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Derive artifact cache key
+        id: key
+        run: |
+          value="vital-wasm-${{ runner.os }}-$(cat \
+            wasm/vital/UPSTREAM.json \
+            wasm/vital/CMakeLists.txt \
+            wasm/vital/bridge.cpp \
+            wasm/vital/build.sh \
+            wasm/vital/fetch-source.sh \
+            wasm/vital/patches/*.patch \
+            scripts/build-vital-wasm.sh | sha256sum | cut -c1-16)"
+          echo "value=${value}" >> "$GITHUB_OUTPUT"
+      - name: Restore artifact cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: wasm/vital/build
+          key: ${{ steps.key.outputs.value }}
+      - name: Build Vital WASM
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash scripts/build-vital-wasm.sh
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vital-wasm
+          path: wasm/vital/build/
+          retention-days: 1
+
   quality:
     name: Quality and build
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    needs: vital-wasm
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -26,10 +67,17 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      - name: Download Vital WASM
+        uses: actions/download-artifact@v4
+        with:
+          name: vital-wasm
+          path: wasm/vital/build
       - name: Install dependencies
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: Type-check
+        run: npm run typecheck
       - name: Run unit tests
         run: npm run test:unit
       - name: Build production bundle
@@ -40,7 +88,8 @@ jobs:
   e2e:
     name: Browser tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    needs: vital-wasm
+    timeout-minutes: 25
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -49,12 +98,19 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      - name: Download Vital WASM
+        uses: actions/download-artifact@v4
+        with:
+          name: vital-wasm
+          path: wasm/vital/build
       - name: Install dependencies
         run: npm ci
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Run end-to-end tests
-        run: npm run test:e2e:deployment
+      - name: Run production preview tests
+        run: npm run test:e2e:preview
+      - name: Run deployment smoke tests
+        run: PLAYWRIGHT_PREVIEW=1 npm run test:e2e:deployment -- --project=chromium
       - name: Upload failure traces
         if: failure()
         uses: actions/upload-artifact@v4

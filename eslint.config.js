@@ -10,6 +10,7 @@ export default tseslint.config(
       'playwright-report/**',
       'test-results/**',
       'prototype/**',
+      'wasm/vital/build*/**',
     ],
   },
   eslint.configs.recommended,

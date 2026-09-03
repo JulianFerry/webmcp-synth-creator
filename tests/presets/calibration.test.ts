@@ -41,7 +41,11 @@ describe('browser/Vital calibration ladder', () => {
     })
     expect(patch.filter.enabled).toBe(false)
     expect(patch.lfo1.enabled).toBe(false)
-    expect(patch.modulations).toEqual([])
+    expect(patch.modulations.map(({ destination }) => destination)).toEqual([
+      'oscillator1.level',
+      'oscillator2.level',
+      'oscillator3.level',
+    ])
     expect(patch.effects.delay.enabled).toBe(false)
     expect(patch.effects.reverb.enabled).toBe(false)
     expect(patch.voice.velocitySensitivity).toBe(0)
@@ -58,10 +62,7 @@ describe('browser/Vital calibration ladder', () => {
       'oscillators',
     ])
     expect(changedSignalSections(CALIBRATION_D_PATCH, CALIBRATION_E_PATCH)).toEqual(['filter'])
-    expect(changedSignalSections(CALIBRATION_E_PATCH, CALIBRATION_F_PATCH)).toEqual([
-      'lfo1',
-      'modulations',
-    ])
+    expect(changedSignalSections(CALIBRATION_E_PATCH, CALIBRATION_F_PATCH)).toEqual(['lfo1'])
     expect(changedSignalSections(CALIBRATION_F_PATCH, CALIBRATION_G_PATCH)).toEqual([
       'oscillators',
     ])
@@ -78,16 +79,12 @@ describe('browser/Vital calibration ladder', () => {
     expect(CALIBRATION_F_PATCH.lfo1).toMatchObject({
       enabled: true,
       phase: 0,
-      rate: { mode: 'sync', division: '1/4' },
+      rate: { mode: 'sync', division: '1/8' },
     })
-    expect(CALIBRATION_F_PATCH.modulations).toEqual([
-      {
-        id: 'calibration-lfo-gate',
-        source: 'lfo1',
-        destination: 'oscillator1.level',
-        amount: -0.68,
-        bipolar: false,
-      },
+    expect(CALIBRATION_F_PATCH.modulations.map(({ destination }) => destination)).toEqual([
+      'oscillator1.level',
+      'oscillator2.level',
+      'oscillator3.level',
     ])
     expect(CALIBRATION_G_PATCH.oscillators[1]).toMatchObject({
       enabled: true,

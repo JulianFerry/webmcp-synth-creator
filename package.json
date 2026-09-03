@@ -2,6 +2,7 @@
   "name": "wavetable-workbench",
   "version": "0.1.0",
   "private": true,
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "engines": {
     "node": "22.x"
@@ -15,6 +16,7 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:preview": "npm run build && PLAYWRIGHT_PREVIEW=1 playwright test --project=chromium tests/e2e/startup-audition.spec.ts tests/e2e/vertical-slice.spec.ts tests/e2e/vital-import.spec.ts tests/e2e/responsive.spec.ts tests/e2e/workbench-tabs.spec.ts",
     "test:e2e:deployment": "playwright test tests/e2e/deployment-smoke.spec.ts"
   },
   "dependencies": {

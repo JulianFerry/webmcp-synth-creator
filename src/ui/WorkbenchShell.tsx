@@ -15,11 +15,11 @@ export function WorkbenchShell({ children, footer, notices, patchVariant, sideba
   return (
     <main className="workbench-shell" data-color-theme="patch-graph-field" data-patch-variant={patchVariant}>
       <div className="ambient-orbit" aria-hidden="true" />
+      {notices}
       <div className="workbench-layout">
         {sidebar}
         <div className="workbench-main-column">
           {children}
-          {notices}
         </div>
       </div>
       {telemetry}

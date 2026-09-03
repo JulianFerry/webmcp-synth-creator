@@ -1,0 +1,74 @@
+Wavetable Workbench - Vital source and modification notice
+
+Wavetable Workbench includes a modified WebAssembly build of the Vital synthesizer
+engine.
+
+Vital upstream
+--------------
+
+Copyright (C) 2013-2019 Matt Tytel
+
+Repository: https://github.com/mtytel/vital.git
+Pinned commit: 636ca0ef517a4db087a6a08a6a8a5e704e21f836
+License: GNU General Public License version 3 or later
+SPDX identifier: GPL-3.0-or-later
+
+The full license text is in LICENSE. The Vital name is used only to identify and
+attribute the upstream project; this distribution is not endorsed by Vital Audio
+or Matt Tytel.
+
+Incorporated source
+-------------------
+
+The build uses the source areas recorded in wasm/vital/UPSTREAM.json:
+
+- src/common
+- src/common/wavetable
+- src/synthesis
+- src/unity_build
+
+It also compiles these JUCE modules from Vital's third_party/JUCE checkout:
+
+- juce_audio_basics
+- juce_audio_formats
+- juce_core
+- juce_data_structures
+- juce_dsp
+- juce_events
+
+Local modifications
+-------------------
+
+The following patches are applied reproducibly to the pinned checkout. The
+modified source was prepared for Wavetable Workbench on 2026-08-31.
+
+- wasm/vital/patches/0001-juce-emscripten-platform-guards.patch
+  Guards JUCE's unsupported Emscripten floating-point status-register operations
+  and Linux prctl/ptrace headers.
+- wasm/vital/patches/0002-juce-disable-backtraces.patch
+  Disables JUCE's unavailable native execinfo/backtrace path under Emscripten.
+- wasm/vital/patches/0003-juce-wasm-linux-fallbacks.patch
+  Supplies the en-US locale fallback and disables unsupported POSIX file-limit
+  and native thread-name operations under Emscripten.
+- wasm/vital/patches/0004-vital-skip-installed-check.patch
+  Prevents the browser build from probing a desktop Vital data directory.
+- wasm/vital/patches/0005-vital-optional-wavetable-render.patch
+  Adds an optional wavetable-render argument while preserving the original
+  one-argument behavior, allowing the bridge to render frames incrementally.
+
+The WebAssembly C API, incremental state-load coordinator, build definitions,
+and browser host are Workbench integration code in wasm/vital/ and
+src/audio/vital/. They do not edit vendor/vital/ in place.
+
+Corresponding source
+--------------------
+
+This repository is the source distribution for the combined work. It contains
+the Workbench source, build scripts, exact patch set, and machine-readable
+upstream record. To reconstruct the modified Vital source and WebAssembly
+artifact from a fresh clone, run:
+
+  bash wasm/vital/fetch-source.sh
+  bash wasm/vital/build.sh
+
+See wasm/vital/README.md for the pinned toolchain and complete prerequisites.

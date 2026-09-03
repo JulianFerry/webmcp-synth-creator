@@ -1,0 +1,35 @@
+diff --git a/src/common/wavetable/wavetable_creator.cpp b/src/common/wavetable/wavetable_creator.cpp
+index 382413a..44584bd 100644
+--- a/src/common/wavetable/wavetable_creator.cpp
++++ b/src/common/wavetable/wavetable_creator.cpp
+@@ -477,7 +477,7 @@ json WavetableCreator::stateToJson() {
+   };
+ }
+ 
+-void WavetableCreator::jsonToState(json data) {
++void WavetableCreator::jsonToState(json data, bool render_wavetable) {
+   if (LineGenerator::isValidJson(data)) {
+     LineGenerator generator(vital::WaveFrame::kWaveformSize);
+     generator.jsonToState(data);
+@@ -512,5 +512,6 @@ void WavetableCreator::jsonToState(json data) {
+     addGroup(new_group);
+   }
+ 
+-  render();
++  if (render_wavetable)
++    render();
+ }
+diff --git a/src/common/wavetable/wavetable_creator.h b/src/common/wavetable/wavetable_creator.h
+index b5d7be8..817aacb 100644
+--- a/src/common/wavetable/wavetable_creator.h
++++ b/src/common/wavetable/wavetable_creator.h
+@@ -71,7 +71,8 @@ class WavetableCreator {
+     static bool isValidJson(json data);
+     json updateJson(json data);
+     json stateToJson();
+-    void jsonToState(json data);
++    void jsonToState(json data) { jsonToState(data, true); }
++    void jsonToState(json data, bool render_wavetable);
+ 
+     vital::Wavetable* getWavetable() { return wavetable_; }
+ 

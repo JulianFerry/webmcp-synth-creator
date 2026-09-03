@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { CommandError, CommandService } from '../commands/CommandService'
-import { SUPPORTED_PATCH_PATHS } from '../patch/paths'
+import { AGENT_EDITABLE_PATCH_PATHS, isAgentEditablePatchPath } from '../patch/paths'
 import { SessionError } from '../session/SessionService'
 import type { CreateVariantCommand } from '../session/variantCommands'
 import type { WebMcpToolDefinition } from './ModelContextGateway'
@@ -68,7 +68,7 @@ export function createCreateVariantTool(commandService: CommandService): WebMcpT
           items: {
             type: 'object',
             properties: {
-              path: { type: 'string', enum: [...SUPPORTED_PATCH_PATHS] },
+              path: { type: 'string', enum: [...AGENT_EDITABLE_PATCH_PATHS] },
               value: {
                 description: 'Validated JSON value for the selected logical patch path.',
                 oneOf: [
@@ -98,12 +98,30 @@ export function createCreateVariantTool(commandService: CommandService): WebMcpT
     },
     async execute(input, context) {
       context?.signal.throwIfAborted()
+      const changes = Array.isArray(input.changes) ? input.changes : []
+      if (
+        changes.some(
+          (change) =>
+            change === null ||
+            typeof change !== 'object' ||
+            !isAgentEditablePatchPath((change as Record<string, unknown>).path),
+        )
+      ) {
+        return {
+          ok: false,
+          error: {
+            code: 'INVALID_CREATE_VARIANT_INPUT',
+            message:
+              'Modulation routing is not agent-editable. Variants retain the selected patch’s existing routes.',
+          },
+        }
+      }
       try {
         const result = commandService.createVariant(
           {
             type: 'create_variant',
             reason: input.reason as string,
-            changes: input.changes as CreateVariantCommand['changes'],
+            changes: changes as CreateVariantCommand['changes'],
             ...(input.replaceExisting === undefined
               ? {}
               : { replaceExisting: input.replaceExisting as boolean }),

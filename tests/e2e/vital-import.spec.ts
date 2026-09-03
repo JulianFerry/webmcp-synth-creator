@@ -44,9 +44,7 @@ test('top patch controls stay synchronized and Vital import is one undoable B-lo
   await expect(presetSelector).toHaveValue('')
   await expect(page.getByTestId('audio-adapter-state')).toHaveAttribute('data-cutoff', '5400')
   await expect(page.getByTestId('history-size')).toHaveText('5')
-  await expect(page.getByTestId('vital-import-notice')).toContainText(
-    'tags or modulation route IDs',
-  )
+  await expect(page.getByTestId('vital-import-notice')).toHaveCount(0)
   await expect(page.getByTestId('export-filename')).toHaveText('wide-lead.vital')
 
   await page.getByRole('button', { name: 'Undo transaction' }).click()
@@ -147,4 +145,81 @@ test('responsive top patch controls expose keyboard and screen-reader semantics'
     }
   })
   expect(layout).toEqual({ noHorizontalOverflow: true, actionsShareRow: true })
+})
+
+test('native-feature imports stay intact, warn above the workbench, and preserve opaque state', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await expect(page.getByTestId('vital-status')).toContainText('ready')
+
+  const initialDownloadPromise = page.waitForEvent('download')
+  await page.getByTestId('export-vital').click()
+  const initialDownload = await initialDownloadPromise
+  const initialPath = await initialDownload.path()
+  const nativeDocument = JSON.parse(await readFile(initialPath as string, 'utf8')) as {
+    author: string
+    preset_name: string
+    settings: Record<string, unknown>
+  }
+  nativeDocument.author = 'Native preset author'
+  nativeDocument.preset_name = 'Preserved Native Features'
+  nativeDocument.settings.osc_1_destination = 1
+  nativeDocument.settings.sample_on = 1
+  nativeDocument.settings.distortion_on = 1
+  ;(nativeDocument.settings.sample as Record<string, unknown>).name = 'Preserved sample layer'
+  ;(nativeDocument.settings.modulations as Array<Record<string, unknown>>)[3] = {
+    source: 'macro_control_1',
+    destination: 'osc_1_level',
+  }
+  nativeDocument.settings.modulation_4_amount = 0.4
+  nativeDocument.settings.macro_control_1 = 0.75
+  const originalJson = `\n${JSON.stringify(nativeDocument, null, 2)}\n`
+
+  await page.getByTestId('import-vital-input').setInputFiles({
+    name: 'preserved-native-features.vital',
+    mimeType: 'application/json',
+    buffer: Buffer.from(originalJson),
+  })
+
+  const notice = page.getByTestId('vital-import-notice')
+  await expect(notice).toHaveText(
+    'Hidden effects: Distortion. Controls that may not behave as shown: OSC 1 level (Macro 1).',
+  )
+  const noticeAndLayout = await page.evaluate(() => ({
+    noticeBottom: document
+      .querySelector('[data-testid="vital-import-notice"]')!
+      .getBoundingClientRect().bottom,
+    layoutTop: document.querySelector('.workbench-layout')!.getBoundingClientRect().top,
+  }))
+  expect(noticeAndLayout.noticeBottom).toBeLessThanOrEqual(noticeAndLayout.layoutTop)
+
+  await page.getByTestId('preview-note').click()
+  await expect(page.getByTestId('active-voice-count')).toHaveText('1')
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await page.getByTestId('preview-stop').click()
+  await expect(page.getByTestId('active-voice-count')).toHaveText('0')
+
+  const untouchedDownloadPromise = page.waitForEvent('download')
+  await page.getByTestId('export-vital').click()
+  const untouchedDownload = await untouchedDownloadPromise
+  expect(await readFile((await untouchedDownload.path()) as string, 'utf8')).toBe(originalJson)
+
+  await page.locator('.darken-control').evaluate((button: HTMLButtonElement) => button.click())
+  await expect(notice).toBeVisible()
+  const editedDownloadPromise = page.waitForEvent('download')
+  await page.getByTestId('export-vital').click()
+  const editedDownload = await editedDownloadPromise
+  const editedDocument = JSON.parse(
+    await readFile((await editedDownload.path()) as string, 'utf8'),
+  ) as { settings: Record<string, unknown> }
+  expect(editedDocument.settings).toMatchObject({
+    distortion_on: 1,
+    macro_control_1: 0.75,
+    osc_1_destination: 1,
+    sample_on: 1,
+  })
+  expect((editedDocument.settings.sample as Record<string, unknown>).name).toBe(
+    'Preserved sample layer',
+  )
 })

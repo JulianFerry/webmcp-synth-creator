@@ -1,6 +1,6 @@
 import { create, type StoreApi, type UseBoundStore } from 'zustand'
 
-import { BrowserSynth, type BrowserSynthState } from '../audio/BrowserSynth'
+import type { SynthRenderer, SynthRendererState } from '../audio/SynthRenderer'
 import { CommandService } from '../commands/CommandService'
 import type { RequestSource } from '../dev/latencyTrace'
 import type { SupportedPatchPath } from '../patch/paths'
@@ -30,7 +30,8 @@ export interface AppStoreState {
   hasVariantB: boolean
   canUndo: boolean
   canRedo: boolean
-  audio: BrowserSynthState
+  audio: SynthRendererState
+  audioPreparationError: string | null
   webMcpStatus: CapabilityStatus
   webMcpReason: string | null
   vitalStatus: VitalFixtureStatus
@@ -58,6 +59,7 @@ export interface AppStoreState {
   undo: () => void
   redo: () => void
   exportVital: () => void
+  setAudioPreparationError: (message: string) => void
   setWebMcpCapability: (status: CapabilityStatus, reason?: string) => void
   setVitalAdapter: (adapter: VitalPresetAdapter | null, error?: string) => void
 }
@@ -67,7 +69,7 @@ export type AppStore = UseBoundStore<StoreApi<AppStoreState>>
 interface AppStoreDependencies {
   session: SessionService
   commands: CommandService
-  synth: BrowserSynth
+  synth: SynthRenderer
 }
 
 function errorMessage(error: unknown): string {
@@ -77,6 +79,21 @@ function errorMessage(error: unknown): string {
 function variantBName(name: string): string {
   const suffix = name.endsWith(' [B]') ? ' [B2]' : ' [B]'
   return `${name.slice(0, 80 - suffix.length)}${suffix}`
+}
+
+function vitalImportNotice(info: ReturnType<SessionService['getVitalBackingInfo']>): string | null {
+  if (info === null) return null
+  const details = []
+  if (info.hiddenEffects.length > 0) {
+    details.push(`Hidden effects: ${info.hiddenEffects.join(', ')}.`)
+  }
+  if (info.affectedControls.length > 0) {
+    const controls = info.affectedControls
+      .map(({ control, sources }) => `${control} (${sources.join(', ')})`)
+      .join(', ')
+    details.push(`Controls that may not behave as shown: ${controls}.`)
+  }
+  return details.length > 0 ? details.join(' ') : null
 }
 
 export function createAppStore({ session, commands, synth }: AppStoreDependencies): AppStore {
@@ -97,6 +114,7 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
     canUndo: initialSession.canUndo,
     canRedo: initialSession.canRedo,
     audio: synth.getState(),
+    audioPreparationError: null,
     webMcpStatus: 'checking',
     webMcpReason: null,
     vitalStatus: 'loading',
@@ -243,8 +261,11 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
       }
 
       try {
-        const document = await readVitalImportFile(file)
-        const imported = vitalAdapter.importPatch(document, { sourceFilename: file.name })
+        const importedFile = await readVitalImportFile(file)
+        const imported = vitalAdapter.importPatch(importedFile.document, {
+          originalJson: importedFile.originalJson,
+          sourceFilename: file.name,
+        })
         commands.createPatch(
           {
             type: 'create_patch',
@@ -252,10 +273,11 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
             patch: imported.patch,
           },
           { source: 'ui' },
+          imported.backing,
         )
         set({
           lastError: null,
-          vitalImportNotice: imported.warnings.join(' '),
+          vitalImportNotice: vitalImportNotice(session.getVitalBackingInfo()),
         })
       } catch (error) {
         set({ lastError: errorMessage(error), vitalImportNotice: null })
@@ -292,11 +314,18 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
         return
       }
       try {
-        const filename = vitalAdapter.downloadPatch(session.getPatch())
+        const filename = vitalAdapter.downloadPatch(
+          session.getPatch(),
+          session.getVitalBacking(),
+        )
         set({ exportFilename: filename, lastError: null })
       } catch (error) {
         set({ lastError: errorMessage(error) })
       }
+    },
+
+    setAudioPreparationError: (message) => {
+      set({ audioPreparationError: message })
     },
 
     setWebMcpCapability: (status, reason) => {
@@ -344,7 +373,7 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
       controlResetKey: state.controlResetKey + 1,
       exportFilename: vitalFilename(event.patch.metadata.name),
       lastError: null,
-      vitalImportNotice: null,
+      vitalImportNotice: vitalImportNotice(session.getVitalBackingInfo()),
     }))
   })
   synth.subscribe((audio) => store.setState({ audio }))

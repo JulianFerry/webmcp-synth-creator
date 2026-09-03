@@ -5,6 +5,9 @@
 # Application dependencies and build output
 node_modules/
 dist/
+vendor/vital/
+wasm/vital/build*/
+wasm/vital/native/build/
 playwright-report/
 test-results/
 coverage/

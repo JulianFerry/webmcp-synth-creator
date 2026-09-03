@@ -2,30 +2,8 @@ import type { WavetableFrameState, WavetableState } from '../patch/types'
 
 export const VITAL_FRAME_SAMPLE_COUNT = 2048
 
-export interface PeriodicWaveCoefficients {
-  real: Float32Array
-  imag: Float32Array
-}
-
 function schroederPhase(index: number, harmonicCount: number): number {
   return (-Math.PI * index * (index + 1)) / Math.max(harmonicCount, 1)
-}
-
-export function toPeriodicWaveCoefficients(
-  frame: WavetableFrameState,
-): PeriodicWaveCoefficients {
-  const coefficientCount = frame.harmonics.length + 1
-  const real = new Float32Array(coefficientCount)
-  const imag = new Float32Array(coefficientCount)
-
-  frame.harmonics.forEach((amplitude, index) => {
-    const harmonic = index + 1
-    const phase = schroederPhase(harmonic, frame.harmonics.length)
-    real[harmonic] = amplitude * Math.sin(phase)
-    imag[harmonic] = amplitude * Math.cos(phase)
-  })
-
-  return { real, imag }
 }
 
 export function renderWavetableFrame(

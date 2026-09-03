@@ -1,0 +1,16 @@
+diff --git a/src/common/load_save.cpp b/src/common/load_save.cpp
+index 751e6d7..4f733ae 100644
+--- a/src/common/load_save.cpp
++++ b/src/common/load_save.cpp
+@@ -1529,7 +1529,11 @@ void LoadSave::saveDataDirectory(const File& data_directory) {
+ }
+ 
+ bool LoadSave::isInstalled() {
++#if defined (__EMSCRIPTEN__)
++  return false;
++#else
+   return getDataDirectory().exists();
++#endif
+ }
+ 
+ bool LoadSave::wasUpgraded() {

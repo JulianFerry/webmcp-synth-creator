@@ -11,6 +11,7 @@ import {
   TEMPO_SYNC_DIVISIONS,
 } from './limits'
 import { isAllowedModulationRoute } from './modulation'
+import { withWorkbenchLfoRouting } from './modulation'
 import { EFFECT_IDS } from './effects'
 import { isSupportedPatchPath, parsePatchPathValue } from './paths'
 import type { ApplyPatchCommand, PatchState, SetLfoShapeCommand } from './types'
@@ -296,7 +297,8 @@ const setLfoShapeCommandSchema = z
   .strict()
 
 export function parsePatchState(value: unknown): PatchState {
-  return patchStateSchema.parse(upgradePatchDocument(value)) as PatchState
+  const parsed = patchStateSchema.parse(upgradePatchDocument(value)) as PatchState
+  return patchStateSchema.parse(withWorkbenchLfoRouting(parsed)) as PatchState
 }
 
 export function parseApplyPatchCommand(value: unknown): ApplyPatchCommand {

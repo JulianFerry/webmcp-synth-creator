@@ -1,4 +1,5 @@
 import { parsePatchState } from '../patch/schemas'
+import { DEFAULT_EFFECT_ORDER, type EffectId } from '../patch/effects'
 import {
   DELAY_TIME_MAX_SECONDS,
   DELAY_TIME_MIN_SECONDS,
@@ -11,6 +12,7 @@ import {
 } from '../patch/limits'
 import type {
   EnvelopeState,
+  FilterType,
   LfoRate,
   LfoState,
   ModulationDestination,
@@ -25,6 +27,11 @@ import type {
 import { WAVETABLE_REGISTRY } from '../wavetables/registry'
 import { renderWavetableFrame, VITAL_FRAME_SAMPLE_COUNT } from '../wavetables/render'
 import { decodeVitalLfoPointValue } from './lfo'
+import {
+  decodeVitalEffectOrder,
+  VITAL_EFFECT_ORDER_MAX,
+} from './effectOrder'
+import { decodeVitalFxFilterType } from './filter'
 import {
   VITAL_MODULATION_DESTINATIONS,
   VITAL_MODULATION_SOURCES,
@@ -117,9 +124,15 @@ const SUPPORTED_SETTING_KEYS = new Set([
   'env_2_sustain',
   'env_2_release',
   'filter_1_on',
-  'filter_1_cutoff',
-  'filter_1_resonance',
   'filter_2_on',
+  'filter_fx_on',
+  'filter_fx_cutoff',
+  'filter_fx_resonance',
+  'filter_fx_model',
+  'filter_fx_style',
+  'filter_fx_blend',
+  'filter_fx_mix',
+  'effect_chain_order',
   'lfo_1_sync',
   'lfo_1_sync_type',
   'lfo_1_tempo',
@@ -534,8 +547,8 @@ function parseOscillator(
   wavetableId: string,
 ): OscillatorState {
   const prefix = `osc_${index}`
-  if (setting(settings, `${prefix}_destination`) !== 0) {
-    throw new VitalImportError(`Oscillator ${index} must route only through Filter 1`)
+  if (setting(settings, `${prefix}_destination`) !== 3) {
+    throw new VitalImportError(`Oscillator ${index} must route to Vital's effects input`)
   }
   return {
     enabled: numericBoolean(setting(settings, `${prefix}_on`), `${prefix}_on`),
@@ -693,6 +706,30 @@ function decodeFilterCutoff(value: number): number {
   return Math.round(440 * 2 ** ((value - 69) / 12))
 }
 
+function parseFxFilterType(settings: Record<string, unknown>): FilterType {
+  try {
+    return decodeVitalFxFilterType({
+      model: integer(setting(settings, 'filter_fx_model'), 'filter_fx_model'),
+      style: integer(setting(settings, 'filter_fx_style'), 'filter_fx_style'),
+      blend: setting(settings, 'filter_fx_blend'),
+    })
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'unsupported mapping'
+    throw new VitalImportError(detail)
+  }
+}
+
+function parseEffectOrder(settings: Record<string, unknown>): EffectId[] {
+  try {
+    return decodeVitalEffectOrder(
+      integer(setting(settings, 'effect_chain_order'), 'effect_chain_order'),
+    )
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'unsupported encoding'
+    throw new VitalImportError(detail)
+  }
+}
+
 function parseDelayDivision(sync: number, tempo: number): TempoSyncDivision {
   const division = sync === 1 ? VITAL_TEMPO_DIVISIONS[tempo] : VITAL_TRIPLET_DIVISIONS[tempo]
   if ((sync !== 1 && sync !== 3) || !division) {
@@ -706,13 +743,11 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
   const templateSettings = record(template.settings, 'Template Vital settings')
   assertUnsupportedSettingsUnchanged(settings, templateSettings)
 
-  if (setting(settings, 'filter_2_on') !== 0) {
-    throw new VitalImportError('Filter 2 must be off for PatchState compatibility')
+  if (setting(settings, 'filter_1_on') !== 0 || setting(settings, 'filter_2_on') !== 0) {
+    throw new VitalImportError('Filter 1 and Filter 2 must be off for PatchState compatibility')
   }
-  for (const key of ['filter_1_model', 'filter_1_style'] as const) {
-    if (!valuesEqual(settings[key], templateSettings[key])) {
-      throw new VitalImportError('Only the pinned lowpass Filter 1 model is supported')
-    }
+  if (setting(settings, 'filter_fx_mix') !== 1) {
+    throw new VitalImportError('Vital FX filter mix must be fully wet for PatchState compatibility')
   }
 
   const importedWavetables = array(settings.wavetables, 'Vital wavetables')
@@ -786,10 +821,10 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
     ampEnvelope: parseEnvelope(settings, 'env_1'),
     modEnvelope: parseEnvelope(settings, 'env_2'),
     filter: {
-      enabled: numericBoolean(setting(settings, 'filter_1_on'), 'filter_1_on'),
-      type: 'lowpass',
-      cutoffHz: decodeFilterCutoff(setting(settings, 'filter_1_cutoff')),
-      resonance: setting(settings, 'filter_1_resonance'),
+      enabled: numericBoolean(setting(settings, 'filter_fx_on'), 'filter_fx_on'),
+      type: parseFxFilterType(settings),
+      cutoffHz: decodeFilterCutoff(setting(settings, 'filter_fx_cutoff')),
+      resonance: setting(settings, 'filter_fx_resonance'),
     },
     lfo1: parseLfo(importedLfos[0], settings, modulation.lfoEnabled),
     modulations: modulation.routes,
@@ -800,6 +835,7 @@ function parsePatch(document: VitalPresetDocument, template: VitalPresetDocument
       velocitySensitivity: setting(settings, 'velocity_track'),
     },
     effects: {
+      order: parseEffectOrder(settings),
       delay: {
         enabled: numericBoolean(setting(settings, 'delay_on'), 'delay_on'),
         mode: delayMode,
@@ -865,6 +901,43 @@ function lossySetting(
 
 function lossyBoolean(value: number): boolean {
   return value >= 0.5
+}
+
+function parseLossyEffectOrder(
+  settings: Record<string, unknown>,
+  templateSettings: Record<string, unknown>,
+  warnings: Set<string>,
+): EffectId[] {
+  const raw = lossySetting(settings, templateSettings, 'effect_chain_order', warnings)
+  const normalized = clamp(Math.round(raw), 0, VITAL_EFFECT_ORDER_MAX)
+  if (normalized !== raw) {
+    warnOnce(warnings, 'The effect-chain order encoding was rounded into Vital’s supported range.')
+  }
+  try {
+    return decodeVitalEffectOrder(normalized)
+  } catch {
+    warnOnce(warnings, 'The effect-chain order could not be decoded; the workbench order was used.')
+    return [...DEFAULT_EFFECT_ORDER]
+  }
+}
+
+function parseLossyFxFilterType(
+  settings: Record<string, unknown>,
+  templateSettings: Record<string, unknown>,
+  prefix: 'filter_1' | 'filter_fx',
+  warnings: Set<string>,
+): FilterType {
+  const values = {
+    model: lossySetting(settings, templateSettings, `${prefix}_model`, warnings),
+    style: lossySetting(settings, templateSettings, `${prefix}_style`, warnings),
+    blend: lossySetting(settings, templateSettings, `${prefix}_blend`, warnings),
+  }
+  try {
+    return decodeVitalFxFilterType(values)
+  } catch {
+    warnOnce(warnings, 'The original filter model was mapped to the workbench low-pass filter.')
+    return 'lowpass'
+  }
 }
 
 function filenamePresetName(filename: string | undefined): string | undefined {
@@ -1111,8 +1184,8 @@ function parseLossyOscillator(
   const prefix = `osc_${index}`
   const enabled = lossyBoolean(lossySetting(settings, templateSettings, `${prefix}_on`, warnings))
   const destination = lossySetting(settings, templateSettings, `${prefix}_destination`, warnings)
-  if (destination !== 0) {
-    warnOnce(warnings, 'Oscillator routing outside Filter 1 was collapsed into the workbench signal path.')
+  if (destination !== 3) {
+    warnOnce(warnings, 'Oscillator routing outside the effects input was collapsed into the workbench signal path.')
   }
 
   let rawLevel =
@@ -1204,6 +1277,7 @@ function parseLossyModulations(
     osc_3_tune: 'oscillator3.pitch',
     osc_3_transpose: 'oscillator3.pitch',
     filter_1_cutoff: 'filter.cutoff',
+    filter_fx_cutoff: 'filter.cutoff',
   }
   const imported: ModulationRoute[] = []
   const pairs = new Set<string>()
@@ -1328,7 +1402,10 @@ function parseLossyPatch(
   const sourceVersion = stringValue(document.synth_version, 'Vital synth_version')
   if (!sourceVersion.trim()) throw new VitalImportError('Vital synth_version must not be empty')
   const warnings = new Set<string>()
-  warnOnce(warnings, `Imported with losses after the exact compatibility path rejected the preset: ${strictError.message}`)
+  warnOnce(
+    warnings,
+    `The editable projection is approximate because the exact compatibility path rejected the preset: ${strictError.message}`,
+  )
   if (sourceVersion !== template.synth_version) {
     warnOnce(warnings, `Vital ${sourceVersion} was interpreted using the ${template.synth_version} parameter model.`)
   }
@@ -1398,17 +1475,35 @@ function parseLossyPatch(
     warnOnce(warnings, `Unsupported enabled effects were omitted: ${omittedEffects.join(', ')}.`)
   }
 
-  const filterModel = lossySetting(settings, templateSettings, 'filter_1_model', warnings)
-  const filterStyle = lossySetting(settings, templateSettings, 'filter_1_style', warnings)
-  if (filterModel !== templateSettings.filter_1_model || filterStyle !== templateSettings.filter_1_style) {
-    warnOnce(warnings, 'The original Filter 1 model was mapped to the workbench low-pass filter.')
+  const filterFxEnabled = lossyBoolean(
+    lossySetting(settings, templateSettings, 'filter_fx_on', warnings),
+  )
+  const filterOneEnabled = lossyBoolean(
+    lossySetting(settings, templateSettings, 'filter_1_on', warnings),
+  )
+  let filterPrefix: 'filter_1' | 'filter_fx' = 'filter_fx'
+  let filterEnabled = filterFxEnabled
+  if (filterOneEnabled && !filterFxEnabled) {
+    filterPrefix = 'filter_1'
+    filterEnabled = true
+    warnOnce(warnings, 'Legacy Filter 1 was moved into the workbench effects-chain filter.')
+  } else if (filterOneEnabled) {
+    warnOnce(warnings, 'Filter 1 was omitted because the effects-chain filter is active.')
   }
   if (lossyBoolean(lossySetting(settings, templateSettings, 'filter_2_on', warnings))) {
     warnOnce(warnings, 'Filter 2 was omitted.')
   }
+  const filterType = parseLossyFxFilterType(settings, templateSettings, filterPrefix, warnings)
+  if (
+    filterPrefix === 'filter_fx' &&
+    lossySetting(settings, templateSettings, 'filter_fx_mix', warnings) !== 1
+  ) {
+    warnOnce(warnings, 'The effects-chain filter mix was mapped to a fully wet workbench filter.')
+  }
   const cutoffControl =
-    lossySetting(settings, templateSettings, 'filter_1_cutoff', warnings) +
-    macroContribution(routes, settings, 'filter_1_cutoff') * 128
+    lossySetting(settings, templateSettings, `${filterPrefix}_cutoff`, warnings) +
+    macroContribution(routes, settings, `${filterPrefix}_cutoff`) * 128
+  const effectOrder = parseLossyEffectOrder(settings, templateSettings, warnings)
 
   const style = typeof document.preset_style === 'string' ? document.preset_style : ''
   const category = VITAL_STYLE_CATEGORIES[style] ?? 'other'
@@ -1448,15 +1543,15 @@ function parseLossyPatch(
     ampEnvelope: parseLossyEnvelope(settings, templateSettings, 'env_1', warnings),
     modEnvelope: parseLossyEnvelope(settings, templateSettings, 'env_2', warnings),
     filter: {
-      enabled: lossyBoolean(lossySetting(settings, templateSettings, 'filter_1_on', warnings)),
-      type: 'lowpass',
+      enabled: filterEnabled,
+      type: filterType,
       cutoffHz: clamp(
         decodeFilterCutoff(cutoffControl),
         FILTER_CUTOFF_MIN_HZ,
         FILTER_CUTOFF_MAX_HZ,
       ),
       resonance: clamp(
-        lossySetting(settings, templateSettings, 'filter_1_resonance', warnings),
+        lossySetting(settings, templateSettings, `${filterPrefix}_resonance`, warnings),
         0,
         1,
       ),
@@ -1484,6 +1579,7 @@ function parseLossyPatch(
       ),
     },
     effects: {
+      order: effectOrder,
       delay: {
         enabled: lossyBoolean(lossySetting(settings, templateSettings, 'delay_on', warnings)),
         mode: delayMode,

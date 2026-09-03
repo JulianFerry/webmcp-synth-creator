@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
 import { createAppStore } from '../../src/app/appStore'
-import { BrowserSynth } from '../../src/audio/BrowserSynth'
 import {
   getAudioPreviewBehavior,
   supportsDraftPreview,
   supportsLiveAudioPreview,
 } from '../../src/audio/preview'
+import { VitalWasmRenderer } from '../../src/audio/vital/VitalWasmRenderer'
 import { CommandService } from '../../src/commands/CommandService'
 import { LatencyTrace } from '../../src/dev/latencyTrace'
 import { createDefaultPatch } from '../../src/patch/defaults'
 import { SessionService } from '../../src/session/SessionService'
+import type { VitalPresetAdapter } from '../../src/vital/VitalPresetAdapter'
 
 function createHarness() {
   let now = 0
@@ -19,7 +20,7 @@ function createHarness() {
     return now
   })
   const session = new SessionService(createDefaultPatch())
-  const synth = new BrowserSynth(session, trace)
+  const synth = new VitalWasmRenderer(session, {} as VitalPresetAdapter, trace)
   const commands = new CommandService(session, undefined, trace)
   const store = createAppStore({ session, commands, synth })
   return { trace, session, synth, commands, store }
@@ -150,6 +151,13 @@ describe('ephemeral audio patch preview', () => {
       'oscillators.1.unisonVoices',
       'oscillators.1.unisonDetune',
       'oscillators.1.stereoSpread',
+      'oscillators.2.wavetablePosition',
+      'oscillators.2.level',
+      'oscillators.2.transposeSemitones',
+      'oscillators.2.fineTuneCents',
+      'oscillators.2.unisonVoices',
+      'oscillators.2.unisonDetune',
+      'oscillators.2.stereoSpread',
       'ampEnvelope.sustainLevel',
       'filter.cutoffHz',
       'filter.resonance',
@@ -179,13 +187,18 @@ describe('ephemeral audio patch preview', () => {
   it('drops draft and effective overlays when the audio adapter unmounts', () => {
     const { synth, store } = createHarness()
     store.getState().previewPatchChange('oscillators.0.level', 0.2)
+    store.getState().previewPatchChange('oscillators.2.level', 0.41)
     store.getState().previewPatchChange('ampEnvelope.attackSeconds', 1.2)
 
     synth.dispose()
 
     expect(synth.getState().previewValues).toEqual({})
     expect(synth.getState().draft.oscillators[0].level).toBe(0.62)
+    expect(synth.getState().draft.oscillators[2].level).toBe(0)
     expect(synth.getState().draft.ampEnvelope.attackSeconds).toBe(0.18)
+    expect(synth.getState().oscillators[2].level).toBe(0)
     expect(synth.getState().effective.oscillators[0].level).toBe(0.62)
+    expect(synth.getState().effective.oscillators[2].level).toBe(0)
+    expect(synth.getState().previewWavetablePositions).toEqual([null, null, null])
   })
 })

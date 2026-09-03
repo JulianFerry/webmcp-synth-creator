@@ -1,5 +1,7 @@
 import type { TempoSyncDivision } from '../patch/limits'
 import type { EnvelopeState, PatchState } from '../patch/types'
+import { encodeVitalEffectOrder } from './effectOrder'
+import { mapVitalFxFilterType } from './filter'
 import { mapVitalLfoRate } from './lfo'
 import {
   encodeVitalDelaySeconds,
@@ -28,12 +30,7 @@ export function mapPhaseOneVitalParameters(patch: PatchState): Record<string, nu
   const first = patch.oscillators[0]
   const second = patch.oscillators[1]
   const third = patch.oscillators[2]
-
-  if (patch.filter.type !== 'lowpass') {
-    throw new VitalExportError(
-      `Vital 1.0.7 export supports only the logical lowpass Filter 1 model, not ${patch.filter.type}`,
-    )
-  }
+  const filterType = mapVitalFxFilterType(patch.filter.type)
 
   return {
     polyphony: patch.voice.polyphony,
@@ -41,7 +38,7 @@ export function mapPhaseOneVitalParameters(patch: PatchState): Record<string, nu
     velocity_track: patch.voice.velocitySensitivity,
     portamento_time: encodeVitalGlideSeconds(patch.voice.glideSeconds),
     osc_1_on: Number(first.enabled),
-    osc_1_destination: 0,
+    osc_1_destination: 3,
     osc_1_level: encodeVitalOscillatorLevel(first.level),
     osc_1_wave_frame: first.wavetablePosition * 256,
     osc_1_transpose: first.transposeSemitones,
@@ -51,7 +48,7 @@ export function mapPhaseOneVitalParameters(patch: PatchState): Record<string, nu
     osc_1_stereo_spread: first.stereoSpread,
     osc_1_random_phase: first.randomPhase,
     osc_2_on: Number(second.enabled),
-    osc_2_destination: 0,
+    osc_2_destination: 3,
     osc_2_level: encodeVitalOscillatorLevel(second.level),
     osc_2_wave_frame: second.wavetablePosition * 256,
     osc_2_transpose: second.transposeSemitones,
@@ -61,7 +58,7 @@ export function mapPhaseOneVitalParameters(patch: PatchState): Record<string, nu
     osc_2_stereo_spread: second.stereoSpread,
     osc_2_random_phase: second.randomPhase,
     osc_3_on: Number(third.enabled),
-    osc_3_destination: 0,
+    osc_3_destination: 3,
     osc_3_level: encodeVitalOscillatorLevel(third.level),
     osc_3_wave_frame: third.wavetablePosition * 256,
     osc_3_transpose: third.transposeSemitones,
@@ -71,10 +68,15 @@ export function mapPhaseOneVitalParameters(patch: PatchState): Record<string, nu
     osc_3_stereo_spread: third.stereoSpread,
     osc_3_random_phase: third.randomPhase,
     ...mapVitalEnvelope('env_1', patch.ampEnvelope),
-    filter_1_on: Number(patch.filter.enabled),
-    filter_1_cutoff: frequencyToMidiNote(patch.filter.cutoffHz),
-    filter_1_resonance: patch.filter.resonance,
+    filter_1_on: 0,
     filter_2_on: 0,
+    filter_fx_on: Number(patch.filter.enabled),
+    filter_fx_cutoff: frequencyToMidiNote(patch.filter.cutoffHz),
+    filter_fx_resonance: patch.filter.resonance,
+    filter_fx_model: filterType.model,
+    filter_fx_style: filterType.style,
+    filter_fx_blend: filterType.blend,
+    filter_fx_mix: 1,
   }
 }
 
@@ -98,6 +100,10 @@ export function mapStructuredVitalParameters(patch: PatchState): Record<string, 
   const delayFrequency = encodeVitalDelaySeconds(delay.timeSeconds ?? 0.25)
 
   return {
+    effect_chain_order: encodeVitalEffectOrder(patch.effects.order),
+    eq_on: 0,
+    flanger_on: 0,
+    phaser_on: 0,
     ...mapVitalEnvelope('env_2', patch.modEnvelope),
     lfo_1_sync: lfoRate.sync,
     lfo_1_sync_type: 0,
