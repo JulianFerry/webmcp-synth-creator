@@ -3,8 +3,10 @@ import { extname } from 'node:path'
 import { gzipSync } from 'node:zlib'
 
 const assetDirectory = new URL('../dist/assets/', import.meta.url)
-// The JavaScript budget includes the inlined Emscripten glue for the Vital
-// module (~13 KiB gzip); the 1.4 MB `vital.wasm` payload is a separate asset.
+// The JavaScript budget covers the app bundle plus the Emscripten glue that the
+// Vital worker inlines (~13 KiB gzip); the 1.4 MB `vital.wasm` payload ships as a
+// separate asset and is not counted here. Measured at ~156 KiB gzip after the
+// Vital WASM engine landed, so the budget leaves deliberate headroom.
 const budgets = new Map([
   ['.js', 200 * 1024],
   ['.css', 20 * 1024],
