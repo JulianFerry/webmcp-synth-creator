@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 
 import type { WorkbenchTab } from '../../app/uiState'
 import { GUIDE_STEPS, helpArticleFor, type GuidePath, type HelpArticle } from './helpContent'
@@ -24,6 +24,11 @@ interface HelpRect {
   right: number
   top: number
   width: number
+}
+
+interface HelpViewport {
+  bottom: number
+  top: number
 }
 
 interface HelpSelection {
@@ -60,6 +65,20 @@ const INSPECTABLE_SELECTOR = [
   '.sidebar-transfer',
 ].join(', ')
 
+const HELP_VIEWPORT_GUTTER = 6
+
+function helpViewport(element?: Element): HelpViewport {
+  let bottom = window.innerHeight - HELP_VIEWPORT_GUTTER
+  const footer = document.querySelector('.audition-footer')
+  if (footer && (!element || !footer.contains(element))) {
+    bottom = Math.min(bottom, footer.getBoundingClientRect().top - HELP_VIEWPORT_GUTTER)
+  }
+  return {
+    bottom: Math.max(HELP_VIEWPORT_GUTTER, bottom),
+    top: HELP_VIEWPORT_GUTTER,
+  }
+}
+
 function QuestionIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24">
     <circle cx="12" cy="12" r="8.5" />
@@ -79,6 +98,15 @@ function SynthIcon() {
 export function HelpToolbar({ entryPoint, onChange }: HelpToolbarProps) {
   return <div aria-label="Help and onboarding" className="workbench-assistance" role="group">
     <button
+      aria-pressed={entryPoint === 'getting-started'}
+      className="getting-started-button"
+      data-testid="getting-started-button"
+      onClick={() => onChange(entryPoint === 'getting-started' ? null : 'getting-started')}
+      type="button"
+    >
+      <span>Getting started</span>
+    </button>
+    <button
       aria-label="Explain a component"
       aria-pressed={entryPoint === 'inspect'}
       className="toolbar-icon-button help-select-button"
@@ -89,26 +117,17 @@ export function HelpToolbar({ entryPoint, onChange }: HelpToolbarProps) {
     >
       <QuestionIcon />
     </button>
-    <button
-      aria-pressed={entryPoint === 'getting-started'}
-      className="getting-started-button"
-      data-testid="getting-started-button"
-      onClick={() => onChange(entryPoint === 'getting-started' ? null : 'getting-started')}
-      type="button"
-    >
-      <span>Getting started</span>
-      <i aria-hidden="true">-&gt;</i>
-    </button>
   </div>
 }
 
 function visibleRect(element: Element): HelpRect {
   const bounds = element.getBoundingClientRect()
   const padding = 4
-  const left = Math.max(6, bounds.left - padding)
-  const right = Math.min(window.innerWidth - 6, bounds.right + padding)
-  const top = Math.max(6, bounds.top - padding)
-  const bottom = Math.min(window.innerHeight - 6, bounds.bottom + padding)
+  const viewport = helpViewport(element)
+  const left = Math.max(HELP_VIEWPORT_GUTTER, bounds.left - padding)
+  const right = Math.min(window.innerWidth - HELP_VIEWPORT_GUTTER, bounds.right + padding)
+  const top = Math.max(viewport.top, bounds.top - padding)
+  const bottom = Math.min(viewport.bottom, bounds.bottom + padding)
   return {
     bottom,
     height: Math.max(8, bottom - top),
@@ -158,29 +177,67 @@ function targetStyle(rect: HelpRect): CSSProperties {
 }
 
 function cardStyle(rect: HelpRect): CSSProperties {
+  const viewport = {
+    bottom: window.innerHeight - 10,
+    top: 10,
+  }
   const width = Math.min(360, window.innerWidth - 20)
-  const estimatedHeight = Math.min(390, window.innerHeight - 20)
   const gap = 14
-  let left = rect.right + gap
-  let top = rect.top
+  const viewportHeight = viewport.bottom - viewport.top
+  const estimatedHeight = Math.min(390, viewportHeight)
+  const alignedTop = Math.max(viewport.top, Math.min(rect.top, viewport.bottom - estimatedHeight))
+  const right = rect.right + gap
+  if (window.innerWidth > 600 && right + width <= window.innerWidth - 10) {
+    return { left: right, maxHeight: viewport.bottom - alignedTop, top: alignedTop }
+  }
 
-  if (window.innerWidth <= 600) {
-    left = 10
-    top = rect.top > window.innerHeight / 2
-      ? 10
-      : Math.max(10, window.innerHeight - estimatedHeight - 10)
-  } else if (left + width > window.innerWidth - 10) {
-    left = rect.left - width - gap
+  const left = rect.left - width - gap
+  if (window.innerWidth > 600 && left >= 10) {
+    return { left, maxHeight: viewport.bottom - alignedTop, top: alignedTop }
   }
-  if (left < 10) {
-    left = Math.max(10, Math.min(window.innerWidth - width - 10, rect.left))
-    top = rect.bottom + gap
-    if (top + estimatedHeight > window.innerHeight - 10) top = rect.top - estimatedHeight - gap
+
+  const clampedLeft = Math.max(10, Math.min(window.innerWidth - width - 10, rect.left))
+  const belowTop = rect.bottom + gap
+  const belowHeight = viewport.bottom - belowTop
+  const aboveBottom = rect.top - gap
+  const aboveHeight = aboveBottom - viewport.top
+  if (belowHeight >= aboveHeight && belowHeight > 0) {
+    return { left: clampedLeft, maxHeight: belowHeight, top: belowTop }
   }
+  if (aboveHeight > 0) {
+    return {
+      bottom: window.innerHeight - aboveBottom,
+      left: clampedLeft,
+      maxHeight: aboveHeight,
+    }
+  }
+
   return {
-    left: Math.max(10, Math.min(left, window.innerWidth - width - 10)),
-    top: Math.max(10, Math.min(top, window.innerHeight - estimatedHeight - 10)),
+    left: clampedLeft,
+    maxHeight: viewportHeight,
+    top: viewport.top,
   }
+}
+
+function helpScrollPosition(target: Element): { left: number; top: number } {
+  const footer = document.querySelector('.audition-footer')
+  if (footer?.contains(target)) return { left: window.scrollX, top: window.scrollY }
+
+  const viewport = helpViewport(target)
+  const bounds = target.getBoundingClientRect()
+  const padding = 4
+  const paddedTop = bounds.top - padding
+  const paddedBottom = bounds.bottom + padding
+  if (paddedTop >= viewport.top && paddedBottom <= viewport.bottom) {
+    return { left: window.scrollX, top: window.scrollY }
+  }
+
+  const availableHeight = viewport.bottom - viewport.top
+  const targetHeight = paddedBottom - paddedTop
+  const desiredTop = targetHeight <= availableHeight
+    ? viewport.top + (availableHeight - targetHeight) / 2
+    : viewport.top
+  return { left: window.scrollX, top: window.scrollY + paddedTop - desiredTop }
 }
 
 function TargetBox({ modal = false, rect, title }: { modal?: boolean; rect: HelpRect; title: string }) {
@@ -297,6 +354,7 @@ export function HelpSystem({ activeTab, entryPoint, onChangeTab, onClose }: Help
   const [hovered, setHovered] = useState<HelpSelection | null>(null)
   const [selected, setSelected] = useState<HelpSelection | null>(null)
   const [guideRect, setGuideRect] = useState<HelpRect | null>(null)
+  const guideScrollPosition = useRef({ left: 0, top: 0 })
 
   useEffect(() => {
     if (entryPoint === 'inspect') setView({ kind: 'inspect' })
@@ -317,6 +375,44 @@ export function HelpSystem({ activeTab, entryPoint, onChangeTab, onClose }: Help
     window.addEventListener('keydown', handleEscape)
     return () => window.removeEventListener('keydown', handleEscape)
   }, [onClose, view])
+
+  useEffect(() => {
+    if (view?.kind !== 'guide') return
+    guideScrollPosition.current = { left: window.scrollX, top: window.scrollY }
+    document.documentElement.classList.add('is-help-guide-active')
+    document.body.classList.add('is-help-guide-active')
+    const preventBackgroundScroll = (event: WheelEvent | TouchEvent) => {
+      if (event.target instanceof Element && event.target.closest('.help-card')) return
+      event.preventDefault()
+    }
+    const preventScrollKeys = (event: KeyboardEvent) => {
+      if (![' ', 'End', 'Home', 'PageDown', 'PageUp'].includes(event.key)) return
+      if (event.target instanceof Element) {
+        if (event.key === ' ' && event.target.closest('button, input, select, textarea')) return
+        const card = event.target.closest('.help-card')
+        if (card && card.scrollHeight > card.clientHeight) return
+        if (event.target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])')) return
+      }
+      event.preventDefault()
+    }
+    const restoreGuideScroll = () => {
+      const position = guideScrollPosition.current
+      if (window.scrollX === position.left && window.scrollY === position.top) return
+      window.scrollTo(position)
+    }
+    document.addEventListener('wheel', preventBackgroundScroll, { capture: true, passive: false })
+    document.addEventListener('touchmove', preventBackgroundScroll, { capture: true, passive: false })
+    window.addEventListener('keydown', preventScrollKeys)
+    window.addEventListener('scroll', restoreGuideScroll)
+    return () => {
+      document.documentElement.classList.remove('is-help-guide-active')
+      document.body.classList.remove('is-help-guide-active')
+      document.removeEventListener('wheel', preventBackgroundScroll, true)
+      document.removeEventListener('touchmove', preventBackgroundScroll, true)
+      window.removeEventListener('keydown', preventScrollKeys)
+      window.removeEventListener('scroll', restoreGuideScroll)
+    }
+  }, [view?.kind])
 
   useEffect(() => {
     if (view?.kind !== 'guide') return
@@ -406,8 +502,9 @@ export function HelpSystem({ activeTab, entryPoint, onChangeTab, onClose }: Help
         setGuideRect(null)
         return
       }
-      const bounds = target.getBoundingClientRect()
-      if (bounds.bottom < 8 || bounds.top > window.innerHeight - 8) target.scrollIntoView({ block: 'center', inline: 'nearest' })
+      const scrollPosition = helpScrollPosition(target)
+      guideScrollPosition.current = scrollPosition
+      window.scrollTo({ behavior: 'auto', ...scrollPosition })
       setGuideRect(visibleRect(target))
     }
     frame = window.requestAnimationFrame(() => {
@@ -416,6 +513,8 @@ export function HelpSystem({ activeTab, entryPoint, onChangeTab, onClose }: Help
       if (target) {
         observer = new ResizeObserver(update)
         observer.observe(target)
+        const footer = document.querySelector('.audition-footer')
+        if (footer) observer.observe(footer)
       }
     })
     window.addEventListener('resize', update)

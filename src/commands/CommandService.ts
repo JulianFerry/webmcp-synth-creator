@@ -31,6 +31,7 @@ import { createSetLfoPointTransaction } from './setLfoPoint'
 import { createSetLfoShapeTransaction } from './setLfoShape'
 
 export class CommandError extends Error {}
+export class NoPatchChangesError extends CommandError {}
 
 export interface CommandContext {
   correlationId?: string
@@ -230,6 +231,68 @@ export class CommandService {
     return this.commandResult(selectedPatch, changed, correlationId)
   }
 
+  copyVariant(
+    sourceVariant: VariantId,
+    targetVariant: VariantId,
+    context: CommandContext = {},
+  ): CommandResult {
+    if (sourceVariant === targetVariant) {
+      throw new CommandError('Source and target variants must be different')
+    }
+
+    const { correlationId, source } = this.beginRequest(context, 'ui')
+    const sourcePatch = this.session.getPatch(sourceVariant)
+    if (targetVariant === 'B' && !this.session.hasVariant('B')) {
+      const reason = `Copy variant ${sourceVariant} to ${targetVariant}`
+      const historyEntry = {
+        before: sourcePatch,
+        after: sourcePatch,
+        changed: {},
+        reason,
+      }
+      this.session.createVariantB(
+        sourcePatch,
+        this.commitInput(
+          sourcePatch,
+          {},
+          correlationId,
+          reason,
+          source,
+          'variant_copy',
+        ),
+        historyEntry,
+        false,
+        () => this.trace.record(correlationId, 'patch_committed', source),
+        false,
+        undefined,
+        `copy of ${sourceVariant}`,
+      )
+      return this.commandResult(sourcePatch, {}, correlationId)
+    }
+    const targetPatch = this.session.getPatch(targetVariant)
+    const transaction = createPatchTransaction(targetPatch, {
+      type: 'create_patch',
+      reason: `Copy variant ${sourceVariant} to ${targetVariant}`,
+      patch: sourcePatch,
+    })
+    this.assertChanged(transaction.changed)
+    this.session.commitTransactionForVariant(
+      targetVariant,
+      this.commitInput(
+        transaction.patch,
+        transaction.changed,
+        correlationId,
+        transaction.reason,
+        source,
+        'variant_copy',
+      ),
+      transaction.historyEntry,
+      () => this.trace.record(correlationId, 'patch_committed', source),
+    )
+
+    return this.commandResult(transaction.patch, transaction.changed, correlationId)
+  }
+
   discardVariantB(context: CommandContext = {}): CommandResult {
     const { correlationId, source } = this.beginRequest(context, 'ui')
     const before = this.session.getPatch()
@@ -389,7 +452,7 @@ export class CommandService {
 
   private assertChanged(changed: PatchDiff): void {
     if (Object.keys(changed).length === 0) {
-      throw new CommandError('The command did not change any patch values')
+      throw new NoPatchChangesError('The command did not change any patch values')
     }
   }
 }

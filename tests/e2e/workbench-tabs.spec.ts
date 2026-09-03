@@ -241,12 +241,12 @@ test('envelope keeps curve editing in the graph without duplicate curve or hold 
   await expect(page.getByTestId('lfo-1-curve-0')).toHaveClass(/graph-curve-handle/)
 })
 
-test('operation-written effect, filter, and envelope fields have real editors', async ({ page }) => {
+test('operation-written effects and envelope curves have real editors', async ({ page }) => {
   await page.goto('/')
 
   const initialGraph = await page.getByTestId('amp-envelope-path').getAttribute('d')
-  await expect(page.getByTestId('amp-delay')).toBeVisible()
-  await setRange(page, 'amp-delay', .3)
+  await expect(page.getByTestId('amp-delay')).toHaveCount(0)
+  await expect(page.getByTestId('amp-hold')).toHaveCount(0)
   for (const phase of ['attack', 'decay', 'release']) {
     const handle = page.getByTestId(`amp-${phase}-curve-handle`)
     await expect(handle).toHaveAccessibleName(`${phase[0].toUpperCase()}${phase.slice(1)} curve handle`)
@@ -302,7 +302,6 @@ test('operation-written effect, filter, and envelope fields have real editors', 
   await expect(page.getByTestId('filter-slope')).toHaveValue('24')
 
   await page.getByRole('tab', { name: 'Oscillators' }).click()
-  await expect(page.getByTestId('amp-delay')).toHaveAttribute('data-parameter-value', '0.3')
   await expect.poll(async () => Number(await page.getByTestId('amp-attack-curve-handle').getAttribute('aria-valuenow'))).toBeCloseTo(draggedAttackCurve)
   await expect.poll(async () => Number(await page.getByTestId('amp-decay-curve-handle').getAttribute('aria-valuenow'))).toBeCloseTo(0)
   await expect.poll(async () => Number(await page.getByTestId('amp-release-curve-handle').getAttribute('aria-valuenow'))).toBeCloseTo(0)
@@ -335,7 +334,9 @@ test('mobile drag bar can move an effect down', async ({ page }) => {
   await page.mouse.up()
   await expect.poll(effectOrder).toEqual(DISTORTION_LAST_ORDER)
 
-  const movedDistortionHandle = await page.getByRole('button', { name: 'Drag Distortion to reorder' }).boundingBox()
+  const movedDistortion = page.getByRole('button', { name: 'Drag Distortion to reorder' })
+  await movedDistortion.evaluate((element) => element.scrollIntoView({ block: 'center' }))
+  const movedDistortionHandle = await movedDistortion.boundingBox()
   const filterCard = await page.getByTestId('effect-card-filter').boundingBox()
   expect(movedDistortionHandle).not.toBeNull()
   expect(filterCard).not.toBeNull()

@@ -1,5 +1,5 @@
 import type { EnvelopeState, LfoPoint, LfoRate, LfoState } from '../patch/types'
-import type { TempoSyncDivision } from '../patch/limits'
+import { STRAIGHT_LFO_DIVISIONS, type TempoSyncDivision } from '../patch/limits'
 import { vitalPowerScale } from './units'
 
 export const DEFAULT_TEMPO_BPM = 120
@@ -29,7 +29,20 @@ export function syncDivisionSeconds(
 }
 
 export function lfoRateHz(rate: LfoRate, bpm = DEFAULT_TEMPO_BPM): number {
-  return rate.mode === 'free' ? rate.hz : 1 / syncDivisionSeconds(rate.division, bpm)
+  return 1 / syncDivisionSeconds(rate.division, bpm)
+}
+
+/** Maps legacy free-running rates using the workbench's fixed 120 BPM playback tempo. */
+export function nearestStraightLfoDivision(
+  hz: number,
+  bpm = DEFAULT_TEMPO_BPM,
+): (typeof STRAIGHT_LFO_DIVISIONS)[number] {
+  const safeHz = Number.isFinite(hz) && hz > 0 ? hz : 1 / syncDivisionSeconds('1/4', bpm)
+  return STRAIGHT_LFO_DIVISIONS.reduce((nearest, division) => {
+    const distance = Math.abs(Math.log2(safeHz / lfoRateHz({ mode: 'sync', division }, bpm)))
+    const nearestDistance = Math.abs(Math.log2(safeHz / lfoRateHz({ mode: 'sync', division: nearest }, bpm)))
+    return distance < nearestDistance ? division : nearest
+  })
 }
 
 function curvePosition(position: number, power: number, smooth: boolean): number {

@@ -24,9 +24,9 @@ test('patch field follows the selected patch without a theme selector', async ({
 
   await page.getByTestId('variant-b').click()
   await expect(shell).toHaveAttribute('data-patch-variant', 'B')
-  await expect(slider).toHaveCSS('--slider-track-start', '#7e5ac7')
-  await expect(page.getByTestId('amp-envelope-path')).toHaveCSS('stroke', 'rgba(126, 90, 199, 0.68)')
-  await expect(waterfall).toHaveAttribute('data-graph-color', '#7e5ac7')
-  await expect(page.locator('.sidebar-title strong')).toHaveCSS('color', 'rgb(126, 90, 199)')
+  await expect(slider).toHaveCSS('--slider-track-start', '#8261c8')
+  await expect(page.getByTestId('amp-envelope-path')).toHaveCSS('stroke', 'rgba(130, 97, 200, 0.68)')
+  await expect(waterfall).toHaveAttribute('data-graph-color', '#8261c8')
+  await expect(page.locator('.sidebar-title strong')).toHaveCSS('color', 'rgb(130, 97, 200)')
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(11, 16, 23)')
 })

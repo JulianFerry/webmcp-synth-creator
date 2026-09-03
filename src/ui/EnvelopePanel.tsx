@@ -48,24 +48,11 @@ export function EnvelopePanel({
         onPreview={(handle, value) => onPreview(path(ENVELOPE_HANDLE_FIELDS[handle]), value)}
         previewEnvelope={previewEnvelope}
         resetKey={resetKey}
+        showDelayControl={false}
         showHoldControl={false}
       />
 
       <div className="control-grid envelope-controls">
-        <ParameterSlider
-          formatValue={seconds}
-          id="amp-delay"
-          label="Delay"
-          max={4}
-          min={0}
-          onCancel={() => onCancelPreview(path('delaySeconds'))}
-          onCommit={(value) => commit('delaySeconds', value, 'delay')}
-          onPreview={(value) => onPreview(path('delaySeconds'), value)}
-          resetKey={resetKey}
-          step={0.01}
-          testId="amp-delay"
-          value={previewEnvelope.delaySeconds}
-        />
         <ParameterSlider
           formatValue={seconds}
           id="amp-attack"

@@ -132,7 +132,7 @@ test('direct amp and LFO editors stay mounted while routing controls remain hidd
   await expect(page.getByTestId('voice-glide')).toHaveCount(0)
 })
 
-test('level LFO shows a curve-aligned meter and visited trace only during audition without scaling waveforms', async ({ page }) => {
+test('every LFO target shows a curve-aligned meter and visited trace during audition', async ({ page }) => {
   await installWebMcpDouble(page)
   await page.goto('/')
   await expect(page.getByTestId('webmcp-status')).toContainText('available')
@@ -140,13 +140,13 @@ test('level LFO shows a curve-aligned meter and visited trace only during auditi
     reason: 'Configure visible level modulation feedback',
     changes: [
       { path: 'lfo1.enabled', value: true },
-      { path: 'lfo1.target', value: 'level' },
+      { path: 'lfo1.target', value: 'pitch' },
       { path: 'lfo1.scope', value: 1 },
-      { path: 'lfo1.rate', value: { mode: 'free', hz: 0.5 } },
+      { path: 'lfo1.rate', value: { mode: 'sync', division: '1/1' } },
       { path: 'lfo1.phase', value: 0.15 },
       { path: 'lfo2.enabled', value: true },
-      { path: 'lfo2.target', value: 'level' },
-      { path: 'lfo2.scope', value: 2 },
+      { path: 'lfo2.target', value: 'cutoff' },
+      { path: 'lfo2.scope', value: 'all' },
       { path: 'lfo2.points', value: [{ x: 0, y: 0 }, { x: 1, y: 1 }] },
       { path: 'lfo2.rate', value: { mode: 'sync', division: '1/8' } },
       { path: 'lfo2.phase', value: 0.35 },
@@ -178,6 +178,14 @@ test('level LFO shows a curve-aligned meter and visited trace only during auditi
   await expect(trace).toHaveAttribute('data-start-phase', '0.0000', { timeout: 3_000 })
   await expect(waveform).toHaveAttribute('d', stoppedPath!)
 
+  await executeTool(page, 'apply_patch', {
+    reason: 'Verify the sweep remains visible for a level target',
+    changes: [{ path: 'lfo1.target', value: 'level' }],
+  })
+  await expect(playhead).toHaveCount(1)
+  const levelPhase = await playhead.getAttribute('data-phase')
+  await expect.poll(() => playhead.getAttribute('data-phase')).not.toBe(levelPhase)
+
   await page.getByTestId('preview-stop').click()
   await expect(playhead).toHaveCount(0)
   await expect(secondPlayhead).toHaveCount(0)
@@ -185,7 +193,7 @@ test('level LFO shows a curve-aligned meter and visited trace only during auditi
   await expect(page.getByTestId('lfo-2-visited-trace')).toHaveCount(0)
 })
 
-test('LFO 2 position feedback animates all rendered oscillators including disabled cards and stops on note-off', async ({ page }) => {
+test('LFO 2 all-scope feedback animates enabled oscillators but not disabled cards', async ({ page }) => {
   await installWebMcpDouble(page)
   await page.goto('/')
   await expect(page.getByTestId('webmcp-status')).toContainText('available')
@@ -213,9 +221,15 @@ test('LFO 2 position feedback animates all rendered oscillators including disabl
   const displays = [1, 2, 3].map((number) => page.locator(`[data-testid="oscillator-${number}-editor"] .wavetable-display`))
   const stoppedPositions = await Promise.all(displays.map((display) => display.getAttribute('data-position')))
   await page.getByTestId('preview-note').click()
-  for (const [index, display] of displays.entries()) {
-    await expect.poll(() => display.getAttribute('data-position')).not.toBe(stoppedPositions[index])
-    await expect.poll(() => page.getByTestId(`oscillator-${index + 1}-waterfall`).getAttribute('data-position')).not.toBe(stoppedPositions[index])
+  const lfo2Playhead = page.getByTestId('lfo-2-level-playhead')
+  await expect(lfo2Playhead).toHaveCount(1)
+  const lfo2Phase = await lfo2Playhead.getAttribute('data-phase')
+  await expect.poll(() => lfo2Playhead.getAttribute('data-phase')).not.toBe(lfo2Phase)
+  await expect.poll(() => displays[0].getAttribute('data-position')).not.toBe(stoppedPositions[0])
+  await expect.poll(() => page.getByTestId('oscillator-1-waterfall').getAttribute('data-position')).not.toBe(stoppedPositions[0])
+  for (const [index, display] of displays.slice(1).entries()) {
+    await expect(display).toHaveAttribute('data-position', stoppedPositions[index + 1]!)
+    await expect.poll(async () => Number(await page.getByTestId(`oscillator-${index + 2}-waterfall`).getAttribute('data-position'))).toBe(Number(stoppedPositions[index + 1]))
   }
 
   await page.getByRole('group', { name: 'Oscillator 1 visualization' }).getByRole('button', { name: '2D' }).click()

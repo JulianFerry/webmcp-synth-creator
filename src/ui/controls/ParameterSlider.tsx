@@ -148,7 +148,7 @@ export function ParameterSlider({
   const formattedDraft = formatValue(draft)
 
   return (
-    <label className={`parameter-control parameter-control-${orientation} parameter-control-${renderedAppearance}`} htmlFor={id}>
+    <label className={`parameter-control parameter-control-${orientation} parameter-control-${renderedAppearance}${disabled ? ' parameter-control-locked' : ''}`} htmlFor={id}>
       <span>{label}</span>
       <output htmlFor={id}>{formattedDraft}</output>
       {renderedAppearance === 'knob' ? <span aria-hidden="true" className="parameter-knob-dial"><i style={{ transform: `rotate(${-135 + scalePosition * 270}deg)` }} /></span> : null}

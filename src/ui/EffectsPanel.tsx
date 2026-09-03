@@ -125,7 +125,7 @@ export function EffectsPanel({ effects, resetKey, onChange }: EffectsPanelProps)
             <ParameterSlider
               formatValue={(value) => `${Math.round(value * 100)}%`}
               id="reverb-mix"
-              label="Wet send"
+              label="Mix"
               max={1}
               min={0}
               onCommit={(value) => commitReverb('mix', value)}

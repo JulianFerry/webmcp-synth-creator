@@ -1,6 +1,6 @@
 import { FLAT_GATE_PATTERN, GATE_PATTERNS } from './patterns'
 import { MOVEMENT_SHAPES } from './shapes'
-import { normalizedToGlideSeconds, normalizedToLfoDivision, normalizedToLfoHz } from './normalization'
+import { normalizedToGlideSeconds, normalizedToLfoDivision } from './normalization'
 import type { Operation, RawChange } from './types'
 
 export function resolveMovement(op: Extract<Operation, { op: 'movement' }>): RawChange[] {
@@ -9,7 +9,7 @@ export function resolveMovement(op: Extract<Operation, { op: 'movement' }>): Raw
   return [
     { path: 'lfo2.enabled', value: true },
     { path: 'lfo2.points', value: structuredClone(MOVEMENT_SHAPES[op.shape ?? 'sine']) },
-    { path: 'lfo2.rate', value: op.sync ?? true ? { mode: 'sync', division: normalizedToLfoDivision(rate) } : { mode: 'free', hz: normalizedToLfoHz(rate) } },
+    { path: 'lfo2.rate', value: { mode: 'sync', division: normalizedToLfoDivision(rate) } },
     { path: 'lfo2.smoothing', value: 0.4 },
     { path: 'lfo2.target', value: target },
     { path: 'lfo2.scope', value: target === 'cutoff' ? 'all' : (op.scope ?? 'all') },

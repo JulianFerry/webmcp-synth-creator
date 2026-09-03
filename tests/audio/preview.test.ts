@@ -93,6 +93,22 @@ describe('ephemeral audio patch preview', () => {
     synth.dispose()
   })
 
+  it('accepts an unchanged UI value without reporting a command error', () => {
+    const { trace, synth, commands, store } = createHarness()
+
+    const committed = store
+      .getState()
+      .applyPatchChange('filter.cutoffHz', 7_200, 'Repeat existing cutoff')
+
+    expect(committed).toBe(true)
+    expect(commands.historySize).toBe(0)
+    expect(store.getState().historySize).toBe(0)
+    expect(store.getState().transactionCount).toBe(0)
+    expect(store.getState().lastError).toBeNull()
+    expect(trace.getEvents().map((event) => event.stage)).toEqual(['request_received'])
+    synth.dispose()
+  })
+
   it('reconciles every draft to external commits and undo while preserving one entry per command', () => {
     const { trace, session, synth, commands, store } = createHarness()
     store.getState().previewPatchChange('oscillators.0.level', 0.2)

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { createDefaultPatch } from '../../src/patch/defaults'
-import { normalizedToCutoffHz, normalizedToGlideSeconds, normalizedToLfoDivision, normalizedToLfoHz, normalizedToReverbDecaySeconds } from '../../src/ops/normalization'
+import { normalizedToCutoffHz, normalizedToGlideSeconds, normalizedToLfoDivision, normalizedToReverbDecaySeconds } from '../../src/ops/normalization'
 import { resolveOps, type Change } from '../../src/ops/resolve'
 
 const resolve = (change: Change) => resolveOps(createDefaultPatch(), [change])
@@ -99,9 +99,8 @@ describe('literal section 6 operation mapping table', () => {
     expect(asRecord({ op: 'movement', amount: 1, shape })['lfo2.points']).toEqual(expect.any(Array))
   })
 
-  it('maps movement synchronized and free rates literally', () => {
+  it('maps movement rates to tempo divisions', () => {
     expect(asRecord({ op: 'movement', amount: 1, rate: 0.75 })['lfo2.rate']).toEqual({ mode: 'sync', division: normalizedToLfoDivision(0.75) })
-    expect(asRecord({ op: 'movement', amount: 1, rate: 0.75, sync: false })['lfo2.rate']).toEqual({ mode: 'free', hz: normalizedToLfoHz(0.75) })
   })
 
   it.each(['level', 'position', 'pitch', 'cutoff'] as const)('maps gate target %s to declared state', (target) => {

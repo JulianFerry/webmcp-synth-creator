@@ -1,7 +1,7 @@
 import { create, type StoreApi, type UseBoundStore } from 'zustand'
 
 import type { SynthRenderer, SynthRendererState } from '../audio/SynthRenderer'
-import { CommandService } from '../commands/CommandService'
+import { CommandService, NoPatchChangesError } from '../commands/CommandService'
 import type { RequestSource } from '../dev/latencyTrace'
 import type { SupportedPatchPath } from '../patch/paths'
 import { summarizePatch } from '../patch/summary'
@@ -28,6 +28,7 @@ export interface AppStoreState {
   currentPresetId: string | null
   currentVariant: VariantId
   hasVariantB: boolean
+  canCopyBetweenVariants: boolean
   canUndo: boolean
   canRedo: boolean
   audio: SynthRendererState
@@ -53,6 +54,7 @@ export interface AppStoreState {
   releaseAllNotes: () => void
   toggleHeldNote: (requestedAtMs?: number) => Promise<void>
   createVariant: () => void
+  copyVariant: (sourceVariant: VariantId, targetVariant: VariantId) => void
   loadPreset: (presetId: string) => void
   importVitalFile: (file: File) => Promise<void>
   selectVariant: (variantId: VariantId) => void
@@ -111,6 +113,8 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
     currentPresetId: findMatchingPresetId(initialPatch),
     currentVariant: initialSession.currentVariant,
     hasVariantB: initialSession.hasVariantB,
+    canCopyBetweenVariants:
+      initialSession.hasVariantB && session.variantsDiffer('A', 'B'),
     canUndo: initialSession.canUndo,
     canRedo: initialSession.canRedo,
     audio: synth.getState(),
@@ -160,6 +164,11 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
         )
         return true
       } catch (error) {
+        if (error instanceof NoPatchChangesError) {
+          synth.cancelPatchPreview(path)
+          set({ lastError: null })
+          return true
+        }
         synth.cancelAllPatchPreviews()
         set((state) => ({
           controlResetKey: state.controlResetKey + 1,
@@ -242,6 +251,14 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
           },
           { source: 'ui' },
         )
+      } catch (error) {
+        set({ lastError: errorMessage(error) })
+      }
+    },
+
+    copyVariant: (sourceVariant, targetVariant) => {
+      try {
+        commands.copyVariant(sourceVariant, targetVariant, { source: 'ui' })
       } catch (error) {
         set({ lastError: errorMessage(error) })
       }
@@ -350,28 +367,31 @@ export function createAppStore({ session, commands, synth }: AppStoreDependencie
       'preset_load',
       'undo',
       'redo',
+      'variant_copy',
       'variant_create',
     ].includes(event.kind)
+    const affectsCurrentVariant = event.affectedVariant === event.currentVariant
+    const resetsTransactionDetails =
+      event.kind === 'variant_select' ||
+      event.kind === 'variant_discard' ||
+      !affectsCurrentVariant
     store.setState((state) => ({
       patch: event.patch,
       summary: summarizePatch(event.patch),
       currentPresetId: findMatchingPresetId(event.patch),
-      changed:
-        event.kind === 'variant_select' || event.kind === 'variant_discard'
-          ? {}
-          : event.changed,
-      lastTransactionReason:
-        event.kind === 'variant_select' || event.kind === 'variant_discard' ? null : event.reason,
-      lastTransactionSource:
-        event.kind === 'variant_select' || event.kind === 'variant_discard' ? null : event.source,
+      changed: resetsTransactionDetails ? {} : event.changed,
+      lastTransactionReason: resetsTransactionDetails ? null : event.reason,
+      lastTransactionSource: resetsTransactionDetails ? null : event.source,
       currentVariant: sessionSummary.currentVariant,
       hasVariantB: sessionSummary.hasVariantB,
+      canCopyBetweenVariants:
+        sessionSummary.hasVariantB && session.variantsDiffer('A', 'B'),
       canUndo: sessionSummary.canUndo,
       canRedo: sessionSummary.canRedo,
       transactionCount: state.transactionCount + (isPatchTransaction ? 1 : 0),
       historySize: commands.historySize,
       futureSize: commands.futureSize,
-      controlResetKey: state.controlResetKey + 1,
+      controlResetKey: state.controlResetKey + (affectsCurrentVariant ? 1 : 0),
       exportFilename: vitalFilename(event.patch.metadata.name),
       lastError: null,
       vitalImportNotice: vitalImportNotice(session.getVitalBackingInfo()),

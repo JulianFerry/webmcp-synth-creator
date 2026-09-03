@@ -39,6 +39,7 @@ export interface SessionCommitInput {
     | 'preset_load'
     | 'undo'
     | 'redo'
+    | 'variant_copy'
     | 'variant_create'
     | 'variant_select'
     | 'variant_discard'
@@ -46,6 +47,7 @@ export interface SessionCommitInput {
 }
 
 export interface SessionCommitEvent extends SessionCommitInput {
+  affectedVariant: VariantId
   currentVariant: VariantId
   vitalBackingRevision: number
 }
@@ -170,6 +172,10 @@ export class SessionService {
     return variantId === 'A' || this.variants.B !== undefined
   }
 
+  variantsDiffer(left: VariantId, right: VariantId): boolean {
+    return !patchesEqual(this.getVariant(left).present, this.getVariant(right).present)
+  }
+
   private getActiveHistory(): PatchHistory {
     return this.getVariant(this.currentVariant).history
   }
@@ -197,12 +203,26 @@ export class SessionService {
     historyEntry: HistoryEntry,
     afterStateUpdate: () => void = () => undefined,
   ): void {
+    this.commitTransactionForVariant(
+      this.currentVariant,
+      event,
+      historyEntry,
+      afterStateUpdate,
+    )
+  }
+
+  commitTransactionForVariant(
+    variantId: VariantId,
+    event: SessionCommitInput,
+    historyEntry: HistoryEntry,
+    afterStateUpdate: () => void = () => undefined,
+  ): void {
     const patch = structuredClone(parsePatchState(event.patch))
-    const variant = this.getVariant(this.currentVariant)
+    const variant = this.getVariant(variantId)
     if (!patchesEqual(historyEntry.before, variant.present)) {
       throw new SessionError(
         'INVALID_SESSION_TRANSITION',
-        'History entry does not start from the active variant',
+        `History entry does not start from target variant ${variantId}`,
       )
     }
     if (!patchesEqual(historyEntry.after, patch)) {
@@ -228,7 +248,7 @@ export class SessionService {
     variant.present = patch
     if (nextBacking !== variant.vitalBacking) this.vitalBackingRevision += 1
     variant.vitalBacking = nextBacking
-    this.publish(event, afterStateUpdate)
+    this.publish(event, afterStateUpdate, variantId)
   }
 
   commitHistory(
@@ -264,7 +284,7 @@ export class SessionService {
       this.vitalBackingRevision += 1
     }
     variant.present = patch
-    this.publish(event, afterStateUpdate)
+    this.publish(event, afterStateUpdate, this.currentVariant)
   }
 
   createVariantB(
@@ -319,7 +339,7 @@ export class SessionService {
     }
     this.comparisonAxis = normalizedComparisonAxis
     if (activate) this.currentVariant = 'B'
-    this.publish(event, afterStateUpdate)
+    this.publish(event, afterStateUpdate, 'B')
   }
 
   selectVariant(
@@ -339,7 +359,7 @@ export class SessionService {
     const previousBacking = this.getVariant(this.currentVariant).vitalBacking
     this.currentVariant = variantId
     if (variant.vitalBacking !== previousBacking) this.vitalBackingRevision += 1
-    this.publish(event, afterStateUpdate)
+    this.publish(event, afterStateUpdate, variantId)
   }
 
   discardVariantB(
@@ -361,7 +381,7 @@ export class SessionService {
     this.comparisonAxis = undefined
     this.currentVariant = 'A'
     if (this.variants.A.vitalBacking !== previousBacking) this.vitalBackingRevision += 1
-    this.publish(event, afterStateUpdate)
+    this.publish(event, afterStateUpdate, 'A')
   }
 
   private getVariant(variantId: VariantId): StoredVariantState {
@@ -380,12 +400,17 @@ export class SessionService {
     }
   }
 
-  private publish(event: SessionCommitInput, afterStateUpdate: () => void): void {
+  private publish(
+    event: SessionCommitInput,
+    afterStateUpdate: () => void,
+    affectedVariant: VariantId = this.currentVariant,
+  ): void {
     afterStateUpdate()
     const eventWithoutBacking = { ...event }
     delete eventWithoutBacking.vitalBackingReplacement
     const publishedEvent: SessionCommitEvent = {
       ...structuredClone(eventWithoutBacking),
+      affectedVariant,
       patch: this.getPatch(),
       currentVariant: this.currentVariant,
       vitalBackingRevision: this.vitalBackingRevision,

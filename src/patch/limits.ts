@@ -24,4 +24,14 @@ export const TEMPO_SYNC_DIVISIONS = [
   '1/64',
 ] as const
 
+export const STRAIGHT_LFO_DIVISIONS = [
+  '1/1',
+  '1/2',
+  '1/4',
+  '1/8',
+  '1/16',
+  '1/32',
+  '1/64',
+] as const
+
 export type TempoSyncDivision = (typeof TEMPO_SYNC_DIVISIONS)[number]

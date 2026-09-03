@@ -157,7 +157,7 @@ test('LFO edit heading toggle and shape mode remain independent and preserve con
 
   await expect(enableToggle).toHaveAttribute('aria-checked', 'true')
   await expect(shapeMode).toHaveValue(before.lfo1.smooth ? 'smooth' : 'precise')
-  await enableToggle.press('Space')
+  await enableToggle.press('Enter')
 
   await expect(enableToggle).toHaveAttribute('aria-checked', 'false')
   await expect(panel).toHaveClass(/is-disabled/)

@@ -64,15 +64,10 @@ export interface LfoPoint {
   power?: number
 }
 
-export type LfoRate =
-  | {
-      mode: 'sync'
-      division: TempoSyncDivision
-    }
-  | {
-      mode: 'free'
-      hz: number
-    }
+export type LfoRate = {
+  mode: 'sync'
+  division: TempoSyncDivision
+}
 
 export type LfoTarget = 'level' | 'position' | 'pitch' | 'cutoff'
 export type LfoScope = 'all' | 1 | 2 | 3

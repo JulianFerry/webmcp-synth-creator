@@ -1,4 +1,5 @@
 import type { EnvelopeState, LfoState, OscillatorState } from './types'
+import { nearestStraightLfoDivision } from '../audio/lfo'
 import { DEFAULT_EFFECT_ORDER } from './effects'
 import { DEFAULT_COMPRESSOR_STATE } from './compressor'
 import {
@@ -135,6 +136,20 @@ export function upgradePatchDocument(value: unknown): unknown {
         ...(document.effects as Record<string, unknown>),
         compressor: structuredClone(DEFAULT_COMPRESSOR_STATE),
       },
+    }
+    changed = true
+  }
+
+  for (const key of ['lfo1', 'lfo2'] as const) {
+    const lfo = document[key]
+    if (!lfo || typeof lfo !== 'object' || Array.isArray(lfo)) continue
+    const rate = (lfo as Record<string, unknown>).rate
+    if (!rate || typeof rate !== 'object' || Array.isArray(rate)) continue
+    const legacyRate = rate as Record<string, unknown>
+    if (legacyRate.mode !== 'free' || typeof legacyRate.hz !== 'number') continue
+    document[key] = {
+      ...(lfo as Record<string, unknown>),
+      rate: { mode: 'sync', division: nearestStraightLfoDivision(legacyRate.hz) },
     }
     changed = true
   }

@@ -29,9 +29,7 @@ const TARGET_ACTION = {
 function lfoSentence(patch: PatchState, slot: 1 | 2): string | null {
   const lfo = patch[`lfo${slot}`]
   if (!lfo.enabled) return null
-  const rate = lfo.rate.mode === 'sync'
-    ? `${DIVISION_NAMES[lfo.rate.division] ?? lfo.rate.division} rate`
-    : `${lfo.rate.hz} Hz`
+  const rate = `${DIVISION_NAMES[lfo.rate.division] ?? lfo.rate.division} rate`
   const xs = lfo.points.map(({ x }) => x)
   const gaps = xs.slice(1).map((x, index) => x - xs[index])
   const regular = gaps.length < 2 || Math.max(...gaps) - Math.min(...gaps) < 0.03

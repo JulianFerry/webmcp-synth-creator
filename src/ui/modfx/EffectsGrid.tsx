@@ -57,6 +57,8 @@ export function EffectsGrid({ onOrderChange, order, renderEffect }: EffectsGridP
   const dropRef = useRef<number | null>(null)
   const pointerIdRef = useRef<number | null>(null)
   const pointerPositionRef = useRef({ x: 0, y: 0 })
+  const pointerStartRef = useRef({ x: 0, y: 0 })
+  const pointerMovedRef = useRef(false)
   const scrollFrameRef = useRef<number | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
 
@@ -75,7 +77,7 @@ export function EffectsGrid({ onOrderChange, order, renderEffect }: EffectsGridP
     const draggedId = dragRef.current
     if (draggedId && targetIndex !== null) {
       const nextOrder = moveEffect(effectOrder, draggedId, targetIndex)
-      if (onOrderChange(nextOrder)) {
+      if (nextOrder !== effectOrder && onOrderChange(nextOrder)) {
         setEffectOrder(nextOrder)
         setAnnouncement(`${EFFECTS[draggedId].name} moved to position ${nextOrder.indexOf(draggedId) + 1}`)
       }
@@ -148,6 +150,8 @@ export function EffectsGrid({ onOrderChange, order, renderEffect }: EffectsGridP
     event.currentTarget.setPointerCapture(event.pointerId)
     pointerIdRef.current = event.pointerId
     pointerPositionRef.current = { x: event.clientX, y: event.clientY }
+    pointerStartRef.current = pointerPositionRef.current
+    pointerMovedRef.current = false
     dragRef.current = effectId
     setDraggingEffect(effectId)
     if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current)
@@ -157,6 +161,10 @@ export function EffectsGrid({ onOrderChange, order, renderEffect }: EffectsGridP
   const handlePointerMove = (event: PointerEvent<HTMLButtonElement>) => {
     if (pointerIdRef.current !== event.pointerId || !dragRef.current) return
     event.preventDefault()
+    const dx = event.clientX - pointerStartRef.current.x
+    const dy = event.clientY - pointerStartRef.current.y
+    if (!pointerMovedRef.current && Math.hypot(dx, dy) < 2) return
+    pointerMovedRef.current = true
     pointerPositionRef.current = { x: event.clientX, y: event.clientY }
     updateTargetAtPoint(event.clientX, event.clientY)
   }
@@ -201,6 +209,7 @@ export function EffectsGrid({ onOrderChange, order, renderEffect }: EffectsGridP
           onPointerMove={handlePointerMove}
           onPointerUp={(event) => {
             if (pointerIdRef.current !== event.pointerId) return
+            if (!pointerMovedRef.current) { finishDrag(null); return }
             updateTargetAtPoint(event.clientX, event.clientY)
             finishDrag(dropRef.current)
           }}

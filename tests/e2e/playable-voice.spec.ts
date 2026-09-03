@@ -109,7 +109,9 @@ test('playable voice stays gesture gated and steals the oldest voice at configur
   await page.keyboard.up('x')
   await expect(page.getByTestId('active-voice-count')).toHaveText('0')
   await page.getByTestId('preview-note').focus()
-  await expect(page.getByTestId('preview-note')).not.toHaveCSS('outline-style', 'none')
+  await expect(page.getByTestId('preview-note')).toHaveCSS('outline-style', 'none')
+  await page.keyboard.press('ArrowRight')
+  await expect(page.getByTestId('preview-note')).toHaveCSS('outline-style', 'solid')
 })
 
 test('playable voice commits one command after a slider gesture with many ephemeral values', async ({
@@ -169,8 +171,8 @@ test('oscillator detail editors expose all three sources without selection and s
     }
     const unison = editor.locator(`label[for="oscillator-${number}-unison"]`)
     await expect(unison.locator('> span:first-child')).toHaveText('Unison')
-    await expect(unison.locator('output')).toHaveText(/^\d+ voices$/)
-    await expect(page.getByTestId(`oscillator-${number}-unison`)).toHaveAttribute('aria-valuetext', /^\d+ voices$/)
+    await expect(unison.locator('output')).toHaveText(/^\d+$/)
+    await expect(page.getByTestId(`oscillator-${number}-unison`)).toHaveAttribute('aria-valuetext', /^\d+$/)
     const level = page.getByTestId(`oscillator-${number}-level`)
     await level.focus()
     await level.press('ArrowRight')
@@ -258,6 +260,18 @@ test('playable voice previews oscillator, filter, and sustain sliders before one
   await page.goto('/')
   await page.getByTestId('preview-note').click()
   const adapter = page.getByTestId('audio-adapter-state')
+  await page.getByRole('tab', { name: /Oscillators/ }).click()
+  const transpose = page.getByTestId('oscillator-1-transpose')
+  await expect(transpose).toHaveAttribute('aria-valuetext', /^[+-]?\d+$/)
+  const fineTune = page.getByTestId('oscillator-1-fine')
+  await expect(fineTune).toHaveAttribute('min', '0')
+  await expect(fineTune).toHaveAttribute('max', '1')
+  await expect(fineTune).toHaveAttribute('step', '0.005')
+  await expect(fineTune).toHaveValue('0.5')
+  await expect(fineTune).toHaveAttribute('aria-valuetext', '0.5')
+  const unison = page.locator('label[for="oscillator-1-unison"]')
+  await expect(unison.locator('> span:first-child')).toHaveText('Unison')
+  await expect(unison.locator('output')).toHaveText(/^\d+$/)
   const cases = [
     {
       tab: 'Oscillators',
@@ -272,7 +286,7 @@ test('playable voice previews oscillator, filter, and sustain sliders before one
     {
       tab: 'Oscillators',
       testId: 'oscillator-1-fine',
-      value: '17',
+      value: '0.585',
       path: 'oscillators.0.fineTuneCents',
       canonicalAttribute: 'data-fine',
       effectiveAttribute: 'data-effective-fine',
@@ -329,6 +343,9 @@ test('playable voice previews oscillator, filter, and sustain sliders before one
       input.value = value
       input.dispatchEvent(new InputEvent('input', { bubbles: true }))
     }, previewCase.value)
+    if (previewCase.testId === 'oscillator-1-fine') {
+      await expect(slider).toHaveAttribute('aria-valuetext', '0.585')
+    }
 
     await expect(adapter).toHaveAttribute(previewCase.canonicalAttribute, previewCase.initial)
     await expect(adapter).toHaveAttribute(
@@ -368,7 +385,7 @@ test('playable voice cancels generalized previews back to canonical active audio
   await page.getByRole('tab', { name: /Oscillators/ }).click()
   const oscillatorPreviews = [
     ['oscillator-1-transpose', '12'],
-    ['oscillator-1-fine', '21'],
+    ['oscillator-1-fine', '0.605'],
     ['oscillator-1-unison', '3'],
     ['oscillator-1-detune', '0.72'],
   ] as const
@@ -662,6 +679,51 @@ test('playable voice keeps computer-keyboard audition active after controls and 
   await page.keyboard.up('b')
 })
 
+test('Space toggles the last quick preview without activating the focused control', async ({ page }) => {
+  await page.goto('/')
+  const toggle = page.getByTestId('oscillator-1-enabled')
+  const toggleState = await toggle.getAttribute('aria-checked')
+
+  await toggle.focus()
+  await expect(toggle).toHaveCSS('outline-style', 'none')
+  await page.keyboard.press('Space')
+  await expect(toggle).toHaveAttribute('aria-checked', toggleState!)
+  await expect(page.getByTestId('active-voice-count')).toHaveText('1')
+  await expect(page.getByTestId('note-on-timing')).toContainText('MIDI 60')
+  await expect(toggle).toHaveCSS('outline-style', 'none')
+
+  await page.keyboard.press('Space')
+  await expect(page.getByTestId('active-voice-count')).toHaveText('0')
+
+  await page.getByTestId('preview-chord').click()
+  await expect(page.getByTestId('active-voice-count')).toHaveText('3')
+  await page.getByTestId('oscillator-1-wavetable').focus()
+  await page.keyboard.press('Space')
+  await expect(page.getByTestId('active-voice-count')).toHaveText('0')
+  await page.keyboard.press('Space')
+  await expect(page.getByTestId('active-voice-count')).toHaveText('3')
+})
+
+test('musical keys keep auditioning after selects and arrow-focused controls', async ({ page }) => {
+  await page.goto('/')
+  const wavetable = page.getByTestId('oscillator-1-wavetable')
+  await wavetable.focus()
+
+  await page.keyboard.down('z')
+  await expect(page.getByTestId('active-voice-count')).toHaveText('1')
+  await page.keyboard.up('z')
+  await expect(page.getByTestId('active-voice-count')).toHaveText('0')
+
+  const level = page.getByTestId('oscillator-1-level')
+  await level.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(level).toHaveCSS('outline-style', 'solid')
+  await page.keyboard.down('x')
+  await expect(page.getByTestId('active-voice-count')).toHaveText('1')
+  await page.keyboard.up('x')
+  await expect(page.getByTestId('active-voice-count')).toHaveText('0')
+})
+
 test('playable voice derives static wavetable, ADSR, and filter visuals from effective values', async ({
   page,
 }) => {
@@ -671,6 +733,12 @@ test('playable voice derives static wavetable, ADSR, and filter visuals from eff
   await expect(page.getByTestId('oscillator-2-position')).toHaveAccessibleDescription(
     /one static frame/i,
   )
+  await expect(page.getByTestId('oscillator-2-position')).toHaveValue('0.5')
+  await expect(page.getByTestId('oscillator-2-position')).toHaveAttribute('data-scale-position', '0.5')
+  await expect(page.locator('label[for="oscillator-2-position"]')).toHaveClass(/parameter-control-locked/)
+  expect(await page.locator('label[for="oscillator-2-position"]').evaluate((element) =>
+    getComputedStyle(element).getPropertyValue('--slider-thumb-color').trim(),
+  )).toBe('#788593')
   await page.getByTestId('oscillator-2-editor').getByRole('button', { name: '3D' }).click()
   await expect(page.getByTestId('oscillator-2-waterfall')).toHaveAccessibleName(
     /wavetable waterfall at 0 percent/i,
@@ -681,7 +749,6 @@ test('playable voice derives static wavetable, ADSR, and filter visuals from eff
     .locator('.envelope-controls .parameter-control > span')
     .allTextContents()
   expect(envelopeLabels).toEqual([
-    'Delay',
     'Attack',
     'Decay',
     'Sustain',
@@ -710,7 +777,6 @@ test('playable voice derives static wavetable, ADSR, and filter visuals from eff
     expect(await envelopePath.getAttribute('d')).toBe(preview)
   }
   expect(await page.locator('.envelope-controls output').allTextContents()).toEqual([
-    '0 ms',
     '1.20 s',
     '2.50 s',
     '30%',

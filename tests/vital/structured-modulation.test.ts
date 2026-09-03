@@ -24,6 +24,27 @@ function realAdapter(): VitalPresetAdapter {
 }
 
 describe('structured Vital modulation export', () => {
+  it('keeps position LFO routing bipolar around the serialized oscillator base', () => {
+    const patch = createDefaultPatch()
+    patch.oscillators[0].wavetablePosition = 0.8
+    patch.lfo1 = {
+      ...patch.lfo1,
+      enabled: true,
+      target: 'position',
+      scope: 1,
+      depth: 0.6,
+    }
+    const settings = realAdapter().exportPatch(patch).document.settings
+    const routes = settings.modulations as Array<Record<string, unknown>>
+
+    expect(settings.osc_1_wave_frame).toBeCloseTo(0.8 * 256)
+    expect(routes[0]).toEqual({ source: 'lfo_1', destination: 'osc_1_wave_frame' })
+    expect(settings).toMatchObject({
+      modulation_1_amount: 0.6,
+      modulation_1_bipolar: 1,
+    })
+  })
+
   it('strict-round-trips independently configured LFO 1 and LFO 2', () => {
     const adapter = realAdapter()
     const patch = createDefaultPatch()
@@ -32,7 +53,7 @@ describe('structured Vital modulation export', () => {
       ...patch.lfo2,
       enabled: true,
       points: [{ x: 0, y: 0.1, power: 0 }, { x: 0.4, y: 0.9, power: -0.2 }, { x: 1, y: 0.1, power: 0 }],
-      rate: { mode: 'free', hz: 2.5 },
+      rate: { mode: 'sync', division: '1/8' },
       target: 'pitch',
       scope: 2,
       depth: 0.44,
@@ -47,6 +68,18 @@ describe('structured Vital modulation export', () => {
     imported.lfo2.points.forEach((point, index) => {
       expect(point).toMatchObject({ x: patch.lfo2.points[index].x, power: patch.lfo2.points[index].power })
       expect(point.y).toBeCloseTo(patch.lfo2.points[index].y)
+    })
+  })
+
+  it('imports a legacy free Vital LFO as the nearest straight division at 120 BPM', () => {
+    const adapter = realAdapter()
+    const exported = adapter.exportPatch(createDefaultPatch()).document
+    exported.settings.lfo_1_sync = 0
+    exported.settings.lfo_1_frequency = Math.log2(3)
+
+    expect(adapter.importPatchStrict(exported).patch.lfo1.rate).toEqual({
+      mode: 'sync',
+      division: '1/8',
     })
   })
 
@@ -99,7 +132,6 @@ describe('structured Vital modulation export', () => {
     [{ mode: 'sync', division: '1/16T' }, { sync: 3, tempo: 10 }],
     [{ mode: 'sync', division: '1/32' }, { sync: 1, tempo: 11 }],
     [{ mode: 'sync', division: '1/64' }, { sync: 1, tempo: 12 }],
-    [{ mode: 'free', hz: 2.5 }, { sync: 0, tempo: 8, frequency: Math.log2(2.5) }],
   ])('maps logical LFO rate %o to Vital timing fields', (rate, expected) => {
     expect(mapVitalLfoRate(rate)).toMatchObject(expected)
   })

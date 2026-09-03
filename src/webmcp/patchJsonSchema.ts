@@ -143,26 +143,13 @@ export const PATCH_STATE_INPUT_SCHEMA: Record<string, unknown> = {
         enabled: { type: 'boolean' },
         points: { type: 'array', minItems: 2, maxItems: 32, items: lfoPointSchema },
         rate: {
-          oneOf: [
-            {
-              type: 'object',
-              properties: {
-                mode: { const: 'sync' },
-                division: { type: 'string', enum: [...TEMPO_SYNC_DIVISIONS] },
-              },
-              required: ['mode', 'division'],
-              additionalProperties: false,
-            },
-            {
-              type: 'object',
-              properties: {
-                mode: { const: 'free' },
-                hz: { type: 'number', minimum: 0.01, maximum: 40 },
-              },
-              required: ['mode', 'hz'],
-              additionalProperties: false,
-            },
-          ],
+          type: 'object',
+          properties: {
+            mode: { const: 'sync' },
+            division: { type: 'string', enum: [...TEMPO_SYNC_DIVISIONS] },
+          },
+          required: ['mode', 'division'],
+          additionalProperties: false,
         },
         phase: unitInterval,
         smooth: { type: 'boolean' },

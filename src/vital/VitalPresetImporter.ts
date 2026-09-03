@@ -1,3 +1,4 @@
+import { nearestStraightLfoDivision } from '../audio/lfo'
 import { parsePatchState } from '../patch/schemas'
 import { DEFAULT_EFFECT_ORDER, type EffectId } from '../patch/effects'
 import {
@@ -116,7 +117,7 @@ const VITAL_STYLE_CATEGORIES: Record<string, PatchCategory> = {
   Other: 'other',
 }
 
-const VITAL_TEMPO_DIVISIONS: Record<number, Exclude<LfoRate, { mode: 'free' }>['division']> = {
+const VITAL_TEMPO_DIVISIONS: Record<number, LfoRate['division']> = {
   6: '1/1',
   7: '1/2',
   8: '1/4',
@@ -127,7 +128,7 @@ const VITAL_TEMPO_DIVISIONS: Record<number, Exclude<LfoRate, { mode: 'free' }>['
 }
 
 const VITAL_TRIPLET_DIVISIONS: Partial<
-  Record<number, Exclude<LfoRate, { mode: 'free' }>['division']>
+  Record<number, LfoRate['division']>
 > = {
   9: '1/8T',
   10: '1/16T',
@@ -533,7 +534,10 @@ function parseRate(settings: Record<string, unknown>, slot: 1 | 2): LfoRate {
     throw new VitalImportError(`LFO ${slot} uses an unsupported sync type`)
   }
   const sync = integer(setting(settings, `${prefix}_sync`), `${prefix}_sync`)
-  if (sync === 0) return { mode: 'free', hz: 2 ** setting(settings, `${prefix}_frequency`) }
+  if (sync === 0) return {
+    mode: 'sync',
+    division: nearestStraightLfoDivision(2 ** setting(settings, `${prefix}_frequency`)),
+  }
   const tempo = integer(setting(settings, `${prefix}_tempo`), `${prefix}_tempo`)
   const division = sync === 1 ? VITAL_TEMPO_DIVISIONS[tempo] : VITAL_TRIPLET_DIVISIONS[tempo]
   if ((sync !== 1 && sync !== 3) || !division) {
@@ -1397,13 +1401,14 @@ function parseLossyLfo(
   let rate: LfoRate
   if (sync === 0) {
     rate = {
-      mode: 'free',
-      hz: clamp(
+      mode: 'sync',
+      division: nearestStraightLfoDivision(clamp(
         2 ** lossySetting(settings, templateSettings, 'lfo_1_frequency', warnings),
         0.01,
         40,
-      ),
+      )),
     }
+    warnOnce(warnings, 'A free-running LFO rate was mapped to the nearest division at 120 BPM.')
   } else {
     const tempo = Math.round(lossySetting(settings, templateSettings, 'lfo_1_tempo', warnings))
     const division = sync === 3 ? VITAL_TRIPLET_DIVISIONS[tempo] : VITAL_TEMPO_DIVISIONS[tempo]

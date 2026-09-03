@@ -8,6 +8,9 @@ interface WavetableWaterfallProps { number: number; position: number; wavetable:
 
 export function WavetableWaterfall({ number, position, wavetable, direction = 'left' }: WavetableWaterfallProps) {
   const ref = useRef<HTMLCanvasElement>(null)
+  const positionRef = useRef(position)
+  const drawRef = useRef<(() => void) | null>(null)
+  positionRef.current = position
   useEffect(() => {
     const canvas = ref.current
     if (!canvas) return
@@ -20,7 +23,7 @@ export function WavetableWaterfall({ number, position, wavetable, direction = 'l
       canvas.height = Math.max(1, Math.round(bounds.height * ratio))
       context.setTransform(ratio, 0, 0, ratio, 0, 0)
       context.clearRect(0, 0, bounds.width, bounds.height)
-      const projection = projectWavetableWaterfall(wavetable, position, bounds, 96, 64, direction)
+      const projection = projectWavetableWaterfall(wavetable, positionRef.current, bounds, 96, 64, direction)
       const graphColor = themedGraphColor(canvas)
       const graphEndColor = themedGraphEndColor()
       const endRgb = graphEndColor?.rgb ?? [213, 218, 224]
@@ -51,14 +54,19 @@ export function WavetableWaterfall({ number, position, wavetable, direction = 'l
       context.stroke()
       context.shadowBlur = 0
     }
+    drawRef.current = draw
     draw()
     const observer = new ResizeObserver(draw)
     observer.observe(canvas)
     const disconnectThemeObserver = observePatchTheme(canvas, draw)
     return () => {
+      drawRef.current = null
       disconnectThemeObserver()
       observer.disconnect()
     }
-  }, [direction, position, wavetable])
+  }, [direction, wavetable])
+  useEffect(() => {
+    drawRef.current?.()
+  }, [position])
   return <canvas ref={ref} role="img" aria-label={`Oscillator ${number} ${wavetable.name} wavetable waterfall at ${Math.round(position * 100)} percent, projected diagonally ${direction}; selected waveform is highlighted in soft white`} data-graph-end-color="#d5dae0" data-testid={`oscillator-${number}-waterfall`} data-visible-plot-inset-percent={OSCILLATOR_PLOT_INSET_RATIO * 100} data-position={position} />
 }

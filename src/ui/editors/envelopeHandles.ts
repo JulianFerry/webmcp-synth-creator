@@ -23,8 +23,11 @@ function isCurveHandle(handle: EnvelopeHandle): handle is 'attackCurve' | 'decay
   return handle === 'attackCurve' || handle === 'decayCurve' || handle === 'releaseCurve'
 }
 
-export function envelopeHandlePoints(envelope: EnvelopeState): Record<EnvelopeHandle, { x: number; y: number }> {
-  const plot = createEnvelopePlot(envelope)
+export function envelopeHandlePoints(
+  envelope: EnvelopeState,
+  options?: { includeDelayPhase?: boolean },
+): Record<EnvelopeHandle, { x: number; y: number }> {
+  const plot = createEnvelopePlot(envelope, options)
   const curvePoint = (startX: number, endX: number, startY: number, endY: number, curve: number) => ({
     x: (startX + endX) / 2,
     y: startY + (endY - startY) * envelopeCurvePosition(0.5, curve),
@@ -34,7 +37,7 @@ export function envelopeHandlePoints(envelope: EnvelopeState): Record<EnvelopeHa
     attack: { x: plot.attackEndX, y: 3 },
     hold: { x: plot.holdEndX, y: 3 },
     decay: { x: plot.decayEndX, y: plot.sustainY },
-    sustain: { x: plot.decayEndX, y: plot.sustainY },
+    sustain: { x: plot.releaseStartX, y: plot.sustainY },
     release: { x: plot.releaseEndX, y: 29 },
     attackCurve: curvePoint(plot.delayEndX, plot.attackEndX, 29, 3, envelope.attackCurve),
     decayCurve: curvePoint(plot.holdEndX, plot.decayEndX, 3, plot.sustainY, envelope.decayCurve),
@@ -42,10 +45,16 @@ export function envelopeHandlePoints(envelope: EnvelopeState): Record<EnvelopeHa
   }
 }
 
-export function envelopeValueFromPoint(handle: EnvelopeHandle, x: number, y: number, envelope: EnvelopeState): number {
-  const points = envelopeHandlePoints(envelope)
+export function envelopeValueFromPoint(
+  handle: EnvelopeHandle,
+  x: number,
+  y: number,
+  envelope: EnvelopeState,
+  options?: { includeDelayPhase?: boolean },
+): number {
+  const points = envelopeHandlePoints(envelope, options)
   if (isCurveHandle(handle)) {
-    const plot = createEnvelopePlot(envelope)
+    const plot = createEnvelopePlot(envelope, options)
     const [startY, endY] = handle === 'attackCurve'
       ? [29, 3]
       : handle === 'decayCurve'
@@ -56,7 +65,7 @@ export function envelopeValueFromPoint(handle: EnvelopeHandle, x: number, y: num
     return envelopeCurveFromMidpoint(target)
   }
   if (handle === 'sustain') return clamp((29 - y) / 26, 0, 1)
-  if (handle === 'release') return inverseWidth(x - createEnvelopePlot(envelope).releaseStartX, MAXIMUMS.release)
+  if (handle === 'release') return inverseWidth(x - createEnvelopePlot(envelope, options).releaseStartX, MAXIMUMS.release)
   const origin = handle === 'delay' ? 4 : handle === 'attack' ? points.delay.x : handle === 'hold' ? points.attack.x : points.hold.x
   return inverseWidth(x - origin, MAXIMUMS[handle])
 }

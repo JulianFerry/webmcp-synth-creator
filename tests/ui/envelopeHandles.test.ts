@@ -24,7 +24,8 @@ describe('envelope handles', () => {
     expect(points.release.y).toBe(29)
     expect(points.attack.x).toBeLessThan(points.hold.x)
     expect(points.hold.x).toBeLessThan(points.decay.x)
-    expect(points.decay).toEqual(points.sustain)
+    expect(points.sustain.y).toBe(points.decay.y)
+    expect(points.sustain.x).toBeGreaterThan(points.decay.x)
     expect(points.sustain.x).toBeLessThan(points.release.x)
   })
 

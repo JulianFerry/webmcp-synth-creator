@@ -1,14 +1,35 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+
+async function expectGuideCardNotToOverlapTarget(page: Page) {
+  await expect(page.getByTestId('help-target-box')).toBeVisible()
+  await page.waitForTimeout(120)
+  const geometry = await page.evaluate(() => {
+    const target = document.querySelector('[data-testid="help-target-box"]')?.getBoundingClientRect()
+    const card = document.querySelector('[data-testid="guide-step"]')?.getBoundingClientRect()
+    if (!target || !card) return null
+    return {
+      card: { bottom: card.bottom, left: card.left, right: card.right, top: card.top },
+      cardStyle: (document.querySelector('[data-testid="guide-step"]') as HTMLElement).getAttribute('style'),
+      horizontalOverlap: Math.min(target.right, card.right) - Math.max(target.left, card.left),
+      title: document.querySelector('[data-testid="guide-step"] h2')?.textContent,
+      target: { bottom: target.bottom, left: target.left, right: target.right, top: target.top },
+      verticalOverlap: Math.min(target.bottom, card.bottom) - Math.max(target.top, card.top),
+    }
+  })
+  expect(geometry).not.toBeNull()
+  expect(geometry!.horizontalOverlap <= 0 || geometry!.verticalOverlap <= 0, JSON.stringify(geometry)).toBe(true)
+}
 
 test('component help selects controls without editing, then keeps the focused control usable', async ({ page }) => {
   await page.goto('/')
 
   const actions = page.locator('.workbench-tab-actions')
   await expect(actions.getByRole('button')).toHaveCount(4)
-  await expect(actions.getByRole('button').nth(0)).toHaveAccessibleName('Undo transaction')
-  await expect(actions.getByRole('button').nth(1)).toHaveAccessibleName('Redo transaction')
-  await expect(actions.getByRole('button').nth(2)).toHaveAccessibleName('Explain a component')
-  await expect(actions.getByRole('button').nth(3)).toHaveText(/Getting started/)
+  await expect(actions.getByRole('button').nth(0)).toHaveText('Getting started')
+  await expect(actions.getByRole('button').nth(1)).toHaveAccessibleName('Explain a component')
+  await expect(page.getByTestId('help-select-button')).toHaveCSS('color', 'rgb(39, 179, 194)')
+  await expect(actions.getByRole('button').nth(2)).toHaveAccessibleName('Undo transaction')
+  await expect(actions.getByRole('button').nth(3)).toHaveAccessibleName('Redo transaction')
 
   await page.getByTestId('help-select-button').click()
   await expect(page.getByTestId('help-picker-banner')).toContainText('Select anything')
@@ -71,7 +92,7 @@ test('component help combines nested elements that resolve to the same explanati
   await modeHelp.getByRole('button', { name: 'Select another' }).click()
 
   await page.getByTestId('reverb-mix').click()
-  const reverbAmountHelp = page.getByRole('dialog', { name: 'Reverb amount' })
+  const reverbAmountHelp = page.getByRole('dialog', { name: 'Mix control' })
   await expect(reverbAmountHelp).toContainText('At 0% the patch stays dry and close')
 })
 
@@ -165,22 +186,27 @@ test('Just play guide highlights the preview, keyboard, presets, and variants', 
   await expect(step.getByRole('heading')).toHaveText('Hear the patch immediately')
   await expect(step).not.toContainText('Just play / 01')
   await expect(page.getByTestId('help-target-box')).toHaveAttribute('data-help-target', 'Hear the patch immediately')
+  await expectGuideCardNotToOverlapTarget(page)
   await page.getByTestId('preview-note').click()
   await expect(page.getByTestId('active-voice-count')).toHaveText('1')
 
   await page.keyboard.press('Enter')
   await expect(step.getByRole('heading')).toHaveText('Play the two-octave keyboard')
+  await expectGuideCardNotToOverlapTarget(page)
   await page.keyboard.press('ArrowRight')
   await expect(step.getByRole('heading')).toHaveText('Try a different starting patch')
   await page.keyboard.press('ArrowLeft')
   await expect(step.getByRole('heading')).toHaveText('Play the two-octave keyboard')
   await page.keyboard.press('ArrowRight')
   await expect(step.getByRole('heading')).toHaveText('Try a different starting patch')
+  await expectGuideCardNotToOverlapTarget(page)
   await step.getByRole('button', { name: 'Next' }).click()
   await expect(step.getByRole('heading')).toHaveText('Compare A and B')
+  await expectGuideCardNotToOverlapTarget(page)
   await step.getByRole('button', { name: 'Next' }).click()
   await expect(step.getByRole('heading')).toHaveText('Ask what anything does')
   await expect(page.getByTestId('help-target-box')).toHaveAttribute('data-help-target', 'Ask what anything does')
+  await expectGuideCardNotToOverlapTarget(page)
   await step.getByRole('button', { name: 'Finish' }).click()
   await expect(page.getByRole('dialog', { name: 'You are ready to make some noise.' })).toBeVisible()
 })
@@ -192,39 +218,50 @@ test('Create synth guide switches workspaces and reaches Vital export', async ({
 
   const step = page.getByTestId('guide-step')
   await expect(step.getByRole('heading')).toHaveText('Choose a foundation')
+  await expectGuideCardNotToOverlapTarget(page)
   await step.getByRole('button', { name: 'Next' }).click()
   await expect(step.getByRole('heading')).toHaveText('Build the tone at the oscillator')
+  await expectGuideCardNotToOverlapTarget(page)
   await step.getByRole('button', { name: 'Next' }).click()
   await expect(step.getByRole('heading')).toHaveText('Shape the note over time')
+  await expectGuideCardNotToOverlapTarget(page)
   await step.getByRole('button', { name: 'Next' }).click()
 
   await expect(page.getByRole('tab', { name: /Oscillators/ })).toHaveAttribute('aria-selected', 'true')
   await expect(step.getByRole('heading')).toHaveText('Add repeating movement with the Low Frequency Oscillator')
   await expect(page.getByTestId('help-target-box')).toHaveAttribute('data-help-target', 'Add repeating movement with the Low Frequency Oscillator')
   await expect(step.locator('.help-tip')).toContainText('not another audible oscillator')
+  await expectGuideCardNotToOverlapTarget(page)
   await step.getByRole('button', { name: 'Next' }).click()
 
-  await expect(page.getByRole('tab', { name: 'Effects' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('tab', { name: 'Effects' })).toHaveAttribute('aria-selected', 'false')
+  await expect(page.getByRole('tab', { name: /Oscillators/ })).toHaveAttribute('aria-selected', 'true')
   await expect(step.getByRole('heading')).toHaveText('Color the signal with effects')
   await expect(page.getByTestId('help-target-box')).toHaveAttribute('data-help-target', 'Color the signal with effects')
+  await expectGuideCardNotToOverlapTarget(page)
 
   await step.getByRole('button', { name: 'Next' }).click()
   await expect(step.getByRole('heading')).toHaveText('Step backward or forward through edits')
   await expect(page.getByTestId('help-target-box')).toHaveAttribute('data-help-target', 'Step backward or forward through edits')
+  await expectGuideCardNotToOverlapTarget(page)
   await step.getByRole('button', { name: 'Next' }).click()
   await expect(step.getByRole('heading')).toHaveText('Keep an alternative')
+  await expectGuideCardNotToOverlapTarget(page)
   await step.getByRole('button', { name: 'Next' }).click()
   await expect(step.getByRole('heading')).toHaveText('Export the finished instrument')
   await expect(page.getByTestId('export-vital')).toBeVisible()
+  await expectGuideCardNotToOverlapTarget(page)
   await step.getByRole('button', { name: 'Next' }).click()
   await expect(step.getByRole('heading')).toHaveText('Get help while you build')
   await expect(page.getByTestId('help-target-box')).toHaveAttribute('data-help-target', 'Get help while you build')
+  await expectGuideCardNotToOverlapTarget(page)
 })
 
-test('help windows and oscillator group labels follow the selected patch color', async ({ page }) => {
+test('help windows follow the selected patch color without oscillator section labels', async ({ page }) => {
   await page.goto('/')
-  const legend = page.locator('.oscillator-control-group legend').first()
-  await expect(legend).toHaveCSS('color', 'rgb(39, 179, 194)')
+  await expect(page.getByText('Mix & Tuning', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('Voicing', { exact: true })).toHaveCount(0)
+  await expect(page.locator('.oscillator-control-group').first()).toHaveCSS('border-top-style', 'none')
 
   await page.getByTestId('getting-started-button').click()
   const choice = page.getByRole('dialog', { name: 'Getting started' })
@@ -234,7 +271,6 @@ test('help windows and oscillator group labels follow the selected patch color',
   await page.getByTestId('guide-step').getByRole('button', { name: 'Close help' }).click()
 
   await page.getByTestId('variant-b').click()
-  await expect(legend).toHaveCSS('color', 'rgb(126, 90, 199)')
   await page.getByTestId('getting-started-button').click()
   const variantBWindowColor = await page.getByRole('dialog', { name: 'Getting started' }).evaluate((element) => getComputedStyle(element).borderColor)
   expect(variantBWindowColor).not.toBe(variantAWindowColor)
@@ -260,4 +296,71 @@ test('help choices and guide cards stay inside a mobile viewport', async ({ page
   expect(guide!.y).toBeGreaterThanOrEqual(0)
   expect(guide!.y + guide!.height).toBeLessThanOrEqual(740)
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0)
+})
+
+test('mobile guide keeps oscillator highlights above the sticky keyboard without covering them', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 })
+  await page.goto('/')
+  await page.getByTestId('getting-started-button').click()
+  await page.getByTestId('guide-create-synth').click()
+  await page.getByTestId('guide-step').getByRole('button', { name: 'Next' }).click()
+
+  await expect(page.getByTestId('guide-step').getByRole('heading')).toHaveText('Build the tone at the oscillator')
+  await expect.poll(async () => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+
+  const geometry = await page.evaluate(() => {
+    const footer = document.querySelector('.audition-footer')!.getBoundingClientRect()
+    const target = document.querySelector('[data-testid="help-target-box"]')!.getBoundingClientRect()
+    const card = document.querySelector('[data-testid="guide-step"]')!.getBoundingClientRect()
+    return {
+      cardBottom: card.bottom,
+      cardLeft: card.left,
+      cardRight: card.right,
+      cardTop: card.top,
+      footerTop: footer.top,
+      targetBottom: target.bottom,
+      targetLeft: target.left,
+      targetRight: target.right,
+      targetTop: target.top,
+    }
+  })
+  expect(geometry.targetBottom).toBeLessThanOrEqual(geometry.footerTop - 5)
+  expect(
+    Math.min(geometry.targetRight, geometry.cardRight) - Math.max(geometry.targetLeft, geometry.cardLeft) <= 0
+    || Math.min(geometry.targetBottom, geometry.cardBottom) - Math.max(geometry.targetTop, geometry.cardTop) <= 0,
+  ).toBe(true)
+  expect(geometry.cardBottom).toBeLessThanOrEqual(740)
+
+  const beforeScroll = await page.evaluate(() => ({
+    cardTop: document.querySelector('[data-testid="guide-step"]')!.getBoundingClientRect().top,
+    scrollY: window.scrollY,
+    targetTop: document.querySelector('[data-testid="help-target-box"]')!.getBoundingClientRect().top,
+  }))
+  await page.mouse.wheel(0, -500)
+  await page.waitForTimeout(100)
+  const afterScroll = await page.evaluate(() => ({
+    cardTop: document.querySelector('[data-testid="guide-step"]')!.getBoundingClientRect().top,
+    scrollY: window.scrollY,
+    targetTop: document.querySelector('[data-testid="help-target-box"]')!.getBoundingClientRect().top,
+  }))
+  expect(afterScroll).toEqual(beforeScroll)
+
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(beforeScroll.scrollY)
+})
+
+test('effects guide highlights its tab without opening the effects workspace', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 720 })
+  await page.goto('/')
+  await page.getByTestId('getting-started-button').click()
+  await page.getByTestId('guide-create-synth').click()
+
+  const step = page.getByTestId('guide-step')
+  for (let index = 0; index < 4; index += 1) await step.getByRole('button', { name: 'Next' }).click()
+  await expect(step.getByRole('heading')).toHaveText('Color the signal with effects')
+  await expect(step).toBeInViewport()
+  await expect(page.getByTestId('help-target-box')).toHaveAttribute('data-help-target', 'Color the signal with effects')
+  await expect(page.getByRole('tab', { name: 'Effects' })).toHaveAttribute('aria-selected', 'false')
+  await expect(page.getByRole('tab', { name: /Oscillators/ })).toHaveAttribute('aria-selected', 'true')
+  await expectGuideCardNotToOverlapTarget(page)
 })

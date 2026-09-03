@@ -319,6 +319,7 @@ export class VitalWasmRenderer implements SynthRenderer {
   }
 
   private applyCommittedPatch(event: SessionCommitEvent): void {
+    if (event.affectedVariant !== event.currentVariant) return
     const previewPaths = Object.keys(this.previewValues).filter(isSupportedPatchPath)
     const previousEffectivePatch = this.effectivePatch
     const backingChanged = event.vitalBackingRevision !== this.vitalBackingRevision
@@ -628,7 +629,7 @@ export class VitalWasmRenderer implements SynthRenderer {
 
 function isModulationPath(path: string): boolean {
   return (
-    path.startsWith('lfo1.') ||
+    /^lfo[12]\./.test(path) ||
     path.startsWith('modEnvelope.') ||
     path === 'modulations' ||
     path.startsWith('filter.') ||

@@ -21,13 +21,6 @@ export interface VitalLfoRateValues {
 }
 
 export function mapVitalLfoRate(rate: LfoRate): VitalLfoRateValues {
-  if (rate.mode === 'free') {
-    return {
-      sync: 0,
-      tempo: VITAL_TEMPO_INDEX['1/4'],
-      frequency: Math.log2(rate.hz),
-    }
-  }
   return {
     sync: rate.division.endsWith('T') ? 3 : 1,
     tempo: VITAL_TEMPO_INDEX[rate.division],

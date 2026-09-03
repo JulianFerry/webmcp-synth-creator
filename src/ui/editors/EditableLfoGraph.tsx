@@ -27,6 +27,8 @@ export function EditableLfoGraph({ points, smooth, resetKey, testIdPrefix, playh
   const [draft, setDraft] = useState(points)
   const draftRef = useRef(points)
   const activeRef = useRef<ActiveHandle | null>(null)
+  const changedRef = useRef(false)
+  const pointerStartRef = useRef({ x: 0, y: 0 })
   const svgRef = useRef<SVGSVGElement>(null)
   useEffect(() => { activeRef.current = null; draftRef.current = points; setDraft(points) }, [points, resetKey])
   const coordinates = (event: PointerEvent) => {
@@ -36,9 +38,21 @@ export function EditableLfoGraph({ points, smooth, resetKey, testIdPrefix, playh
       y: Math.max(0, Math.min(1, (29 - point.y) / 26)),
     }
   }
-  const finish = () => { if (!activeRef.current) return; const accepted = onCommit(draftRef.current); activeRef.current = null; if (!accepted) { draftRef.current = points; setDraft(points) } }
-  const cancel = () => { activeRef.current = null; draftRef.current = points; setDraft(points) }
-  const update = (next: LfoPoint[]) => { draftRef.current = next; setDraft(next) }
+  const finish = () => {
+    if (!activeRef.current) return
+    if (!changedRef.current) { activeRef.current = null; return }
+    const accepted = onCommit(draftRef.current)
+    activeRef.current = null
+    changedRef.current = false
+    if (!accepted) { draftRef.current = points; setDraft(points) }
+  }
+  const cancel = () => { activeRef.current = null; changedRef.current = false; draftRef.current = points; setDraft(points) }
+  const update = (next: LfoPoint[]) => {
+    if (JSON.stringify(next) === JSON.stringify(draftRef.current)) return
+    changedRef.current = true
+    draftRef.current = next
+    setDraft(next)
+  }
   const moveActive = (point: LfoPoint) => {
     const active = activeRef.current
     if (!active) return
@@ -84,7 +98,7 @@ export function EditableLfoGraph({ points, smooth, resetKey, testIdPrefix, playh
       data-testid={`${testIdPrefix}-point-${index}`}
       onKeyDown={(event) => keyDown(event, { kind: 'position', index })}
       onKeyUp={(event) => { if (event.key.startsWith('Arrow')) finish() }}
-      onPointerDown={(event) => { event.preventDefault(); activeRef.current = { kind: 'position', index }; svgRef.current?.setPointerCapture(event.pointerId) }}
+      onPointerDown={(event) => { event.preventDefault(); changedRef.current = false; pointerStartRef.current = { x: event.clientX, y: event.clientY }; activeRef.current = { kind: 'position', index }; svgRef.current?.setPointerCapture(event.pointerId) }}
       data-handle-diameter="12"
       r="1.4"
       role="slider"
@@ -111,7 +125,7 @@ export function EditableLfoGraph({ points, smooth, resetKey, testIdPrefix, playh
       data-testid={`${testIdPrefix}-curve-${index}`}
       onKeyDown={(event) => keyDown(event, { kind: 'curve', index })}
       onKeyUp={(event) => { if (event.key.startsWith('Arrow')) finish() }}
-      onPointerDown={(event) => { event.preventDefault(); activeRef.current = { kind: 'curve', index }; svgRef.current?.setPointerCapture(event.pointerId) }}
+      onPointerDown={(event) => { event.preventDefault(); changedRef.current = false; pointerStartRef.current = { x: event.clientX, y: event.clientY }; activeRef.current = { kind: 'curve', index }; svgRef.current?.setPointerCapture(event.pointerId) }}
       data-handle-diameter="12"
       r="1.4"
       role="slider"
@@ -126,7 +140,13 @@ export function EditableLfoGraph({ points, smooth, resetKey, testIdPrefix, playh
   return <svg ref={svgRef} aria-label={`Editable LFO shape with ${draft.length} position points and ${Math.max(0, draft.length - 1)} curve points`} className="editable-graph" data-plot-inset="4" role="group" viewBox="0 0 100 32"
     onDoubleClick={(event) => { const next = insertLfoPoint(draftRef.current, coordinates(event as unknown as PointerEvent)); if (next !== draftRef.current && onCommit(next)) update(next) }}
     onPointerCancel={cancel}
-    onPointerMove={(event) => moveActive(coordinates(event))}
+    onPointerMove={(event) => {
+      if (!activeRef.current) return
+      const dx = event.clientX - pointerStartRef.current.x
+      const dy = event.clientY - pointerStartRef.current.y
+      if (!changedRef.current && Math.hypot(dx, dy) < 2) return
+      moveActive(coordinates(event))
+    }}
     onPointerUp={(event) => { if (svgRef.current?.hasPointerCapture(event.pointerId)) svgRef.current.releasePointerCapture(event.pointerId); finish() }}>
     <defs><linearGradient id={fillGradientId} x1="0" x2="0" y1="0" y2="1"><stop className="plot-area-stop-top" offset="0" /><stop className="plot-area-stop-bottom" offset="1" /></linearGradient></defs>
     <path className="plot-grid" d="M2 8H98M2 16H98M2 24H98M25 2V30M50 2V30M75 2V30" />

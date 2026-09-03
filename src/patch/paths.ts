@@ -43,15 +43,10 @@ const lfoPoint = z
     power: z.number().finite().min(-1).max(1).optional(),
   })
   .strict()
-const lfoRate = z.discriminatedUnion('mode', [
-  z
-    .object({
-      mode: z.literal('sync'),
-      division: z.enum(TEMPO_SYNC_DIVISIONS),
-    })
-    .strict(),
-  z.object({ mode: z.literal('free'), hz: z.number().finite().min(0.01).max(40) }).strict(),
-])
+const lfoRate = z.object({
+  mode: z.literal('sync'),
+  division: z.enum(TEMPO_SYNC_DIVISIONS),
+}).strict()
 const lfoPoints = z
   .array(lfoPoint)
   .min(2)
@@ -140,7 +135,7 @@ export const PATCH_PATH_REGISTRY = {
   'filter.velocityToCutoff': metadata(unitInterval, 'normalized 0..1'),
   'lfo1.enabled': metadata(z.boolean(), 'boolean'),
   'lfo1.points': metadata(lfoPoints, 'normalized point list'),
-  'lfo1.rate': metadata(lfoRate, 'tempo division or hertz'),
+  'lfo1.rate': metadata(lfoRate, 'tempo division'),
   'lfo1.phase': metadata(unitInterval, 'normalized 0..1'),
   'lfo1.smooth': metadata(z.boolean(), 'boolean'),
   'lfo1.smoothing': metadata(unitInterval, 'normalized 0..1'),
@@ -149,7 +144,7 @@ export const PATCH_PATH_REGISTRY = {
   'lfo1.depth': metadata(unitInterval, 'normalized 0..1'),
   'lfo2.enabled': metadata(z.boolean(), 'boolean'),
   'lfo2.points': metadata(lfoPoints, 'normalized point list'),
-  'lfo2.rate': metadata(lfoRate, 'tempo division or hertz'),
+  'lfo2.rate': metadata(lfoRate, 'tempo division'),
   'lfo2.phase': metadata(unitInterval, 'normalized 0..1'),
   'lfo2.smooth': metadata(z.boolean(), 'boolean'),
   'lfo2.smoothing': metadata(unitInterval, 'normalized 0..1'),

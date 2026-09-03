@@ -64,9 +64,15 @@ test('oscillators default to 3D and toggle locally with full, matched stages', a
   const source = page.getByTestId('oscillator-1-wavetable')
   const options = await source.locator('option').evaluateAll((nodes) => nodes.map((node) => ({ label: node.textContent ?? '', value: (node as HTMLOptionElement).value })))
   const staticOption = options.find((option) => /sine/i.test(option.label)) ?? options[0]
+  await mode3d.click()
+  await expect(mode3d).toHaveAttribute('aria-pressed', 'true')
   await source.selectOption(staticOption.value)
   await expect(position).toBeDisabled()
   await expect(position).toHaveAccessibleDescription(/one static frame/i)
+  await expect(mode2d).toHaveAttribute('aria-pressed', 'true')
+  await expect(mode3d).toBeDisabled()
+  await expect(page.getByTestId('oscillator-1-waterfall')).toHaveCount(0)
+  await expect(page.getByTestId('oscillator-1-waveform')).toBeVisible()
 
   await expect(page.getByTestId('oscillator-3-editor')).toHaveClass(/is-disabled/)
   const telemetry = page.getByTestId('audio-adapter-state')
@@ -131,7 +137,7 @@ test('oscillator mix and voicing sliders reset to an undoable midpoint on double
     fine: '0',
     unison: '5',
     detune: '0.5',
-    'random-phase': '0.5',
+    'random-phase': '180',
   }
 
   for (const [control, midpoint] of Object.entries(midpointValues)) {

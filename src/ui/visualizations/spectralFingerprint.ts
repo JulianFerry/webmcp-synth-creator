@@ -4,14 +4,16 @@ export const SPECTRAL_FINGERPRINT_FRAMES = 100
 export const SPECTRAL_FINGERPRINT_BANDS = 88
 export const SPECTRAL_FINGERPRINT_ROTATION_DEGREES = 34
 export const SPECTRAL_FINGERPRINT_TILT_DEGREES = 30
+export const SPECTRAL_FINGERPRINT_DURATION_SECONDS = 2
+export const SPECTRAL_FINGERPRINT_NOTE_PRESS_SECONDS = 1
 
-const DURATION_SECONDS = 1.2
 const FUNDAMENTAL_HZ = 130.81
 const MIN_FREQUENCY_HZ = 70
 const MAX_FREQUENCY_HZ = 12_000
 
 export interface SpectralFingerprintSurface {
   bands: number
+  durationSeconds: number
   frames: number
   magnitudes: Float32Array
 }
@@ -58,7 +60,7 @@ function syncRateHz(division: string): number {
 
 function lfoValue(patch: PatchState, time: number): number {
   if (!patch.lfo1.enabled || patch.lfo1.points.length === 0) return 1
-  const rate = patch.lfo1.rate.mode === 'free' ? patch.lfo1.rate.hz : syncRateHz(patch.lfo1.rate.division)
+  const rate = syncRateHz(patch.lfo1.rate.division)
   const phase = (time * rate + patch.lfo1.phase) % 1
   const points = [...patch.lfo1.points].sort((left, right) => left.x - right.x)
   const upperIndex = points.findIndex((point) => point.x >= phase)
@@ -75,7 +77,7 @@ function envelopeValue(envelope: EnvelopeState, time: number): number {
   const attackEnd = Math.max(0.001, envelope.attackSeconds)
   const holdEnd = attackEnd + envelope.holdSeconds
   const decayEnd = holdEnd + Math.max(0.001, envelope.decaySeconds)
-  const releaseStart = DURATION_SECONDS * 0.78
+  const releaseStart = SPECTRAL_FINGERPRINT_NOTE_PRESS_SECONDS
   let heldValue: number
   if (time < attackEnd) heldValue = time / attackEnd
   else if (time < holdEnd) heldValue = 1
@@ -133,11 +135,11 @@ export function buildSpectralFingerprintSurface(patch: PatchState): SpectralFing
   let peak = 0
 
   for (let frame = 0; frame < SPECTRAL_FINGERPRINT_FRAMES; frame += 1) {
-    const time = frame / (SPECTRAL_FINGERPRINT_FRAMES - 1) * DURATION_SECONDS
+    const time = frame / (SPECTRAL_FINGERPRINT_FRAMES - 1) * SPECTRAL_FINGERPRINT_DURATION_SECONDS
     const envelope = envelopeValue(patch.ampEnvelope, time)
     const lfo = lfoValue(patch, time)
     const delayedEnvelope = delay ? envelopeValue(patch.ampEnvelope, Math.max(0, time - delaySeconds(patch))) * delay.mix * (0.45 + delay.feedback * 0.45) : 0
-    const reverbTail = reverb ? reverb.mix * (0.08 + 0.22 * (time / DURATION_SECONDS)) * Math.exp(-time / Math.max(0.2, reverb.decaySeconds)) : 0
+    const reverbTail = reverb ? reverb.mix * (0.08 + 0.22 * (time / SPECTRAL_FINGERPRINT_DURATION_SECONDS)) * Math.exp(-time / Math.max(0.2, reverb.decaySeconds)) : 0
     const filterCutoff = patch.filter.cutoffHz * 2 ** ((cutoffRoute?.amount ?? 0) * (lfo - 0.5) * 3)
 
     for (let band = 0; band < SPECTRAL_FINGERPRINT_BANDS; band += 1) {
@@ -156,7 +158,12 @@ export function buildSpectralFingerprintSurface(patch: PatchState): SpectralFing
     }
   }
   if (peak > 0) for (let index = 0; index < magnitudes.length; index += 1) magnitudes[index] /= peak
-  return { bands: SPECTRAL_FINGERPRINT_BANDS, frames: SPECTRAL_FINGERPRINT_FRAMES, magnitudes }
+  return {
+    bands: SPECTRAL_FINGERPRINT_BANDS,
+    durationSeconds: SPECTRAL_FINGERPRINT_DURATION_SECONDS,
+    frames: SPECTRAL_FINGERPRINT_FRAMES,
+    magnitudes,
+  }
 }
 
 function project(x: number, y: number, z: number, projection: Projection): ProjectedPoint {
@@ -174,11 +181,11 @@ function frequencyX(frequency: number): number {
   return Math.log(frequency / MIN_FREQUENCY_HZ) / Math.log(MAX_FREQUENCY_HZ / MIN_FREQUENCY_HZ) * 2 - 1
 }
 
-function timeZ(time: number): number {
-  return time / DURATION_SECONDS * 2 - 1
+function timeZ(time: number, durationSeconds: number): number {
+  return time / durationSeconds * 2 - 1
 }
 
-function drawAxes(context: CanvasRenderingContext2D, projection: Projection, width: number): void {
+function drawAxes(context: CanvasRenderingContext2D, projection: Projection, width: number, durationSeconds: number): void {
   const timeEdge = project(0, 0, -1, projection).depth > project(0, 0, 1, projection).depth ? -1 : 1
   const frequencyEdge = project(-1, 0, 0, projection).depth > project(1, 0, 0, projection).depth ? -1 : 1
   context.lineWidth = 0.65
@@ -212,8 +219,8 @@ function drawAxes(context: CanvasRenderingContext2D, projection: Projection, wid
 
   context.textAlign = frequencyEdge < 0 ? 'right' : 'left'
   context.textBaseline = 'middle'
-  ;[0, 0.6, 1.2].forEach((time) => {
-    const z = timeZ(time)
+  ;[0, durationSeconds / 2, durationSeconds].forEach((time) => {
+    const z = timeZ(time, durationSeconds)
     const start = project(-1, 0, z, projection)
     const end = project(1, 0, z, projection)
     context.strokeStyle = 'rgba(132, 149, 168, .12)'
@@ -242,15 +249,16 @@ export function drawSpectralFingerprint(
     scale: Math.min(width * 0.34, height * 0.58),
     tilt: view.tilt * Math.PI / 180,
   }
-  drawAxes(context, projection, width)
+  const durationSeconds = surface?.durationSeconds ?? SPECTRAL_FINGERPRINT_DURATION_SECONDS
+  drawAxes(context, projection, width, durationSeconds)
   if (!surface) return
   const order = Array.from({ length: surface.frames }, (_, index) => index).sort((left, right) => {
-    return project(0, 0, timeZ(left / (surface.frames - 1) * DURATION_SECONDS), projection).depth
-      - project(0, 0, timeZ(right / (surface.frames - 1) * DURATION_SECONDS), projection).depth
+    return project(0, 0, timeZ(left / (surface.frames - 1) * durationSeconds, durationSeconds), projection).depth
+      - project(0, 0, timeZ(right / (surface.frames - 1) * durationSeconds, durationSeconds), projection).depth
   })
 
   order.forEach((frame) => {
-    const z = timeZ(frame / (surface.frames - 1) * DURATION_SECONDS)
+    const z = timeZ(frame / (surface.frames - 1) * durationSeconds, durationSeconds)
     const near = clamp((project(0, 0, z, projection).depth + 1) / 2)
     context.beginPath()
     const start = project(-1, 0, z, projection)

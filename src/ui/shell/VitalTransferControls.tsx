@@ -18,8 +18,8 @@ export function VitalTransferControls({ exportFilename, vitalStatus, onImport, o
     if (file) void onImport(file)
   }
 
-  return <section aria-label="Patch transfer" className="sidebar-transfer">
-    <div className="sidebar-section-heading"><span>Patch</span><strong className="visually-hidden" aria-live="polite" data-testid="vital-transfer-status">Vital transfer {vitalStatus}</strong></div>
+  return <section aria-label="Preset transfer" className="sidebar-transfer">
+    <div className="sidebar-section-heading"><span>Preset</span><strong className="visually-hidden" aria-live="polite" data-testid="vital-transfer-status">Vital transfer {vitalStatus}</strong></div>
     <div className="sidebar-transfer-row sidebar-preset-row">
       <PatchHeader {...preset} />
     </div>

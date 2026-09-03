@@ -124,12 +124,11 @@ filter.drive = amount*0.4`,
       target: optional(enumeration(['level', 'position', 'pitch', 'cutoff'])),
       scope: optional(lfoScope()),
       shape: optional(enumeration(['sine', 'triangle', 'ramp_up', 'ramp_down', 'random', 'smooth_random'])),
-      sync: optional(boolean()),
     },
     mapping: `movement is continuous modulation; gate is stepped and rhythmic. Both can target level.
 Target defaults to position; scope defaults to all and is forced to all for cutoff; shape defaults to sine.
 lfo2.enabled = true; lfo2.points = SHAPES[shape ?? "sine"]
-lfo2.rate = sync ?? true ? {mode:"sync", division:divisionFor(rate ?? 0.25)} : {mode:"free", hz:lfoHz(rate ?? 0.25)}
+lfo2.rate = {mode:"sync", division:divisionFor(rate ?? 0.25)}
 lfo2.smoothing = 0.4; lfo2.target = target; lfo2.scope = scope; lfo2.depth = amount.`,
   },
   {

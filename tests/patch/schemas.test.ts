@@ -49,6 +49,31 @@ describe('PatchState schema', () => {
     }
   })
 
+  it.each([
+    [0.5, '1/1'],
+    [1, '1/2'],
+    [2, '1/4'],
+    [4, '1/8'],
+    [32, '1/64'],
+    [3, '1/8'],
+  ] as const)('migrates legacy free LFO rate %s Hz at 120 BPM to %s', (hz, division) => {
+    const legacy = structuredClone(createDefaultPatch()) as any
+    legacy.lfo1.rate = { mode: 'free', hz }
+    legacy.lfo2.rate = { mode: 'free', hz }
+
+    const parsed = parsePatchState(legacy)
+    expect(parsed.lfo1.rate).toEqual({ mode: 'sync', division })
+    expect(parsed.lfo2.rate).toEqual({ mode: 'sync', division })
+  })
+
+  it('rejects free LFO rates after migration at canonical edit boundaries', () => {
+    expect(() => parseApplyPatchCommand({
+      type: 'apply_patch',
+      reason: 'Try hidden free mode',
+      changes: [{ path: 'lfo1.rate', value: { mode: 'free', hz: 2 } }],
+    })).toThrow()
+  })
+
   it('rejects a 24 dB notch slope that Vital cannot represent', () => {
     const patch = createDefaultPatch()
     patch.filter.type = 'notch'

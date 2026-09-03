@@ -14,7 +14,7 @@ export type Operation =
   | { op: 'width'; amount: number; method?: 'unison' | 'pan' | 'stereo_fx' | 'auto' }
   | { op: 'space'; amount: number; size?: number; delay_amount?: number; predelay?: number }
   | { op: 'drive'; amount: number; character?: 'soft' | 'hard' | 'fold' | 'crush' }
-  | { op: 'movement'; amount: number; rate?: number; target?: LfoTarget; scope?: LfoScope; shape?: MovementShape; sync?: boolean }
+  | { op: 'movement'; amount: number; rate?: number; target?: LfoTarget; scope?: LfoScope; shape?: MovementShape }
   | { op: 'gate'; pattern: GatePattern; division?: TempoSyncDivision; depth?: number; smoothing?: number; target?: LfoTarget; scope?: LfoScope }
   | { op: 'balance'; osc1?: number; osc2?: number; osc3?: number }
   | { op: 'layer'; role: 'sub' | 'octave_up' | 'fifth' | 'unison_detune' | 'none'; level?: number; wavetable?: string }

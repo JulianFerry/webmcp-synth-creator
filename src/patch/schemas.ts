@@ -135,15 +135,10 @@ export const lfoPointsSchema = z
     }
   })
 
-export const lfoRateSchema = z.discriminatedUnion('mode', [
-  z
-    .object({
-      mode: z.literal('sync'),
-      division: z.enum(TEMPO_SYNC_DIVISIONS),
-    })
-    .strict(),
-  z.object({ mode: z.literal('free'), hz: z.number().finite().min(0.01).max(40) }).strict(),
-])
+export const lfoRateSchema = z.object({
+  mode: z.literal('sync'),
+  division: z.enum(TEMPO_SYNC_DIVISIONS),
+}).strict()
 
 export const lfoStateSchema = z
   .object({

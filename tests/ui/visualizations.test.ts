@@ -45,6 +45,22 @@ describe('ADSR visualization', () => {
     expect(release.releaseEndX).toBeGreaterThan(base.releaseEndX)
     expect(new Set([base.path, attack.path, hold.path, decay.path, sustain.path, release.path, delay.path, curved.path]).size).toBe(8)
   })
+
+  it('starts every curved phase at its exact preceding phase point', () => {
+    const plot = createEnvelopePlot(envelope)
+    expect(plot.attackPath.startsWith(`M${plot.delayEndX.toFixed(2)} 29.00`)).toBe(true)
+    expect(plot.decayPath.startsWith(`M${plot.holdEndX.toFixed(2)} 3.00`)).toBe(true)
+    expect(plot.releasePath.startsWith(`M${plot.releaseStartX.toFixed(2)} ${plot.sustainY.toFixed(2)}`)).toBe(true)
+  })
+
+  it('starts an ADSR plot at attack without a hidden delay baseline', () => {
+    const plot = createEnvelopePlot(envelope, { includeDelayPhase: false })
+
+    expect(plot.delayEndX).toBe(4)
+    expect(plot.attackPath.startsWith('M4.00 29.00')).toBe(true)
+    expect(plot.linePath.startsWith(plot.attackPath)).toBe(true)
+    expect(plot.linePath).not.toContain('M4 29 L')
+  })
 })
 
 describe('filter response visualization', () => {

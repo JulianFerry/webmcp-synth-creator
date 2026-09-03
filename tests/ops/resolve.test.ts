@@ -79,7 +79,7 @@ describe('Phase 5 operation resolver exact emitted paths', () => {
       'lfo2.enabled', 'lfo2.points', 'lfo2.rate', 'lfo2.smoothing',
       'lfo2.target', 'lfo2.scope', 'lfo2.depth',
     ])
-    const result = resolveOps(patch(), [{ op: 'movement', amount: 0.5, target: 'pitch', scope: 2, shape: 'triangle', sync: false, rate: 0.5 }])
+    const result = resolveOps(patch(), [{ op: 'movement', amount: 0.5, target: 'pitch', scope: 2, shape: 'triangle', rate: 0.5 }])
     expect(result.find(({ path }) => path === 'lfo2.points')?.value).toEqual(MOVEMENT_SHAPES.triangle)
     expect(result).toContainEqual({ path: 'lfo2.target', value: 'pitch' })
     expect(result).toContainEqual({ path: 'lfo2.scope', value: 2 })

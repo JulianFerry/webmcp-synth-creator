@@ -49,10 +49,7 @@ export function FilterPanel({
   return (
     <article className={`panel filter-panel effect-editor${filter.enabled ? '' : ' is-disabled'}`}>
       <div className="panel-heading">
-        <div>
-          <p className="eyebrow">Biquad tone stage</p>
-          <h2>Filter</h2>
-        </div>
+        <h2>Filter</h2>
         <ToggleControl
           checked={filter.enabled}
           label="Filter"
@@ -68,6 +65,7 @@ export function FilterPanel({
       >
         <svg
           aria-label={`${modeLabel} response at ${previewFilter.cutoffHz.toLocaleString()} hertz with ${Math.round(previewFilter.resonance * 100)} percent resonance${filter.enabled ? '' : ', filter bypassed'}`}
+          preserveAspectRatio="none"
           role="img"
           viewBox="0 0 100 72"
         >

@@ -81,10 +81,9 @@ describe('point LFO evaluation', () => {
     expect(syncDivisionSeconds(division, 120)).toBeCloseTo(expected)
   })
 
-  it('maps free rates, wraps phase, and evaluates phase offsets', () => {
+  it('maps synchronized rates, wraps phase, and evaluates phase offsets', () => {
     expect(lfoRateHz({ mode: 'sync', division: '1/8' }, 120)).toBe(4)
     expect(lfoRateHz({ mode: 'sync', division: '1/8T' }, 120)).toBe(6)
-    expect(lfoRateHz({ mode: 'free', hz: 3.25 }, 120)).toBe(3.25)
     expect(wrapPhase(-0.25)).toBe(0.75)
     expect(wrapPhase(2.25)).toBe(0.25)
 
@@ -94,7 +93,7 @@ describe('point LFO evaluation', () => {
         { x: 0, y: 0 },
         { x: 1, y: 1 },
       ],
-      rate: { mode: 'free', hz: 1 },
+      rate: { mode: 'sync', division: '1/2' },
       phase: 0.75,
       smooth: false,
       smoothing: 1.5 / 14,
@@ -106,7 +105,7 @@ describe('point LFO evaluation', () => {
   })
 
   it('tracks only the visited portion of the current cycle from configured phase', () => {
-    const configured = { phase: 0.25, rate: { mode: 'free' as const, hz: 1 } }
+    const configured = { phase: 0.25, rate: { mode: 'sync' as const, division: '1/2' as const } }
     const beforeWrap = evaluateLfoCycle(configured, 0.2)
     expect(beforeWrap.phase).toBeCloseTo(0.45)
     expect(beforeWrap.visitedStartPhase).toBe(0.25)
